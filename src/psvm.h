@@ -3,34 +3,34 @@
 
 #include <vector>
 #include <memory>
-#include <string>
+//#include <string>
 
 #include "pscore.h"
 #include "dictionarystack.h"
 #include "bspan.h"
 
 
-namespace waavsps 
+namespace waavs
 {
 // Forward declaration for operators
 struct PSVirtualMachine;
 
 struct PSOperatorTable 
 {
-    std::unordered_map<std::string, PSOperator> ops;
+	std::unordered_map<ByteSpan, PSOperator> ops;
 
-    void registerOp(const char* name, PSOperatorFunc fn) {
+    void add(const ByteSpan & name, PSOperatorFunc fn) {
         ops[name] = PSOperator(name, fn);
     }
 
-    PSOperator* lookup(const std::string& name) {
+    PSOperator* lookup(const ByteSpan& name) {
         auto it = ops.find(name);
         if (it != ops.end())
             return &it->second;
         return nullptr;
     }
 
-    bool contains(const std::string& name) const 
+    bool contains(const ByteSpan& name) const 
     {
         return ops.find(name) != ops.end();
     }
@@ -71,12 +71,21 @@ public:
     }
 
 	// When we register a builtin operator, we also add it to the system dictionary
-    inline void registerBuiltin(const char* name, PSOperatorFunc fn) 
+
+
+    void registerBuiltin(const ByteSpan &name, PSOperatorFunc fn) 
     {
-        operatorTable.registerOp(name, fn);
+        operatorTable.add(name, fn);
         auto* op = operatorTable.lookup(name);
         if (op) {
             systemdict->put(name, PSObject::fromOperator(op));
+        }
+    }
+
+    void registerOps(PSOperatorMap &ops)
+    {
+        for (const auto& entry : ops) {
+            registerBuiltin(entry.first, entry.second);
         }
     }
 
@@ -172,7 +181,7 @@ bool PSVirtualMachine::executeName(const waavs::ByteSpan& name)
 {
     PSObject obj;
     if (!dictionaryStack.load(name, obj)) {
-        // Name not found — treat as literal
+        // Name not found ï¿½ treat as literal
         push(PSObject::fromName(name));
         return true;
     }
@@ -181,7 +190,7 @@ bool PSVirtualMachine::executeName(const waavs::ByteSpan& name)
         return execute(obj);
     }
 
-    // Literal value — push it
+    // Literal value ï¿½ push it
     push(obj);
     return true;
 }

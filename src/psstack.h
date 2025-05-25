@@ -4,7 +4,7 @@
 #include <vector>
 #include <utility>
 
-namespace waavsps {
+namespace waavs {
     template<typename T>
     struct PSStack {
     private:

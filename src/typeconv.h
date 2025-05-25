@@ -1,19 +1,21 @@
 #pragma once
 
-#include "bspan.h"
+
+#include "ocspan.h"
+#include "charset.h"
 
 namespace waavs {
     // read_u64
 // Read a 64-bit unsigned integer from the input span
 // advance the span 
-    static INLINE bool read_u64(ByteSpan& s, uint64_t& v) noexcept
+    static INLINE bool read_u64(OctetCursor& s, uint64_t& v) noexcept
     {
-        if (!s)
+        if (s.empty())
             return false;
 
         v = 0;
-        const unsigned char* sStart = s.fStart;
-        const unsigned char* sEnd = s.fEnd;
+        const unsigned char* sStart = s.begin();
+        const unsigned char* sEnd = s.end();
 
         while ((sStart < sEnd) && is_digit(*sStart))
         {
@@ -28,13 +30,12 @@ namespace waavs {
 
     // Assumption:  We're sitting at beginning of a number, all whitespace handling
     // has already occured.
-    static bool inline readDecimal(ByteSpan& s, double& value) noexcept
+    static bool inline readDecimal(OctetCursor& s, double& value) noexcept
     {
-        const unsigned char* startAt = s.fStart;
-        const unsigned char* endAt = s.fEnd;
+        const unsigned char* startAt = s.begin();
+        const unsigned char* endAt = s.end();
 
         bool isNegative = false;
-        //double sign = 1.0;
         double res = 0.0;
 
         // integer part

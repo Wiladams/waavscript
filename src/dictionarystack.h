@@ -2,9 +2,10 @@
 
 #include <vector>
 #include <memory>
+
 #include "pscore.h"
 
-namespace waavsps {
+namespace waavs {
     struct PSDictionaryStack {
         std::vector<std::shared_ptr<PSDictionary>> stack;
 
@@ -26,11 +27,11 @@ namespace waavsps {
             return stack.back();
         }
 
-        bool def(const std::string& key, const PSObject& value) {
+        bool def(const ByteSpan& key, const PSObject& value) {
             return currentdict()->put(key, value);
         }
 
-        bool load(const std::string& key, PSObject& out) const {
+        bool load(const ByteSpan& key, PSObject& out) const {
             for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
                 if ((*it)->get(key, out))
                     return true;
@@ -38,8 +39,9 @@ namespace waavsps {
             return false;
         }
 
-        bool store(const std::string& key, const PSObject& value) {
-            for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
+        bool store(const ByteSpan& key, const PSObject& value) {
+            for (auto it = stack.rbegin(); it != stack.rend(); ++it) 
+            {
                 if ((*it)->contains(key)) {
                     (*it)->put(key, value);
                     return true;

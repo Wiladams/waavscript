@@ -16,6 +16,8 @@
 #include <cstdint>		// uint8_t, etc
 #include <cstddef>		// nullptr_t, ptrdiff_t, size_t
 #include <cctype>
+#include <cstring>
+#include <type_traits>	// std::is_trivially_copyable, etc
 
 /*
 // Platform intrinsics
@@ -61,4 +63,25 @@
 #endif
 
 
+
+// Useful assertions for type construction
+// Asserts that a type is trivially copyable (memcpy-safe)
+#define ASSERT_MEMCPY_SAFE(Type) \
+    static_assert(std::is_trivially_copyable<Type>::value, #Type " must be trivially copyable"); \
+    static_assert(std::is_standard_layout<Type>::value,    #Type " must have standard layout")
+
+// Asserts that a type is a POD (Plain Old Data) stricter than memcpy-safe
+#define ASSERT_POD_TYPE(Type)                                                   \
+    static_assert(std::is_trivially_copyable<Type>::value,                      \
+        #Type " must be trivially copyable (POD requirement)");                 \
+    static_assert(std::is_standard_layout<Type>::value,                         \
+        #Type " must have standard layout (POD requirement)")
+
+// Asserts that a type has a predictable C-compatible layout (but not necessarily trivial)
+#define ASSERT_FLAT_STRUCT(Type) \
+    static_assert(std::is_standard_layout<Type>::value, #Type " must have standard layout")
+
+// Asserts that a type has an exact size (e.g., for packed structs or cache alignment)
+#define ASSERT_STRUCT_SIZE(Type, ExpectedSize) \
+    static_assert(sizeof(Type) == (ExpectedSize), #Type " must be " #ExpectedSize " bytes in size")
 

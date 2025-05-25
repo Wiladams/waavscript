@@ -5,10 +5,39 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <functional>
+#include <memory>
 
-#include "bspan.h"
 
-namespace waavsps {
+#include "ocspan.h"
+
+
+// global name table for interned strings
+namespace waavs {
+    struct PSNameTable {
+        std::unordered_map<OctetCursor, std::string> pool;
+
+        const char* intern(const OctetCursor & name) 
+        {
+			// if it's already in the pool, return pointer to the string
+            auto it = pool.find(name);
+            if (it != pool.end()) return it->second.c_str();
+
+            // if it's not in the pool, create a string to represent it
+            // put it in the pool.
+            auto inserted = pool.emplace(name, std::string((char *)name.data(), name.size()));
+            return inserted.first->second.c_str();
+        }
+
+		// We want to support a singleton instance of PSNameTable
+        static PSNameTable * getTable() {
+			static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
+            return gTable.get();
+		}
+    };
+}
+
+namespace waavs {
     // --------------------
     // Forward Declarations
     // --------------------
@@ -42,8 +71,8 @@ namespace waavsps {
     // --------------------
     struct PSString
     {
-        uint8_t* data = nullptr;
         uint32_t capacity = 0;
+        uint8_t* data = nullptr;
         uint32_t length = 0;
         bool isExec = false;
 
@@ -114,113 +143,97 @@ namespace waavsps {
     // --------------------
     // PSOperator
     // --------------------
-    using PSOperatorFunc = bool (*)(PSVirtualMachine&);
-
+    using PSOperatorFunc = std::function<bool(PSVirtualMachine &)>;
+    using PSOperatorMap = std::unordered_map<OctetCursor, PSOperatorFunc>;
+    
     struct PSOperator {
-        const char* name = nullptr;
+        OctetCursor name{};
         PSOperatorFunc func = nullptr;
 
-        PSOperator() = default;
+        //PSOperator() = default;
 
-        PSOperator(const char* n, PSOperatorFunc f)
-            : name(n), func(f) {
-        }
+        PSOperator(const OctetCursor&nm, PSOperatorFunc f)
+            : name(nm)
+            , func(f) {}
     };
 
     // --------------------
     // PSObject
     // --------------------
-    struct PSObject {
+    struct PSObject 
+    {
         PSObjectType type = PSObjectType::Null;
 
         union {
             int32_t iVal;
             double  fVal;
             bool    bVal;
-            const char* name;
             PSString* str;
             PSArray* arr;
             PSDictionary* dict;
             PSOperator* op;
+			const char* name;         // strings are interned as char pointers
         } data;
 
-        static PSObject fromInt(int32_t v) {
-            PSObject o;
-            o.type = PSObjectType::Int;
-            o.data.iVal = v;
-            return o;
-        }
-
-        static PSObject fromReal(double v) {
-            PSObject o;
-            o.type = PSObjectType::Real;
-            o.data.fVal = v;
-            return o;
-        }
-
-        static PSObject fromBool(bool v) {
-            PSObject o;
-            o.type = PSObjectType::Bool;
-            o.data.bVal = v;
-            return o;
-        }
-
-        static PSObject fromName(const char* n) {
-            PSObject o;
-            o.type = PSObjectType::Name;
-            o.data.name = n;
-            return o;
-        }
-
-        static PSObject fromName(const waavs::ByteSpan& span) {
-            PSObject o;
-            o.type = PSObjectType::Name;
-
-            // Allocate and null-terminate
-            char* buf = new char[span.size() + 1];
-            std::memcpy(buf, span.data(), span.size());
-            buf[span.size()] = '\0';
-
-            o.data.name = buf;
-            return o;
-        }
-
-        static PSObject fromString(PSString* s) {
-            PSObject o;
-            o.type = PSObjectType::String;
-            o.data.str = s;
-            return o;
-        }
-
-        static PSObject fromArray(PSArray* a) {
-            PSObject o;
-            o.type = PSObjectType::Array;
-            o.data.arr = a;
-            return o;
-        }
-
-        static PSObject fromOperator(PSOperator* f) {
-            PSObject o;
-            o.type = PSObjectType::Operator;
-            o.data.op = f;
-            return o;
-        }
-
-        static PSObject fromDictionary(PSDictionary* d) {
-            PSObject o;
-            o.type = PSObjectType::Dictionary;
-            o.data.dict = d;
-            return o;
+		// Reset the current instance to a specific type
+        bool resetFromInt(int32_t v) {
+            type = PSObjectType::Int;
+            data.iVal = v;
+            return true;
+		}
+        bool resetFromReal(double v) {
+            type = PSObjectType::Real;
+            data.fVal = v;
+            return true;
+		}
+        bool resetFromBool(bool v) {
+            type = PSObjectType::Bool;
+			data.bVal = v;
+            return true;
 		}
 
-        static PSObject mark() {
-            PSObject o;
-            o.type = PSObjectType::Mark;
-            return o;
+        bool resetFromName(const OctetCursor& span) 
+        {
+			const char* internedName = PSNameTable::getTable()->intern(span);
+
+            type = PSObjectType::Name;
+			data.name = internedName;
+
+            return true;
         }
 
-        static PSObject null() {
-            return PSObject();
+        bool resetFromString(PSString* s) {
+            type = PSObjectType::String;
+            data.str = s;
+            return true;
+        }
+
+        bool resetFromArray(PSArray* a) {
+            type = PSObjectType::Array;
+            data.arr = a;
+            return true;
+        }
+
+        bool resetFromOperator(PSOperator* f) {
+            type = PSObjectType::Operator;
+            data.op = f;
+            return true;
+        }
+
+        bool resetFromDictionary(PSDictionary* d) {
+            type = PSObjectType::Dictionary;
+            data.dict = d;
+            return true;
+		}
+
+        bool resetFromMark() {
+            type = PSObjectType::Mark;
+            return true;
+        }
+
+        bool reset() {
+            *this = PSObject();
+            return true;
         }
 
         // Some attributes
@@ -239,21 +252,21 @@ namespace waavsps {
     // PSDictionary
     // --------------------
     struct PSDictionary {
-        std::unordered_map<std::string, PSObject> entries;
+        std::unordered_map<const char *, PSObject> entries;
 
-        bool put(const std::string& key, const PSObject& value) {
+        bool put(const char * key, const PSObject& value) {
             entries[key] = value;
             return true;
         }
 
-        bool get(const std::string& key, PSObject& out) const {
+        bool get(const char * key, PSObject& out) const {
             auto it = entries.find(key);
             if (it == entries.end()) return false;
             out = it->second;
             return true;
         }
 
-        bool contains(const std::string& key) const {
+        bool contains(const char * key) const {
             return entries.find(key) != entries.end();
         }
 
@@ -261,6 +274,7 @@ namespace waavsps {
             entries.clear();
         }
     };
+
     // --------------------
     // PSArray
     // --------------------

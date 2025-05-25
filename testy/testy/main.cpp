@@ -6,7 +6,7 @@
 #include "psvmfactory.h"
 #include "ps_scanner.h"
 
-using namespace waavsps;
+using namespace waavs;
 
 static void printObject(const PSObject& obj) {
     switch (obj.type) {

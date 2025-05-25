@@ -14,7 +14,8 @@
 #include "ps_ops_debug.h"
 
 
-namespace waavsps {
+namespace waavs
+{
 	// We have this factory because there is a separation of the virtual machine
 	// and the operations that come with it by default.  This factory allows
 	// us to create a new virtual machine and register the built-in operations
@@ -56,11 +57,12 @@ namespace waavsps {
 
 		static inline void registerArrayOps(PSVirtualMachine *vm) 
 		{
-			vm->registerBuiltin("array", op_array);					// creates an array of the given size
-			vm->registerBuiltin("aload", op_aload);
-			vm->registerBuiltin("astore", op_astore);
-			vm->registerBuiltin("getinterval", op_getinterval);
-			vm->registerBuiltin("putinterval", op_putinterval);
+			vm->registerOps(arrayOps);
+			//vm->registerBuiltin("array", op_array);					// creates an array of the given size
+			//vm->registerBuiltin("aload", op_aload);
+			//vm->registerBuiltin("astore", op_astore);
+			//vm->registerBuiltin("getinterval", op_getinterval);
+			//vm->registerBuiltin("putinterval", op_putinterval);
 		}
 
 

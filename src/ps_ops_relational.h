@@ -2,7 +2,8 @@
 
 #include "pscore.h"
 
-namespace waavsps {
+namespace waavs
+{
 	template <typename Func>
 	inline bool binaryCompareOp(PSVirtualMachine& vm, Func func) {
 		auto& s = vm.operandStack;

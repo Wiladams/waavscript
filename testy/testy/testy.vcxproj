@@ -129,6 +129,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>..\..\src;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -143,6 +144,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>..\..\src;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -177,11 +179,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\bithacks.h" />
     <ClInclude Include="..\..\src\bspan.h" />
     <ClInclude Include="..\..\src\bspanutil.h" />
     <ClInclude Include="..\..\src\charset.h" />
     <ClInclude Include="..\..\src\definitions.h" />
     <ClInclude Include="..\..\src\dictionarystack.h" />
+    <ClInclude Include="..\..\src\membuff.h" />
     <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\psinterpreter.h" />
     <ClInclude Include="..\..\src\psstack.h" />

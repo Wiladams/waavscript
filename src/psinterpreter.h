@@ -3,7 +3,7 @@
 #include "ps_scanner.h"
 #include "psvm.h"
 
-namespace waavsps {
+namespace waavs {
 
     struct PSInterpreter {
         PSVirtualMachine& vm;

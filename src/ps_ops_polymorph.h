@@ -8,7 +8,8 @@
 // they can apply to different types of objects.
 //======================================================================
 
-namespace waavsps {
+namespace waavs 
+{
 
 	// get: container index -> value
     inline bool op_get(PSVirtualMachine& vm) {
@@ -201,7 +202,7 @@ namespace waavsps {
 
         case PSObjectType::Dictionary: {
             for (const auto& entry : obj.data.dict->entries) {
-                s.push_back(PSObject::fromName(entry.first.c_str()));
+                s.push_back(PSObject::fromName(entry.first));
                 s.push_back(entry.second);
                 vm.execArray(proc.data.arr);
             }

@@ -2,7 +2,8 @@
 
 #include "pscore.h"
 
-namespace waavsps {
+namespace waavs
+{
 	inline bool op_and(PSVirtualMachine& vm) {
 		auto& s = vm.operandStack;
 		if (s.size() < 2) return false;

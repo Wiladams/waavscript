@@ -5,7 +5,8 @@
 // ===========================================================
 // Dictionary related operators
 // ===========================================================
-namespace waavsps {
+namespace waavs 
+{
     // def: /key value -> (store in current dictionary)
     inline bool op_def(PSVirtualMachine& vm) {
         auto& s = vm.operandStack;
@@ -95,7 +96,7 @@ namespace waavsps {
         if (nameObj.type != PSObjectType::Name)
             return false;
 
-        const std::string name = nameObj.data.name;
+        const ByteSpan name = nameObj.name;
 
         // Search dictionary stack from top to bottom
         for (const auto& dict : vm.dictionaryStack.stack) {
