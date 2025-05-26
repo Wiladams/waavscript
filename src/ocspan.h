@@ -141,11 +141,11 @@ namespace waavs
 
 namespace waavs {
 
-	//struct OCursorHash {
-	//	size_t operator()(const OctetCursor& span) const noexcept {
-	//		return fnv1a_32(span.data(), span.size());
-	//	}
-	//};
+	struct OCursorHash {
+		size_t operator()(const OctetCursor& span) const noexcept {
+			return fnv1a_32(span.data(), span.size());
+		}
+	};
 
 	// Case insensitive 'string' comparison
 	//struct ByteSpanInsensitiveHash {

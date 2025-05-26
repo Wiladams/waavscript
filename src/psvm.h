@@ -3,11 +3,11 @@
 
 #include <vector>
 #include <memory>
-//#include <string>
+
 
 #include "pscore.h"
 #include "dictionarystack.h"
-#include "bspan.h"
+#include "ocspan.h"
 
 
 namespace waavs
@@ -17,20 +17,20 @@ struct PSVirtualMachine;
 
 struct PSOperatorTable 
 {
-	std::unordered_map<ByteSpan, PSOperator> ops;
+	std::unordered_map<const char *, PSOperator> ops;
 
-    void add(const ByteSpan & name, PSOperatorFunc fn) {
+    void add(const char * name, PSOperatorFunc fn) {
         ops[name] = PSOperator(name, fn);
     }
 
-    PSOperator* lookup(const ByteSpan& name) {
+    PSOperator* lookup(const char * name) {
         auto it = ops.find(name);
         if (it != ops.end())
             return &it->second;
         return nullptr;
     }
 
-    bool contains(const ByteSpan& name) const 
+    bool contains(const char * name) const 
     {
         return ops.find(name) != ops.end();
     }
@@ -70,21 +70,33 @@ public:
 
     }
 
-	// When we register a builtin operator, we also add it to the system dictionary
-
-
-    void registerBuiltin(const ByteSpan &name, PSOperatorFunc fn) 
-    {
-        operatorTable.add(name, fn);
-        auto* op = operatorTable.lookup(name);
-        if (op) {
-            systemdict->put(name, PSObject::fromOperator(op));
-        }
+    /*
+    void registerOperator(const char* name, PSOperator op) {
+        operatorTable.ops[name] = std::move(op);
+        systemdict->put(name, PSObject::fromOperator(&operatorTable.ops[name]));
     }
 
-    void registerOps(PSOperatorMap &ops)
+	// When we register a builtin operator, we also add it to the system dictionary
+    void defineOperator(const OctetCursor &nameSpan, PSOperatorFunc fn) 
     {
-        for (const auto& entry : ops) {
+        const char* internedName = PSNameTable::intern(nameSpan);
+		registerOperator(internedName, PSOperator(internedName, fn));
+    }
+    */
+
+    // Mass registration of builtin operators.  This is NOT how user
+    // defined operators are registered.
+    void registerBuiltin(const char* name, PSOperatorFunc fn)
+    {
+        const char* interned = PSNameTable::INTERN(name);
+        PSOperator op(interned, fn);
+        operatorTable.ops[interned] = op;
+        systemdict->put(interned, PSObject::fromOperator(&operatorTable.ops[interned]));
+    }
+
+    void registerOps(const PSOperatorFuncMap &ops)
+    {
+        for (const auto& entry  : ops) {
             registerBuiltin(entry.first, entry.second);
         }
     }
@@ -139,7 +151,7 @@ public:
 
 
     bool execute(const PSObject& obj);
-    bool executeName(const waavs::ByteSpan& name);
+    bool executeName(const char * name);
 
     void execArray(PSArray* proc);
     void bindArray(PSArray* proc);
@@ -150,7 +162,7 @@ public:
     }
 
     void beginProc() {
-        operandStack.push_back(PSObject::mark());
+        operandStack.push_back(PSObject::fromMark());
         buildProcDepth++;
     }
 
@@ -177,7 +189,7 @@ public:
 
 };
 
-bool PSVirtualMachine::executeName(const waavs::ByteSpan& name) 
+bool PSVirtualMachine::executeName(const char * name) 
 {
     PSObject obj;
     if (!dictionaryStack.load(name, obj)) {

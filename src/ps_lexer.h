@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cstdint>
+//#include <cstdint>
 #include "ocspan.h"
-//#include "typeconv.h"
+
 
 namespace waavs {
 	// Character category flags for PostScript token classification

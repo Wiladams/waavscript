@@ -2,9 +2,10 @@
 
 #include <functional>
 
+#include "pscore.h"
 #include "ps_lexer.h"
 #include "typeconv.h"
-#include "pscore.h"
+
 
 
 namespace waavs

@@ -2,9 +2,13 @@
 
 #include <cstdint>
 #include <cstring>
+
 #include <string>
-#include <vector>
+#include <string_view>
 #include <unordered_map>
+#include <map>
+
+#include <vector>
 #include <functional>
 #include <memory>
 
@@ -12,29 +16,66 @@
 #include "ocspan.h"
 
 
-// global name table for interned strings
+// global name table for interned strings.  Anything that is to be a name used
+// in a table as a key, should be interned here.
 namespace waavs {
-    struct PSNameTable {
-        std::unordered_map<OctetCursor, std::string> pool;
+    struct TransparentLess {
+        using is_transparent = void;
 
-        const char* intern(const OctetCursor & name) 
-        {
-			// if it's already in the pool, return pointer to the string
-            auto it = pool.find(name);
-            if (it != pool.end()) return it->second.c_str();
-
-            // if it's not in the pool, create a string to represent it
-            // put it in the pool.
-            auto inserted = pool.emplace(name, std::string((char *)name.data(), name.size()));
-            return inserted.first->second.c_str();
+        bool operator()(const std::string& a, const std::string& b) const noexcept {
+            return a < b;
         }
 
-		// We want to support a singleton instance of PSNameTable
-        static PSNameTable * getTable() {
-			static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
-            return gTable.get();
-		}
+        bool operator()(const std::string& a, std::string_view b) const noexcept {
+            return std::string_view(a) < b;
+        }
+
+        bool operator()(std::string_view a, const std::string& b) const noexcept {
+            return a < std::string_view(b);
+        }
+
+        bool operator()(std::string_view a, std::string_view b) const noexcept {
+            return a < b;
+        }
     };
+
+
+    struct PSNameTable {
+        std::map<std::string, const char*, TransparentLess> pool;
+
+        const char* intern(std::string_view sv) {
+            auto it = pool.find(sv);
+            if (it != pool.end())
+                return it->second;
+
+            auto [inserted, _] = pool.emplace(std::string(sv), nullptr);
+            inserted->second = inserted->first.c_str();
+            return inserted->second;
+        }
+
+        const char* intern(const OctetCursor& span) {
+            return intern(std::string_view(reinterpret_cast<const char*>(span.data()), span.size()));
+        }
+
+        const char* intern(const char* cstr) {
+            return intern(std::string_view(cstr));
+        }
+
+        static PSNameTable* getTable() {
+            static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
+            return gTable.get();
+        }
+
+        static const char* INTERN(const OctetCursor& span) {
+            return getTable()->intern(span);
+        }
+
+        static const char* INTERN(const char* cstr) {
+            return getTable()->intern(cstr);
+        }
+    };
+
+
 }
 
 namespace waavs {
@@ -143,18 +184,19 @@ namespace waavs {
     // --------------------
     // PSOperator
     // --------------------
+    // These definitions are used for builtin operators that are known at compile time
     using PSOperatorFunc = std::function<bool(PSVirtualMachine &)>;
-    using PSOperatorMap = std::unordered_map<OctetCursor, PSOperatorFunc>;
+    using PSOperatorFuncMap = std::unordered_map<const char *, PSOperatorFunc>;
     
     struct PSOperator {
-        OctetCursor name{};
+        const char* name = nullptr;       // Always interned and stable
         PSOperatorFunc func = nullptr;
 
-        //PSOperator() = default;
+        PSOperator() = default;
 
-        PSOperator(const OctetCursor&nm, PSOperatorFunc f)
-            : name(nm)
-            , func(f) {}
+        PSOperator(const char* internedName, PSOperatorFunc f) noexcept
+            : name(internedName), func(f) {
+        }
     };
 
     // --------------------
@@ -246,6 +288,17 @@ namespace waavs {
         double asReal() const {
             return (type == PSObjectType::Int) ? static_cast<double>(data.iVal) : data.fVal;
         }
+
+        // Convenience static functions of the 'fromXXX()' variety
+        static PSObject fromInt(int32_t v) { PSObject obj; obj.resetFromInt(v); return obj;}
+        static PSObject fromReal(double v) {PSObject obj; obj.resetFromReal(v); return obj;}
+        static PSObject fromBool(bool v) {  PSObject obj; obj.resetFromBool(v); return obj;  }
+        static PSObject fromName(const OctetCursor& span) {  PSObject obj;  obj.resetFromName(span); return obj;  }
+        static PSObject fromString(PSString* s) {  PSObject obj; obj.resetFromString(s);  return obj;  }
+        static PSObject fromArray(PSArray* a) {  PSObject obj;  obj.resetFromArray(a);  return obj;  }
+        static PSObject fromOperator(PSOperator* f) {  PSObject obj;  obj.resetFromOperator(f);  return obj;  }
+        static PSObject fromDictionary(PSDictionary* d) { PSObject obj;  obj.resetFromDictionary(d);   return obj;  }
+        static PSObject fromMark() {  PSObject obj;  obj.resetFromMark();  return obj;  }
     };
 
     // --------------------

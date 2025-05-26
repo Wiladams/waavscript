@@ -1,13 +1,14 @@
 #pragma once
 
 #include "pscore.h"
-#include <unordered_map>
+#include "psvm.h"
+
 
 namespace waavs {
 
-	static const PSOperatorMap arrayOps = {
+	static const PSOperatorFuncMap arrayOps = {
 
-		{ waavs::ByteSpan("array"), [](PSVirtualMachine& vm) -> bool {
+		{ "array", [](PSVirtualMachine& vm) -> bool {
 			auto& s = vm.operandStack;
 			if (s.empty()) return false;
 
@@ -82,7 +83,9 @@ namespace waavs {
 				src->elements.begin() + start + count
 			);
 
-			s.push_back(PSObject::fromArray(sub));
+			PSObject subObj;
+			subObj.resetFromArray(sub);
+			s.push_back(subObj);
 			return true;
 		}},
 

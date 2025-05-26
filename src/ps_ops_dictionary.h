@@ -1,162 +1,134 @@
 #pragma once
 
 #include "pscore.h"
+#include "psvm.h"
 
-// ===========================================================
-// Dictionary related operators
-// ===========================================================
-namespace waavs 
-{
-    // def: /key value -> (store in current dictionary)
-    inline bool op_def(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.size() < 2) return false;
+namespace waavs {
 
-        PSObject value = s.back(); s.pop_back();
-        PSObject key = s.back(); s.pop_back();
+    static const PSOperatorFuncMap dictionaryOps = {
+        { "def", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.size() < 2) return false;
 
-        if (key.type != PSObjectType::Name) return false;
+            PSObject value = s.back(); s.pop_back();
+            PSObject key = s.back(); s.pop_back();
 
-        vm.dictionaryStack.def(key.data.name, value);
-        return true;
-    }
+            if (key.type != PSObjectType::Name) return false;
 
-    inline bool op_dict(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.empty()) return false;
+            vm.dictionaryStack.def(key.data.name, value);
+            return true;
+        }},
 
-        PSObject sizeObj = s.back(); s.pop_back();
-        if (sizeObj.type != PSObjectType::Int) return false;
+        { "dict", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.empty()) return false;
 
-        auto* d = new PSDictionary(); // ignore size
-        s.push_back(PSObject::fromDictionary(d));
-        return true;
-    }
+            PSObject sizeObj = s.back(); s.pop_back();
+            if (sizeObj.type != PSObjectType::Int) return false;
 
-    inline bool op_begin(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.empty()) return false;
+            auto* d = new PSDictionary(); // size ignored
+            s.push_back(PSObject::fromDictionary(d));
+            return true;
+        }},
 
-        PSObject dictObj = s.back(); s.pop_back();
-        if (dictObj.type != PSObjectType::Dictionary)
-            return false;
+        { "begin", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.empty()) return false;
 
-        vm.dictionaryStack.push(std::shared_ptr<PSDictionary>(dictObj.data.dict));
-        return true;
-    }
+            PSObject dictObj = s.back(); s.pop_back();
+            if (dictObj.type != PSObjectType::Dictionary)
+                return false;
 
-    inline bool op_end(PSVirtualMachine& vm) {
-        vm.dictionaryStack.pop();
-        return true;
-    }
+            vm.dictionaryStack.push(std::shared_ptr<PSDictionary>(dictObj.data.dict));
+            return true;
+        }},
 
-    inline bool op_maxlength(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.empty()) return false;
+        { "end", [](PSVirtualMachine& vm) -> bool {
+            vm.dictionaryStack.pop();
+            return true;
+        }},
 
-        PSObject dictObj = s.back(); s.pop_back();
-        if (dictObj.type != PSObjectType::Dictionary)
-            return false;
+        { "maxlength", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.empty()) return false;
 
-        // PostScript reports maxlength even though not enforced
-        s.push_back(PSObject::fromInt(999)); // or some arbitrary value
-        return true;
-    }
+            PSObject dictObj = s.back(); s.pop_back();
+            if (dictObj.type != PSObjectType::Dictionary)
+                return false;
 
+            s.push_back(PSObject::fromInt(999)); // placeholder
+            return true;
+        }},
 
+        { "load", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.empty()) return false;
 
+            PSObject name = s.back(); s.pop_back();
+            if (name.type != PSObjectType::Name) return false;
 
-
-    inline bool op_load(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.empty()) return false;
-
-        PSObject name = s.back(); s.pop_back();
-        if (name.type != PSObjectType::Name) return false;
-
-        PSObject value;
-        if (!vm.dictionaryStack.load(name.data.name, value)) {
-            return false; // undefined name
-        }
-
-        s.push_back(value);
-        return true;
-    }
-
-    inline bool op_where(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-
-        if (s.empty())
-            return false;
-
-        // Get the name from the stack
-        PSObject nameObj = s.back();
-        s.pop_back();
-
-        if (nameObj.type != PSObjectType::Name)
-            return false;
-
-        const ByteSpan name = nameObj.name;
-
-        // Search dictionary stack from top to bottom
-        for (const auto& dict : vm.dictionaryStack.stack) {
-            if (dict->contains(name)) {
-                // Push dictionary and true
-                s.push_back(PSObject::fromDictionary(dict.get()));
-                s.push_back(PSObject::fromBool(true));
-                return true;
+            PSObject value;
+            if (!vm.dictionaryStack.load(name.data.name, value)) {
+                return false; // undefined name
             }
-        }
 
-        // Not found
-        s.push_back(PSObject::fromBool(false));
-        return true;
-    }
+            s.push_back(value);
+            return true;
+        }},
 
+        { "where", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.empty()) return false;
 
-    // currentdict: -> dict (current dictionary)
-    // Pushes the dictionary at the top of the dictionary stack onto the operand stack.
-    //
-    inline bool op_currentdict(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+            PSObject nameObj = s.back(); s.pop_back();
+            if (nameObj.type != PSObjectType::Name) return false;
 
-        auto top = vm.dictionaryStack.currentdict();
-        if (!top)
-            return false;
+            const char* name = nameObj.data.name;
 
-        // You'll need to define this if not already:
-        // static PSObject fromDictionary(std::shared_ptr<PSDictionary> dict);
+            for (const auto& dict : vm.dictionaryStack.stack) {
+                if (dict->contains(name)) {
+                    s.push_back(PSObject::fromDictionary(dict.get()));
+                    s.push_back(PSObject::fromBool(true));
+                    return true;
+                }
+            }
 
-        // For now, just return true as a placeholder
-        s.push_back(PSObject::fromBool(true)); // replace with dictionary object later
-        return true;
-    }
+            s.push_back(PSObject::fromBool(false));
+            return true;
+        }},
 
-    inline bool op_countdictstack(PSVirtualMachine& vm) {
-        int count = static_cast<int>(vm.dictionaryStack.stack.size());
-        vm.operandStack.push_back(PSObject::fromInt(count));
-        return true;
-    }
+        { "currentdict", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            auto top = vm.dictionaryStack.currentdict();
+            if (!top) return false;
+            s.push_back(PSObject::fromDictionary(top.get()));
+            return true;
+        }},
 
-    
+        { "countdictstack", [](PSVirtualMachine& vm) -> bool {
+            int count = static_cast<int>(vm.dictionaryStack.stack.size());
+            vm.operandStack.push_back(PSObject::fromInt(count));
+            return true;
+        }},
 
-    // op_known: dict key -> (true if key exists in dict)
-    inline bool op_known(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
-        if (s.size() < 2) return false;
+        { "known", [](PSVirtualMachine& vm) -> bool {
+            auto& s = vm.operandStack;
+            if (s.size() < 2) return false;
 
-        PSObject key = s.back(); s.pop_back();
-        PSObject dictObj = s.back(); s.pop_back();
+            PSObject key = s.back(); s.pop_back();
+            PSObject dictObj = s.back(); s.pop_back();
 
-        if (key.type != PSObjectType::Name ||
-            dictObj.type != PSObjectType::Dictionary)
-            return false;
+            if (key.type != PSObjectType::Name ||
+                dictObj.type != PSObjectType::Dictionary)
+                return false;
 
-        PSDictionary* dict = dictObj.data.dict;
-        if (!dict) return false;
+            PSDictionary* dict = dictObj.data.dict;
+            if (!dict) return false;
 
-        bool exists = dict->contains(key.data.name);
-        s.push_back(PSObject::fromBool(exists));
-        return true;
-    }
-}
+            bool exists = dict->contains(key.data.name);
+            s.push_back(PSObject::fromBool(exists));
+            return true;
+        }}
+    };
+
+} // namespace waavs

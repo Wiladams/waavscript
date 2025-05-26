@@ -27,11 +27,12 @@ namespace waavs {
             return stack.back();
         }
 
-        bool def(const ByteSpan& key, const PSObject& value) {
+        bool def(const char * key, const PSObject& value) 
+        {
             return currentdict()->put(key, value);
         }
 
-        bool load(const ByteSpan& key, PSObject& out) const {
+        bool load(const char * key, PSObject& out) const {
             for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
                 if ((*it)->get(key, out))
                     return true;
@@ -39,7 +40,7 @@ namespace waavs {
             return false;
         }
 
-        bool store(const ByteSpan& key, const PSObject& value) {
+        bool store(const char * key, const PSObject& value) {
             for (auto it = stack.rbegin(); it != stack.rend(); ++it) 
             {
                 if ((*it)->contains(key)) {

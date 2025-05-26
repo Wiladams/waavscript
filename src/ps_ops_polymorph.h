@@ -12,7 +12,7 @@ namespace waavs
 {
 
 	// get: container index -> value
-    inline bool op_get(PSVirtualMachine& vm) {
+    static INLINE bool op_get(PSVirtualMachine& vm) {
         auto& s = vm.operandStack;
         if (s.size() < 2) return false;
 
@@ -324,4 +324,19 @@ namespace waavs
         vm.bind();
         return true;
     }
+
+
+    static const PSOperatorFuncMap polymorphOps = {
+    { "get", op_get },
+    { "put", op_put },
+    { "length", op_length },
+    { "copy", op_copy },
+    { "forall", op_forall },
+    { "eq", op_assign },  // Polymorphic equality
+    { "ne", op_ne },      // Logical negation of `eq`
+    { "type", op_type },
+    { "cvs", op_cvs },
+    { "bind", op_bind },
+    };
+
 }
