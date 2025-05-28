@@ -159,10 +159,13 @@ namespace waavs {
 
         { "pstack", [](PSVirtualMachine& vm) -> bool {
 			auto& s = vm.opStack();
+            printf("<< pstack BEGIN <<\n");
             for (const auto& obj : s) {
 				writeObjectDeep(obj);
                 std::cout << std::endl;
             }
+            printf(">> pstack END >>\n");
+
             return true;
         }},
 

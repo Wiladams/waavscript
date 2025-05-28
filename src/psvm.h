@@ -88,10 +88,8 @@ namespace waavs
     private:
         PSOperandStack operandStack_;
         PSExecutionStack executionStack_;
-
-    public:
+		bool stopRequested = false;
         bool exitRequested = false;
-        bool stopRequested = false;
 
     public:
 
@@ -187,19 +185,28 @@ namespace waavs
         }
 
 
-        void exit() { exitRequested = true; }
+        void exit() { 
+            exitRequested = true; 
+        }
         bool isExitRequested() const { return exitRequested; }
         void clearExitRequest() { exitRequested = false; }
 
         void stop() { stopRequested = true; }
         bool isStopRequested() const { return stopRequested; }
-        void clearStop() { stopRequested = false; }
+        void clearStopRequest() { stopRequested = false; }
 
         bool run() {
             while (!execStack().empty()) {
                 PSObject obj = execStack().pop();
                 if (!execute(obj)) return false;
+
                 if (isExitRequested()) break;
+
+                if (isStopRequested()) {
+                    //printf("Execution stopped.\n");
+                    clearStopRequest();
+                    return true; // Stop is not an error, just a pause
+				}
             }
             return true;
         }
@@ -209,12 +216,39 @@ namespace waavs
 
 
         // --- Execute elements of a procedure array
+        /*
+        inline bool execArray(PSArray* arr)
+        {
+            if (!arr) return false;
+
+            for (size_t i = 0; i < arr->size(); ++i) {
+                PSObject obj;
+                arr->get(static_cast<int>(i), obj);
+
+                // Canonicalize procedures
+                if (obj.isArray() && obj.asArray()->isProcedure() && !obj.isExecutable()) {
+                    obj.setExecutable(true);
+                }
+
+                if (obj.isExecutable()) {
+                    execStack().push(obj);
+                }
+                else {
+                    opStack().push(obj);
+                }
+            }
+
+            return run();
+        }
+        */
+
+        
         inline bool execArray(PSArray* arr) 
         {
             if (!arr) return false;
 
-            PSObject obj;
             for (int i = static_cast<int>(arr->size()) - 1; i >= 0; --i) {
+                PSObject obj;
                 arr->get(i, obj);
                 execStack().push(obj);
             }
@@ -222,41 +256,11 @@ namespace waavs
             // Now run the execution loop
             return run();
         }
+        
 
         void bindArray(PSArray* proc);
         void bind();
-        /*
-        bool isBuildingProc() const {
-            return buildProcDepth > 0;
-        }
 
-        void beginProc() {
-            opStack().push(PSObject::fromMark());
-            buildProcDepth++;
-        }
-
-        PSArray* endProc() {
-            // Pop everything to mark, build an array
-            std::vector<PSObject> content;
-
-            while (!opStack().empty()) {
-                PSObject obj;
-                opStack().pop(obj);
-
-                if (obj.isMark())
-                    break;
-                content.insert(content.begin(), obj);
-            }
-
-            buildProcDepth--;
-
-            auto* proc = new PSArray();
-            proc->elements = std::move(content);
-            proc->setExecutable(true);
-
-            return proc;
-        }
-        */
     };
 
     //====================================================================
@@ -326,16 +330,7 @@ namespace waavs
             // 2. Try dictionary stack
             PSObject resolved;
             if (lookupName(name, resolved)) {
-                // Recursively execute the resolved object
-                // (It may or may not be executable)
-                if (resolved.isExecutable()) {
-                    return execute(resolved);
-                }
-                else {
-                    // Push non-executable values onto the operand stack
-                    opStack().push(resolved);
-                    return true;
-                }
+                return execute(resolved);
             }
 
             // 3. Not found — undefined error

@@ -3,6 +3,7 @@
 // NOTE:  Something else must include this, and have PSVirtualMachine defined.
 #include "pscore.h"
 #include "psvm.h"
+#include "nametable.h"
 
 //======================================================================
 // The operators in here are polymorphic, meaning they can apply
@@ -368,7 +369,59 @@ namespace waavs
         return true;
     }
 
+    inline bool op_cvx(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return vm.error("stackunderflow");
 
+        PSObject obj;
+        s.pop(obj);
+        obj.setExecutable(true);
+        s.push(obj);
+        return true;
+    }
+
+    inline bool op_cvlit(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return vm.error("stackunderflow");
+
+        PSObject obj;
+        s.pop(obj);
+        obj.setExecutable(false);
+        s.push(obj);
+        return true;
+    }
+
+    inline bool op_cvn(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return vm.error("stackunderflow");
+
+        PSObject strObj;
+        s.pop(strObj);
+
+        if (!strObj.isString() || !strObj.asString()) 
+            return vm.error("typecheck");
+
+        PSString* psStr = strObj.asString();
+        const uint8_t* data = psStr->data;
+        size_t len = psStr->size();
+		OctetCursor oc(data, len);
+
+        const char* interned = PSNameTable::INTERN(oc);
+        if (!interned) return vm.error("invalidaccess");
+
+        s.push(PSObject::fromName(interned));
+        return true;
+    }
+
+    inline bool op_xcheck(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return vm.error("stackunderflow");
+
+        PSObject obj;
+        s.pop(obj);
+        s.push(PSObject::fromBool(obj.isExecutable()));
+        return true;
+    }
 
 
 
@@ -394,6 +447,9 @@ namespace waavs
     { "ne", op_ne },      // Logical negation of `eq`
     { "type", op_type },
     { "cvs", op_cvs },
+    { "cvx",    op_cvx },
+    { "cvlit",  op_cvlit },
+    { "xcheck", op_xcheck },
     { "bind", op_bind },
     };
 

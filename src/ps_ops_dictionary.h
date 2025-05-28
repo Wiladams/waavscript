@@ -16,9 +16,11 @@ namespace waavs {
             s.pop(value);
             s.pop(key);
 
-            if (key.type != PSObjectType::Name) return false;
+            if (!key.isName() || key.isExecutable()) {
+                return vm.error("typecheck: def expects a literal name");
+            }
 
-            vm.dictionaryStack.def(key.data.name, value);
+            vm.dictionaryStack.def(key.asName(), value);
             return true;
         }},
 

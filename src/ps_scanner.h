@@ -235,16 +235,17 @@ namespace waavs
 namespace waavs {
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out);
 
-    static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool executable) {
+    static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc) {
         auto* arr = new PSArray();
+        arr->setIsProcedure(isProc);
         PSObject element;
 
         while (true) {
             PSToken tok;
             if (!tokgen.next(tok)) break;
 
-            if ((executable && tok.type == PSTokenType::PS_TOKEN_ProcEnd) ||
-                (!executable && tok.type == PSTokenType::PS_TOKEN_ArrayEnd)) {
+            if ((isProc && tok.type == PSTokenType::PS_TOKEN_ProcEnd) ||
+                (!isProc && tok.type == PSTokenType::PS_TOKEN_ArrayEnd)) {
                 break;
             }
 
@@ -265,22 +266,64 @@ namespace waavs {
         }
 
         out.resetFromArray(arr);
+        return true;
+    }
+/*
+    static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc, bool executable) {
+        auto* arr = new PSArray();
+        PSObject element;
+
+        while (true) {
+            PSToken tok;
+            if (!tokgen.next(tok)) break;
+
+            if ((isProc && tok.type == PSTokenType::PS_TOKEN_ProcEnd) ||
+                (!isProc && tok.type == PSTokenType::PS_TOKEN_ArrayEnd)) {
+                break;
+            }
+
+            if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
+                PSObject subProc;
+                if (!parseArray(tokgen, subProc, true, false)) return false;
+                arr->append(subProc);
+            }
+            else if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
+                PSObject subArray;
+                if (!parseArray(tokgen, subArray, false, false)) return false;
+                arr->append(subArray);
+            }
+            else {
+                if (!transformTokenToPSObject(tok, element)) return false;
+                arr->append(element);
+            }
+        }
+
+        arr->setIsProcedure(isProc);
+        out.resetFromArray(arr);
         out.setExecutable(executable); // ? This is what was missing
 
         return true;
     }
+    */
 
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out) {
         PSToken tok;
         if (!tokgen.next(tok)) return false;
 
-        if (tok.type == PSTokenType::PS_TOKEN_ProcBegin)
-            return parseArray(tokgen, out, true);
-        if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin)
-            return parseArray(tokgen, out, false);
+        if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
+            if (!parseArray(tokgen, out, true)) 
+                return false;
+            out.setExecutable(true); // Only top-level procs get this
+            return true;
+        }
+
+        if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
+            return parseArray(tokgen, out, false); // not a procedure
+        }
 
         return transformTokenToPSObject(tok, out);
     }
+
 
 
 }

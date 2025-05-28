@@ -185,7 +185,15 @@
     <ClCompile Include="test_ps_interpreter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\psvm.h" />
+    <ClInclude Include="..\..\src\ps_interpreter.h" />
+    <ClInclude Include="..\..\src\ps_ops_control.h" />
+    <ClInclude Include="..\..\src\ps_ops_debug.h" />
+    <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_ops_logic.h" />
+    <ClInclude Include="..\..\src\ps_ops_math.h" />
+    <ClInclude Include="..\..\src\ps_scanner.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

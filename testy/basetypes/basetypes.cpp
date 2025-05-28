@@ -9,6 +9,7 @@
 
 
 #include "ocspan.h"
+#include "pscore.h"
 
 using namespace waavs;
 
@@ -31,13 +32,18 @@ static void test_unordered_map()
 	}
 }
 
-
+static void test_bool()
+{
+	PSObject obj = PSObject::fromBool(false);
+	printf("bool stored: %d\n", obj.asBool());  // Expect 0
+}
 
 
 
 int main(int argc, char *argv[])
 {
-	test_unordered_map();
+	//test_unordered_map();
+	test_bool();
 
 	return 0;
 }

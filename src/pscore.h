@@ -59,12 +59,10 @@ namespace waavs {
         uint32_t fCapacity = 0;
         uint8_t* data = nullptr;
         uint32_t length = 0;
-        //bool isExec = false;
 
         PSString(size_t cap)
             : fCapacity(cap)
             , length(0)
-            //, isExec(false) 
         {
             data = new uint8_t[cap];
         }
@@ -74,7 +72,6 @@ namespace waavs {
             length = fCapacity = std::strlen(literal);
             data = new uint8_t[fCapacity];
             std::memcpy(data, literal, fCapacity);
-            //isExec = false;
         }
 
         ~PSString() { delete[] data;}
@@ -82,9 +79,6 @@ namespace waavs {
         size_t size() const {return length;}
 		size_t capacity() const { return fCapacity; }
 
-        //bool isExecutable() const {
-        //    return isExec;
-        //}
 
         void reset() {
             length = 0;
@@ -94,6 +88,10 @@ namespace waavs {
             return std::string(reinterpret_cast<const char*>(data), length);
         }
 
+        uint8_t get(uint32_t index) const {
+            if (index >= length) return 0; // or throw an error
+            return data[index];
+		}
         bool get(uint32_t index, uint8_t& out) const {
             if (index >= length) return false;
             out = data[index];
@@ -158,7 +156,7 @@ namespace waavs {
         union {
             int32_t iVal;
             double  fVal;
-            bool    bVal;
+            uint8_t    bVal;
             PSString* str;
             PSArray* arr;
             PSDictionary* dict;
@@ -172,24 +170,38 @@ namespace waavs {
 
 
         // Reset the current instance to a specific type
+        bool reset()
+        {
+			//memset(&data, 0, sizeof(data)); // Clear the union data
+            type = PSObjectType::Null;
+            fIsExec = false;
+            return true;
+        }
+
         bool resetFromInt(int32_t v) {
+            reset();
             type = PSObjectType::Int;
             data.iVal = v;
             return true;
         }
         bool resetFromReal(double v) {
+            reset();
             type = PSObjectType::Real;
             data.fVal = v;
             return true;
         }
         bool resetFromBool(bool v) {
+            reset();
+
             type = PSObjectType::Bool;
-            data.bVal = v;
+            data.bVal = v ? 1 : 0;
             return true;
         }
 
         bool resetFromName(const OctetCursor& span)
         {
+            reset();
+
             const char* internedName = PSNameTable::getTable()->intern(span);
 
             type = PSObjectType::Name;
@@ -199,38 +211,45 @@ namespace waavs {
         }
 
         bool resetFromString(PSString* s) {
+            reset();
+
             type = PSObjectType::String;
             data.str = s;
             return true;
         }
 
         bool resetFromArray(PSArray* a) {
+            reset();
+
             type = PSObjectType::Array;
             data.arr = a;
             return true;
         }
 
         bool resetFromOperator(const PSOperator* f) {
+            reset();
+
             type = PSObjectType::Operator;
             data.op = f;
             return true;
         }
 
         bool resetFromDictionary(PSDictionary* d) {
+            reset();
+
             type = PSObjectType::Dictionary;
             data.dict = d;
             return true;
         }
 
         bool resetFromMark() {
+            reset();
+
             type = PSObjectType::Mark;
             return true;
         }
 
-        bool reset() {
-            *this = PSObject();
-            return true;
-        }
+
 
         // Some attributes
         inline bool isExecutable() const {return fIsExec;}
@@ -252,7 +271,7 @@ namespace waavs {
         // Return the object as a specific type
         int asInt() const { return data.iVal; }
         double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(data.iVal) : data.fVal; }
-        bool asBool() const { return data.bVal; }
+        bool asBool() const { return data.bVal != 0; }
         PSArray* asArray() const { return (type == PSObjectType::Array) ? data.arr : nullptr; }
         PSString* asString() const { return (type == PSObjectType::String) ? data.str : nullptr; }
         const char* asName() const { return (type == PSObjectType::Name) ? data.name : nullptr; }
@@ -340,7 +359,8 @@ namespace waavs {
     // --------------------
     struct PSArray {
         std::vector<PSObject> elements;
-       // bool isExec = false;
+		bool fIsProcedure = false; // Is this array a procedure?
+
 
         PSArray() = default;
 
@@ -348,17 +368,12 @@ namespace waavs {
             elements.resize(initialSize, fill);
         }
 
-        size_t size() const {
-            return elements.size();
-        }
+        size_t size() const {return elements.size();}
 
-        //bool isExecutable() const {
-        //    return isExec;
-        //}
+        // Is this array a procedure or not?
+        constexpr bool isProcedure() const noexcept {return fIsProcedure;}
+        void setIsProcedure(bool flag) noexcept {fIsProcedure = flag;}
 
-        //void setExecutable(bool flag) {
-        //    isExec = flag;
-        //}
 
         bool get(size_t index, PSObject& out) const {
             if (index >= elements.size()) return false;
@@ -383,8 +398,8 @@ namespace waavs {
 
         PSArray* copy() const {
             PSArray* result = new PSArray();
+			result->fIsProcedure = fIsProcedure;
             result->elements = elements;
-            //result->isExec = isExec;
             return result;
         }
 
@@ -392,12 +407,13 @@ namespace waavs {
             if (index >= elements.size()) return new PSArray(0);
             count = std::min(count, elements.size() - index);
             PSArray* result = new PSArray();
+			result->fIsProcedure = fIsProcedure;
             result->elements.insert(
                 result->elements.end(),
                 elements.begin() + index,
                 elements.begin() + index + count
             );
-            //result->isExec = isExec;
+
             return result;
         }
     };

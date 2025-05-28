@@ -8,11 +8,15 @@ namespace waavs {
     static const PSOperatorFuncMap stackOps = {
 
         { "dup", [](PSVirtualMachine& vm) -> bool {
-            PSObject obj;
-            if (!vm.opStack().top(obj))
+			auto& s = vm.opStack();
+            if (s.empty()) return false;
+
+            PSObject top;
+            if (!s.top(top))
 				return false;
-            
-            return vm.opStack().push(obj);
+			s.push(top);
+
+			return true;
         }},
 
         { "pop", [](PSVirtualMachine& vm)  -> bool {
