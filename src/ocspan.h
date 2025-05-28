@@ -2,7 +2,7 @@
 
 
 #include <unordered_map>
-
+#include <string>
 
 #include "definitions.h"
 #include "bithacks.h"

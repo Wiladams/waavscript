@@ -35,7 +35,7 @@
     <ClInclude Include="..\..\src\charset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_tokens.h">
+    <ClInclude Include="..\..\src\ps_lexer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

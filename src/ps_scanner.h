@@ -237,7 +237,6 @@ namespace waavs {
 
     static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool executable) {
         auto* arr = new PSArray();
-        arr->setExecutable(executable);
         PSObject element;
 
         while (true) {
@@ -265,8 +264,10 @@ namespace waavs {
             }
         }
 
-        return out.resetFromArray(arr);
+        out.resetFromArray(arr);
+        out.setExecutable(executable); // ? This is what was missing
 
+        return true;
     }
 
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out) {

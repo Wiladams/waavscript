@@ -7,71 +7,82 @@ namespace waavs {
 
     static const PSOperatorFuncMap logicOps = {
         { "and", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.size() < 2) return false;
 
-            PSObject b = s.back(); s.pop_back();
-            PSObject a = s.back(); s.pop_back();
+            PSObject b;
+            PSObject a;
+
+            s.pop(b);
+            s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push_back(PSObject::fromBool(a.data.bVal && b.data.bVal));
+                s.push(PSObject::fromBool(a.data.bVal && b.data.bVal));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push_back(PSObject::fromInt(a.data.iVal & b.data.iVal));
+                s.push(PSObject::fromInt(a.data.iVal & b.data.iVal));
                 return true;
             }
             return false;
         }},
 
         { "or", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.size() < 2) return false;
 
-            PSObject b = s.back(); s.pop_back();
-            PSObject a = s.back(); s.pop_back();
+            PSObject b;
+            PSObject a;
+            
+            s.pop(b);
+            s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push_back(PSObject::fromBool(a.data.bVal || b.data.bVal));
+                s.push(PSObject::fromBool(a.data.bVal || b.data.bVal));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push_back(PSObject::fromInt(a.data.iVal | b.data.iVal));
+                s.push(PSObject::fromInt(a.data.iVal | b.data.iVal));
                 return true;
             }
             return false;
         }},
 
         { "xor", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.size() < 2) return false;
 
-            PSObject b = s.back(); s.pop_back();
-            PSObject a = s.back(); s.pop_back();
+            PSObject b;
+            PSObject a;
+
+            s.pop(b);
+            s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push_back(PSObject::fromBool(a.data.bVal != b.data.bVal));
+                s.push(PSObject::fromBool(a.data.bVal != b.data.bVal));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push_back(PSObject::fromInt(a.data.iVal ^ b.data.iVal));
+                s.push(PSObject::fromInt(a.data.iVal ^ b.data.iVal));
                 return true;
             }
             return false;
         }},
 
         { "not", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject a = s.back(); s.pop_back();
+            PSObject a;
+            
+            s.pop(a);
 
             if (a.type == PSObjectType::Bool) {
-                s.push_back(PSObject::fromBool(!a.data.bVal));
+                s.push(PSObject::fromBool(!a.data.bVal));
                 return true;
             }
             if (a.type == PSObjectType::Int) {
-                s.push_back(PSObject::fromInt(~a.data.iVal));
+                s.push(PSObject::fromInt(~a.data.iVal));
                 return true;
             }
             return false;

@@ -7,11 +7,14 @@ namespace waavs {
 
     static const PSOperatorFuncMap dictionaryOps = {
         { "def", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.size() < 2) return false;
 
-            PSObject value = s.back(); s.pop_back();
-            PSObject key = s.back(); s.pop_back();
+            PSObject value;
+            PSObject key;
+
+            s.pop(value);
+            s.pop(key);
 
             if (key.type != PSObjectType::Name) return false;
 
@@ -20,22 +23,28 @@ namespace waavs {
         }},
 
         { "dict", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject sizeObj = s.back(); s.pop_back();
+            PSObject sizeObj;
+
+			s.pop(sizeObj); // pop size, but ignore it
+
             if (sizeObj.type != PSObjectType::Int) return false;
 
             auto* d = new PSDictionary(); // size ignored
-            s.push_back(PSObject::fromDictionary(d));
+            s.push(PSObject::fromDictionary(d));
             return true;
         }},
 
         { "begin", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject dictObj = s.back(); s.pop_back();
+            PSObject dictObj;
+            
+            s.pop(dictObj);
+
             if (dictObj.type != PSObjectType::Dictionary)
                 return false;
 
@@ -49,22 +58,28 @@ namespace waavs {
         }},
 
         { "maxlength", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject dictObj = s.back(); s.pop_back();
+            PSObject dictObj;
+
+            s.pop(dictObj);
+            
             if (dictObj.type != PSObjectType::Dictionary)
                 return false;
 
-            s.push_back(PSObject::fromInt(999)); // placeholder
+            s.push(PSObject::fromInt(999)); // placeholder
             return true;
         }},
 
         { "load", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject name = s.back(); s.pop_back();
+            PSObject name;
+			
+            s.pop(name);
+
             if (name.type != PSObjectType::Name) return false;
 
             PSObject value;
@@ -72,51 +87,57 @@ namespace waavs {
                 return false; // undefined name
             }
 
-            s.push_back(value);
+            s.push(value);
             return true;
         }},
 
         { "where", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.empty()) return false;
 
-            PSObject nameObj = s.back(); s.pop_back();
+            PSObject nameObj;
+
+            s.pop(nameObj);
+
             if (nameObj.type != PSObjectType::Name) return false;
 
             const char* name = nameObj.data.name;
 
             for (const auto& dict : vm.dictionaryStack.stack) {
                 if (dict->contains(name)) {
-                    s.push_back(PSObject::fromDictionary(dict.get()));
-                    s.push_back(PSObject::fromBool(true));
+                    s.push(PSObject::fromDictionary(dict.get()));
+                    s.push(PSObject::fromBool(true));
                     return true;
                 }
             }
 
-            s.push_back(PSObject::fromBool(false));
+            s.push(PSObject::fromBool(false));
             return true;
         }},
 
         { "currentdict", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             auto top = vm.dictionaryStack.currentdict();
             if (!top) return false;
-            s.push_back(PSObject::fromDictionary(top.get()));
+            s.push(PSObject::fromDictionary(top.get()));
             return true;
         }},
 
         { "countdictstack", [](PSVirtualMachine& vm) -> bool {
             int count = static_cast<int>(vm.dictionaryStack.stack.size());
-            vm.operandStack.push_back(PSObject::fromInt(count));
+            vm.opStack().push(PSObject::fromInt(count));
             return true;
         }},
 
         { "known", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.operandStack;
+            auto& s = vm.opStack();
             if (s.size() < 2) return false;
 
-            PSObject key = s.back(); s.pop_back();
-            PSObject dictObj = s.back(); s.pop_back();
+            PSObject key;
+            PSObject dictObj;
+
+            s.pop(key);
+            s.pop(dictObj);
 
             if (key.type != PSObjectType::Name ||
                 dictObj.type != PSObjectType::Dictionary)
@@ -126,7 +147,7 @@ namespace waavs {
             if (!dict) return false;
 
             bool exists = dict->contains(key.data.name);
-            s.push_back(PSObject::fromBool(exists));
+            s.push(PSObject::fromBool(exists));
             return true;
         }}
     };

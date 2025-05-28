@@ -50,6 +50,7 @@ namespace waavs {
 		static constexpr bool isWhitespace(uint8_t c) noexcept { return is(c, PS_WHITESPACE); }
 		static constexpr bool isNameChar(uint8_t c) noexcept { return is(c, PS_NAME_CHAR); }
 		static constexpr bool isNumeric(uint8_t c) noexcept { return is(c, PS_NUMERIC); }
+		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (c == '+' || c == '-') || isdigit(c); }
 		static constexpr bool isHexDigit(uint8_t c) noexcept { return is(c, PS_HEX_DIGIT); }
 		static constexpr bool isDelimiter(uint8_t c) noexcept { return is(c, PS_DELIMITER); }
 		static constexpr bool isCommentStart(uint8_t c) noexcept { return is(c, PS_COMMENT_START); }
@@ -236,7 +237,7 @@ namespace waavs {
 		}
 
 		// Number (starts with digit, '.', '+', or '-')
-		if (PSCharClass::isNumeric(c)) {
+		if (PSCharClass::isNumericBegin(c)) {
 			const uint8_t* p = start;
 			const uint8_t* end = src.end();
 			if (*p == '+' || *p == '-') ++p;

@@ -2,6 +2,7 @@
 
 // NOTE:  Something else must include this, and have PSVirtualMachine defined.
 #include "pscore.h"
+#include "psvm.h"
 
 //======================================================================
 // The operators in here are polymorphic, meaning they can apply
@@ -12,12 +13,15 @@ namespace waavs
 {
 
 	// get: container index -> value
-    static INLINE bool op_get(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+    inline bool op_get(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
-        PSObject index = s.back(); s.pop_back();
-        PSObject container = s.back(); s.pop_back();
+        PSObject index;
+        PSObject container;
+
+        s.pop(index);
+        s.pop(container);
 
         switch (container.type) {
         case PSObjectType::Array:
@@ -27,7 +31,7 @@ namespace waavs
                 int idx = index.data.iVal;
                 if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->elements.size())
                     return false;
-                s.push_back(arr->elements[idx]);
+                s.push(arr->elements[idx]);
                 return true;
             }
 
@@ -38,7 +42,7 @@ namespace waavs
                 int idx = index.data.iVal;
                 if (!str || idx < 0 || static_cast<size_t>(idx) >= str->length)
                     return false;
-                s.push_back(PSObject::fromInt(str->data[idx]));
+                s.push(PSObject::fromInt(str->data[idx]));
                 return true;
             }
 
@@ -48,7 +52,7 @@ namespace waavs
                 auto* dict = container.data.dict;
                 PSObject result;
                 if (!dict || !dict->get(index.data.name, result)) return false;
-                s.push_back(result);
+                s.push(result);
                 return true;
             }
 
@@ -59,12 +63,16 @@ namespace waavs
 
 	// put: a b c -> a b (c = a[b])
     inline bool op_put(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.size() < 3) return false;
 
-        PSObject value = s.back(); s.pop_back();
-        PSObject index = s.back(); s.pop_back();
-        PSObject container = s.back(); s.pop_back();
+        PSObject value;
+        PSObject index;
+        PSObject container;
+
+        s.pop(value);
+        s.pop(index);
+        s.pop(container);
 
         switch (container.type) {
         case PSObjectType::Array:
@@ -84,7 +92,7 @@ namespace waavs
                 auto* str = container.data.str;
                 int idx = index.data.iVal;
                 int byte = value.data.iVal;
-                if (!str || idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str->capacity)
+                if (!str || idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str->capacity())
                     return false;
 				str->data[idx] = static_cast<char>(byte);
                 //(*str)[idx] = static_cast<char>(byte);
@@ -106,22 +114,24 @@ namespace waavs
 
 	// length: container -> length (number of elements in container)
     inline bool op_length(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.empty()) return false;
 
-        PSObject obj = s.back(); s.pop_back();
+        PSObject obj;
+
+        s.pop(obj);
 
         switch (obj.type) {
         case PSObjectType::Array:
-            s.push_back(PSObject::fromInt(static_cast<int>(obj.data.arr->elements.size())));
+            s.push(PSObject::fromInt(static_cast<int>(obj.data.arr->size())));
             return true;
 
         case PSObjectType::String:
-            s.push_back(PSObject::fromInt(static_cast<int>(obj.data.str->length)));
+            s.push(PSObject::fromInt(static_cast<int>(obj.data.str->length)));
             return true;
 
         case PSObjectType::Dictionary:
-            s.push_back(PSObject::fromInt(static_cast<int>(obj.data.dict->entries.size())));
+            s.push(PSObject::fromInt(static_cast<int>(obj.data.dict->size())));
             return true;
 
         default:
@@ -131,79 +141,114 @@ namespace waavs
 
     // copy: (n x? ... x? ? x? ... x? x? ... x?) — duplicate top n items
     inline bool op_copy(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
 
-        if (s.empty()) return false;
-        PSObject top = s.back();
-
-        switch (top.type) {
-        case PSObjectType::Array: {
-            PSObject countObj = s[s.size() - 1];
-            if (countObj.type != PSObjectType::Int) return false;
-
-            int count = countObj.data.iVal;
-            if (s.size() < static_cast<size_t>(count + 1)) return false;
-
-            PSArray* arr = new PSArray();
-            for (int i = count; i > 0; --i)
-                arr->elements.push_back(s[s.size() - i - 1]);
-
-            // remove values + count
-            s.erase(s.end() - (count + 1), s.end());
-
-            s.push_back(PSObject::fromArray(arr));
-            return true;
-        }
-
-        case PSObjectType::String: {
-            auto* src = top.data.str;
-            if (!src) return false;
-
-            auto* dest = new PSString(src->length);
-            for (int i = 0; i < src->length; ++i)
-                dest->data[i] = src->data[i];
-
-            s.pop_back();
-            s.push_back(PSObject::fromString(dest));
-            return true;
-        }
-
-        default:
+        PSObject top;
+        if (!s.peek(top))
             return false;
+
+
+        // 1. Integer form: n copy
+        if (top.isInt()) {
+            int32_t n = top.asInt();
+
+			s.pop(); // pop the top item
+
+            if (n < 0 || static_cast<size_t>(n) > s.size() )
+                return false; // vm.error("stackunderflow");
+
+            // Copy the top n items (preserve order)
+            return s.copy(n);
         }
+
+		// the next two forms MUST have at least two items on the stack
+        if (s.size() < 2) return false; // Need at least two strings
+
+        PSObject destObject;
+        PSObject srcObject;
+
+		s.pop(destObject); // pop destination
+		s.pop(srcObject); // pop source
+
+        // 2. Array form: array1 array2 copy
+        // copy array1 into array2
+        if (top.isArray()) {
+            if (!srcObject.isArray() || !destObject.isArray())
+                return false; // vm.error("typecheck");
+
+            PSArray* dest = destObject.asArray();
+            PSArray* src = srcObject.asArray();
+
+            if (!dest || !src) return false; // vm.error("invalidaccess");
+
+            size_t maxSize = std::min(dest->size(), src->size());
+
+            for (size_t i = 0; i < maxSize; ++i)
+                dest->elements[i] = src->elements[i];
+
+            // push destination back onto stack
+			s.push(destObject); // push updated dest
+            
+            return true;
+        }
+
+        // 3. String form: string1 string2 copy
+		// copy string1 into string2
+        if (top.isString()) 
+        {
+            // Type check
+            if (!srcObject.isString() || !destObject.isString())
+				return false; // vm.error("typecheck");
+
+			PSString * dest = destObject.asString();
+			PSString * src = srcObject.asString();
+
+            // Make sure neither one is null
+            if (!dest || !src) return false; //  vm.error("invalidaccess");
+
+            if (!dest->putInterval(0, *src)) return false;
+
+            return s.push(destObject);
+        }
+
+        return false; // vm.error("typecheck");
     }
 
+
     inline bool op_forall(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
-        PSObject proc = s.back(); s.pop_back();
-        PSObject obj = s.back(); s.pop_back();
+        PSObject proc;
+        PSObject obj;
 
-        if (proc.type != PSObjectType::Array || !proc.data.arr || !proc.data.arr->isExecutable())
+        s.pop(proc);
+        s.pop(obj);
+
+        if (proc.type != PSObjectType::Array || !proc.asArray() || !proc.isExecutable())
             return false;
 
         switch (obj.type) {
         case PSObjectType::Array: {
             for (const auto& val : obj.data.arr->elements) {
-                s.push_back(val);
+                s.push(val);
                 vm.execArray(proc.data.arr);
             }
             return true;
         }
 
         case PSObjectType::String: {
-            for (int i = 0; i < obj.data.str->length; ++i) {
-                s.push_back(PSObject::fromInt(obj.data.str->data[i]));
-                vm.execArray(proc.data.arr);
+            for (int i = 0; i < obj.asString()->length; ++i) {
+                s.push(PSObject::fromInt(obj.asString()->data[i]));
+                vm.execArray(proc.asArray());
             }
             return true;
         }
 
         case PSObjectType::Dictionary: {
-            for (const auto& entry : obj.data.dict->entries) {
-                s.push_back(PSObject::fromName(entry.first));
-                s.push_back(entry.second);
+            for (const auto& entry : obj.asDictionary()->entries) {
+                s.push(PSObject::fromName(entry.first));
+                s.push(entry.second);
                 vm.execArray(proc.data.arr);
             }
             return true;
@@ -216,11 +261,14 @@ namespace waavs
 
 
     inline bool op_assign(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
-        PSObject b = s.back(); s.pop_back();
-        PSObject a = s.back(); s.pop_back();
+        PSObject b;
+        PSObject a;
+
+        s.pop(a);
+        s.pop(b);
 
         bool result = (a.type == b.type);
 
@@ -235,27 +283,35 @@ namespace waavs
             }
         }
 
-        s.push_back(PSObject::fromBool(result));
+        s.push(PSObject::fromBool(result));
         return true;
     }
 
     inline bool op_ne(PSVirtualMachine& vm) {
+		auto& s = vm.opStack();
+
         bool ok = op_assign(vm);
         if (!ok) return false;
 
-        PSObject top = vm.operandStack.back(); vm.operandStack.pop_back();
+        PSObject top;
+        
+        s.pop(top);
+
         if (top.type != PSObjectType::Bool) return false;
 
-        vm.operandStack.push_back(PSObject::fromBool(!top.data.bVal));
+        s.push(PSObject::fromBool(!top.data.bVal));
         return true;
     }
 
 
     inline bool op_type(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.empty()) return false;
 
-        PSObject obj = s.back(); s.pop_back();
+
+        PSObject obj;
+
+        s.pop(obj);
 
         const char* typeName = "unknown";
 
@@ -271,31 +327,33 @@ namespace waavs
         default: break;
         }
 
-        s.push_back(PSObject::fromName(typeName));
+        s.push(PSObject::fromName(typeName));
         return true;
     }
 
 
     inline bool op_cvs(PSVirtualMachine& vm) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.empty()) return false;
 
-        PSObject val = s.back(); s.pop_back();
+        PSObject val;
+
+        s.pop(val);
 
         char buffer[64] = { 0 };
 
         switch (val.type) {
         case PSObjectType::Int:
-            std::snprintf(buffer, sizeof(buffer), "%d", val.data.iVal);
+            std::snprintf(buffer, sizeof(buffer), "%d", val.asInt());
             break;
         case PSObjectType::Real:
-            std::snprintf(buffer, sizeof(buffer), "%.6g", val.data.fVal);
+            std::snprintf(buffer, sizeof(buffer), "%.6g", val.asReal());
             break;
         case PSObjectType::Bool:
-            std::snprintf(buffer, sizeof(buffer), val.data.bVal ? "true" : "false");
+            std::snprintf(buffer, sizeof(buffer), val.asBool() ? "true" : "false");
             break;
         case PSObjectType::Name:
-            std::snprintf(buffer, sizeof(buffer), "/%s", val.data.name);
+            std::snprintf(buffer, sizeof(buffer), "/%s", val.asName());
             break;
         default:
             std::snprintf(buffer, sizeof(buffer), "<object>");
@@ -306,7 +364,7 @@ namespace waavs
         for (size_t i = 0; i < std::strlen(buffer); ++i)
             str->data[i] = buffer[i];
 
-        s.push_back(PSObject::fromString(str));
+        s.push(PSObject::fromString(str));
         return true;
     }
 

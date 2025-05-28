@@ -13,7 +13,7 @@ void printLexeme(const PSLexeme& lex)
 
 }
 
-static void test_lexgen(OctetCursor& s)
+static void test_lexgen(OctetCursor s)
 {
 	PSLexemeGenerator gen(s);
 	PSLexeme lexeme;
@@ -23,28 +23,24 @@ static void test_lexgen(OctetCursor& s)
 	}
 }
 
+static void test_lexgenfile(const char *filename)
+{
+	auto mapped = MappedFile::create_shared(filename);
+	if (nullptr == mapped)
+		return;
+	OctetCursor s(mapped->data(), mapped->size());
+	test_lexgen(s);
+	mapped->close();
+}
+
 int main(int argc, char *argv[]) {
-	if (argc < 2)
+	if (argc >= 2)
 	{
-		printf("Usage: tokenizer <.ps file>\n");
-		return 1;
+		test_lexgenfile(argv[1]);
+		return 0;
 	}
 
-	// create an mmap for the specified file
-	const char* filename = argv[1];
-	auto mapped = MappedFile::create_shared(filename);
-
-	if (nullptr == mapped)
-		return 0;
-
-
-	OctetCursor s(mapped->data(), mapped->size());
-
-	test_lexgen(s);
-
-
-
-	mapped->close();
+	test_lexgen("exch");
 
 	return 0;
 }

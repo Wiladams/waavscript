@@ -21,26 +21,21 @@ namespace waavs
         }
 
 
-        bool interpret(OctetCursor& input) 
-        {
+        bool interpret(OctetCursor& input) {
             PSTokenGenerator tokGen(input);
-            PSToken tok;
+            PSObject obj;
 
-            while (tokGen.next(tok)) 
-            {
-                if (tok.type == PSTokenType::PS_TOKEN_Invalid)
-                    continue;
-
-                PSObject obj;
-                if (!transformTokenToPSObject(tok, obj)) {
-                    printf("Error: failed to convert token\n");
-                    return false;
+            while (parseObject(tokGen, obj)) {
+                // Only execute names and operators at the top level.
+                if (obj.isName() || obj.isOperator()) {
+                    if (!fVM.execute(obj)) {
+                        printf("Error: VM execution failed\n");
+                        return false;
+                    }
                 }
-
-                // Handle executable objects (e.g., names and arrays)
-                if (!fVM.execute(obj)) {
-                    printf("Error: VM execution failed\n");
-                    return false;
+                else {
+                    // Push all other values (numbers, strings, arrays, etc.)
+                    fVM.opStack().push(obj);
                 }
 
                 if (fVM.isExitRequested())
@@ -49,6 +44,8 @@ namespace waavs
 
             return true;
         }
+
+
 
 
     };

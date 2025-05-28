@@ -9,69 +9,82 @@ namespace waavs {
 	static const PSOperatorFuncMap arrayOps = {
 
 		{ "array", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.operandStack;
+			auto& s = vm.opStack();
 			if (s.empty()) return false;
 
-			PSObject lenObj = s.back(); s.pop_back();
-			if (lenObj.type != PSObjectType::Int || lenObj.data.iVal < 0) return false;
+			PSObject lenObj;
+			s.pop(lenObj);
+			if (lenObj.type != PSObjectType::Int || lenObj.data.iVal < 0) 
+				return false;
 
 			auto* arr = new PSArray();
 			arr->elements.resize(static_cast<size_t>(lenObj.data.iVal));
-			s.push_back(PSObject::fromArray(arr));
+			s.push(PSObject::fromArray(arr));
 			return true;
 		}},
 
 		{ "aload", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.operandStack;
-			if (s.empty()) return false;
+			auto& s = vm.opStack();
+			if (s.empty()) 
+				return false;
 
-			PSObject arrObj = s.back(); s.pop_back();
+			PSObject arrObj;
+			s.pop(arrObj);
 			if (arrObj.type != PSObjectType::Array || !arrObj.data.arr)
 				return false;
 
 			for (const PSObject& elem : arrObj.data.arr->elements)
-				s.push_back(elem);
+				s.push(elem);
 
-			s.push_back(arrObj); // push original array back onto the stack
+			s.push(arrObj); // push original array back onto the stack
 			return true;
 		}},
 
 		{ "astore", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.operandStack;
+			auto& s = vm.opStack();
 			if (s.empty()) return false;
 
-			PSObject arrObj = s.back(); s.pop_back();
-			if (arrObj.type != PSObjectType::Array || !arrObj.data.arr)
+			PSObject arrObj;
+			s.pop(arrObj);
+
+			if (!arrObj.isArray() || !arrObj.data.arr)
 				return false;
 
 			PSArray* arr = arrObj.data.arr;
-			size_t count = arr->elements.size();
-			if (s.size() < count) return false;
+			size_t count = arr->size();
+			if (s.size() < count) 
+				return false;
 
 			// Store top stack elements into array, in reverse order
 			for (size_t i = 0; i < count; ++i) {
-				arr->elements[count - 1 - i] = s.back();
-				s.pop_back();
+				PSObject sObj;
+				s.pop(sObj);
+				arr->elements[count - 1 - i] = sObj;
 			}
 
-			s.push_back(arrObj); // push array back
+			s.push(arrObj); // push array back
 			return true;
 		}},
 
 		{ "getinterval", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.operandStack;
-			if (s.size() < 3) return false;
-
-			PSObject countObj = s.back(); s.pop_back();
-			PSObject indexObj = s.back(); s.pop_back();
-			PSObject arrObj = s.back(); s.pop_back();
-
-			if (arrObj.type != PSObjectType::Array || indexObj.type != PSObjectType::Int || countObj.type != PSObjectType::Int)
+			auto& s = vm.opStack();
+			if (s.size() < 3) 
 				return false;
 
-			auto* src = arrObj.data.arr;
-			int start = indexObj.data.iVal;
-			int count = countObj.data.iVal;
+			PSObject countObj;
+			PSObject indexObj;
+			PSObject arrObj;
+
+			s.pop(countObj);
+			s.pop(indexObj);
+			s.pop(arrObj);
+
+			if (!arrObj.isArray() || !indexObj.isInt() || !countObj.isInt())
+				return false;
+
+			auto* src = arrObj.asArray();
+			int start = indexObj.asInt();
+			int count = countObj.asInt();
 
 			if (!src || start < 0 || count < 0 || static_cast<size_t>(start + count) > src->elements.size())
 				return false;
@@ -85,31 +98,33 @@ namespace waavs {
 
 			PSObject subObj;
 			subObj.resetFromArray(sub);
-			s.push_back(subObj);
+			s.push(subObj);
 			return true;
 		}},
 
 		{ "putinterval", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.operandStack;
+			auto& s = vm.opStack();
 			if (s.size() < 3) return false;
 
-			PSObject srcArrObj = s.back(); s.pop_back();
-			PSObject indexObj = s.back(); s.pop_back();
-			PSObject destArrObj = s.back(); s.pop_back();
+			PSObject srcArrObj;
+			PSObject indexObj;
+			PSObject destArrObj;
 
-			if (destArrObj.type != PSObjectType::Array ||
-				indexObj.type != PSObjectType::Int ||
-				srcArrObj.type != PSObjectType::Array)
+			s.pop(srcArrObj);
+			s.pop(indexObj);
+			s.pop(destArrObj);
+
+			if (!destArrObj.isArray() || !indexObj.isInt() || srcArrObj.isArray())
 				return false;
 
-			auto* dest = destArrObj.data.arr;
-			auto* src = srcArrObj.data.arr;
-			int index = indexObj.data.iVal;
+			auto* dest = destArrObj.asArray();
+			auto* src = srcArrObj.asArray();
+			int index = indexObj.asInt();
 
-			if (!dest || !src || index < 0 || static_cast<size_t>(index + src->elements.size()) > dest->elements.size())
+			if (!dest || !src || index < 0 || static_cast<size_t>(index + src->size()) > dest->size())
 				return false;
 
-			for (size_t i = 0; i < src->elements.size(); ++i) {
+			for (size_t i = 0; i < src->size(); ++i) {
 				dest->elements[index + i] = src->elements[i];
 			}
 

@@ -7,17 +7,20 @@ namespace waavs {
 
     template <typename Func>
     inline bool binaryCompareOp(PSVirtualMachine& vm, Func func) {
-        auto& s = vm.operandStack;
+        auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
-        PSObject b = s.back(); s.pop_back();
-        PSObject a = s.back(); s.pop_back();
+        PSObject b;
+        PSObject a;
+
+        s.pop(b);
+        s.pop(a);
 
         if (!a.isNumber() || !b.isNumber()) return false;
 
         double av = a.asReal();
         double bv = b.asReal();
-        s.push_back(PSObject::fromBool(func(av, bv)));
+        s.push(PSObject::fromBool(func(av, bv)));
         return true;
     }
 
