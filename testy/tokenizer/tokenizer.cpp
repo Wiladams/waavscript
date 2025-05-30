@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	test_lexgen("exch");
+	test_lexgen("/x 42 def x =");
 
 	return 0;
 }

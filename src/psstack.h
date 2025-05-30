@@ -127,6 +127,28 @@ namespace waavs
         typename std::vector<T>::const_iterator end() const { return _data.end(); }
     };
 
+    struct PSExecutionStack : public PSStack<PSObject>
+    {
+        // Push a mark object onto the execution stack
+        bool mark() 
+        {
+            return push(PSObject::fromMark());
+        }
+
+        // Clear the execution stack down to the most recent mark object
+        bool clearToMark()
+        {
+            PSObject obj;
+            while (!this->empty()) {
+                if (!this->pop(obj))  // optional: you could assert here since !empty()
+                    return false;
+                if (obj.type == PSObjectType::Mark)
+                    return true;  // Successfully cleared to the mark
+            }
+            return false;  // No mark found
+        }
+	};
+
 
     struct PSOperandStack : public PSStack<PSObject>
     {

@@ -34,34 +34,34 @@ void runPostScript(const char* sourceText) {
 
 static void test_interpreter()
 {
-	runPostScript("1 2 add dup =");
+	//runPostScript("1 2 add dup =");
+	runPostScript("/x 42 def x =");
+	runPostScript("/x {dup mul} def 3 x =");
 }
 
+static int test_interpreterFile(const char* filename)
+{
+	// create an mmap for the specified file
+	auto mapped = MappedFile::create_shared(filename);
+	if (nullptr == mapped)
+		return 0;
+	OctetCursor s(mapped->data(), mapped->size());
+	runInterpreter(s);
+	mapped->close();
+
+	return 0;
+}
 
 int main(int argc, char* argv[]) 
 {
-	test_interpreter();
-
 	
-	if (argc < 2)
+	if (argc >= 2)
 	{
-		printf("\nUsage: interpreter <.ps file>\n");
-		return 1;
+		return test_interpreterFile(argv[1]);
+
 	}
 
-	// create an mmap for the specified file
-	const char* filename = argv[1];
-	auto mapped = MappedFile::create_shared(filename);
-
-	if (nullptr == mapped)
-		return 0;
-
-
-	OctetCursor s(mapped->data(), mapped->size());
-
-	runInterpreter(s);
-
-	mapped->close();
+	test_interpreter();
 
 	return 0;
 }

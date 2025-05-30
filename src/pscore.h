@@ -144,6 +144,19 @@ namespace waavs {
         PSOperator(const char* internedName, PSOperatorFunc f) noexcept
             : name(internedName), func(f) {
         }
+
+		// an operator() overload to call the function
+        bool operator()(PSVirtualMachine& vm) const noexcept {
+            if (func) {
+                return func(vm);
+            }
+            return false; // or throw an error
+        }
+
+        // Check if the operator is valid
+		bool isValid() const noexcept { 
+            return (name != nullptr) && (func != nullptr); 
+        }
     };
 
 
@@ -153,7 +166,10 @@ namespace waavs {
     // --------------------
     struct PSObject
     {
+        PSObjectType type = PSObjectType::Null;
+
         union {
+            const char* name;         // strings are interned as char pointers
             int32_t iVal;
             double  fVal;
             uint8_t    bVal;
@@ -161,10 +177,8 @@ namespace waavs {
             PSArray* arr;
             PSDictionary* dict;
             const PSOperator* op;
-            const char* name;         // strings are interned as char pointers
         } data;
 
-        PSObjectType type = PSObjectType::Null;
 		bool fIsExec = false; // Is this object executable?
 
 
@@ -198,7 +212,7 @@ namespace waavs {
             return true;
         }
 
-        bool resetFromName(const OctetCursor& span)
+        bool resetFromName(const OctetCursor& span, bool isExec=false)
         {
             reset();
 
@@ -206,10 +220,12 @@ namespace waavs {
 
             type = PSObjectType::Name;
             data.name = internedName;
+			setExecutable(isExec);
 
             return true;
         }
 
+        
         bool resetFromString(PSString* s) {
             reset();
 
@@ -231,6 +247,8 @@ namespace waavs {
 
             type = PSObjectType::Operator;
             data.op = f;
+			setExecutable(true); // Operators are executable by default
+
             return true;
         }
 
@@ -265,6 +283,7 @@ namespace waavs {
         bool isDictionary() const { return type == PSObjectType::Dictionary; }
         bool isOperator() const { return type == PSObjectType::Operator; }
         bool isName() const { return type == PSObjectType::Name; }
+        bool isLiteralName() const { return (type == PSObjectType::Name && !isExecutable()); }
         bool isBool() const { return type == PSObjectType::Bool; }
         bool isMark() const { return type == PSObjectType::Mark; }
 

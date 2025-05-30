@@ -124,15 +124,15 @@ namespace waavs
 
         switch (obj.type) {
         case PSObjectType::Array:
-            s.push(PSObject::fromInt(static_cast<int>(obj.data.arr->size())));
+            s.push(PSObject::fromInt(static_cast<int>(obj.asArray()->size())));
             return true;
 
         case PSObjectType::String:
-            s.push(PSObject::fromInt(static_cast<int>(obj.data.str->length)));
+            s.push(PSObject::fromInt(static_cast<int>(obj.asString()->length)));
             return true;
 
         case PSObjectType::Dictionary:
-            s.push(PSObject::fromInt(static_cast<int>(obj.data.dict->size())));
+            s.push(PSObject::fromInt(static_cast<int>(obj.asDictionary()->size())));
             return true;
 
         default:
@@ -218,50 +218,65 @@ namespace waavs
 
     inline bool op_forall(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2)
+            return vm.error("forall: stackunderflow");
 
-        PSObject proc;
-        PSObject obj;
-
+        PSObject proc, container;
         s.pop(proc);
-        s.pop(obj);
+        s.pop(container);
 
-        if (proc.type != PSObjectType::Array || !proc.asArray() || !proc.isExecutable())
-            return false;
+        //if (!ensureExecutableOrError(vm, proc))
+        //    return vm.error("forall: procedure is not executable");
 
-        switch (obj.type) {
+        auto apply = [&](const PSObject& val1, const PSObject* val2 = nullptr) -> bool {
+            if (val2) s.push(*val2);
+            s.push(val1);
+            
+            if (!runArray(vm, proc)) {
+                return vm.error("forall: failed to run procedure");
+			}
+            
+            if (vm.isExitRequested()) {
+                vm.clearExitRequest();
+                return false; // exit terminates loop early
+            }
+            return true;
+            };
+
+        switch (container.type) {
         case PSObjectType::Array: {
-            for (const auto& val : obj.data.arr->elements) {
-                s.push(val);
-                vm.execArray(proc.data.arr);
+            for (const auto& val : container.asArray()->elements) {
+                if (!apply(val)) break;
             }
             return true;
         }
 
         case PSObjectType::String: {
-            for (int i = 0; i < obj.asString()->length; ++i) {
-                s.push(PSObject::fromInt(obj.asString()->data[i]));
-                vm.execArray(proc.asArray());
+            auto* str = container.asString();
+            for (int i = 0; i < str->length; ++i) {
+                PSObject byte = PSObject::fromInt(static_cast<unsigned char>(str->data[i]));
+                if (!apply(byte)) break;
             }
             return true;
         }
 
         case PSObjectType::Dictionary: {
-            for (const auto& entry : obj.asDictionary()->entries) {
-                s.push(PSObject::fromName(entry.first));
-                s.push(entry.second);
-                vm.execArray(proc.data.arr);
+            for (const auto& kv : container.asDictionary()->entries) {
+                PSObject key = PSObject::fromName(kv.first);
+                PSObject val = kv.second;
+                if (!apply(key, &val)) break;
             }
             return true;
         }
 
-        default: return false;
+        default:
+            return vm.error("forall: unsupported container type");
         }
     }
 
 
 
-    inline bool op_assign(PSVirtualMachine& vm) {
+    inline bool op_equality(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
@@ -275,10 +290,10 @@ namespace waavs
 
         if (result) {
             switch (a.type) {
-            case PSObjectType::Int:     result = a.data.iVal == b.data.iVal; break;
-            case PSObjectType::Real:    result = a.data.fVal == b.data.fVal; break;
-            case PSObjectType::Bool:    result = a.data.bVal == b.data.bVal; break;
-            case PSObjectType::Name:    result = a.data.name == b.data.name; break;
+            case PSObjectType::Int:     result = a.asInt() == b.asInt(); break;
+            case PSObjectType::Real:    result = a.asReal() == b.asReal(); break;
+            case PSObjectType::Bool:    result = a.asBool() == b.asBool(); break;
+            case PSObjectType::Name:    result = a.asName() == b.asName(); break;
             case PSObjectType::Null:    result = true; break;
             default: result = false; break;
             }
@@ -291,16 +306,16 @@ namespace waavs
     inline bool op_ne(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
 
-        bool ok = op_assign(vm);
+        bool ok = op_equality(vm);
         if (!ok) return false;
 
         PSObject top;
         
         s.pop(top);
 
-        if (top.type != PSObjectType::Bool) return false;
+        if (!top.isBool()) return false;
 
-        s.push(PSObject::fromBool(!top.data.bVal));
+        s.push(PSObject::fromBool(!top.asBool()));
         return true;
     }
 
@@ -443,7 +458,7 @@ namespace waavs
     { "length", op_length },
     { "copy", op_copy },
     { "forall", op_forall },
-    { "eq", op_assign },  // Polymorphic equality
+    { "eq", op_equality },  // Polymorphic equality
     { "ne", op_ne },      // Logical negation of `eq`
     { "type", op_type },
     { "cvs", op_cvs },

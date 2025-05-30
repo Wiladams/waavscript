@@ -164,8 +164,8 @@ namespace waavs
 
 namespace waavs 
 {
-
-    inline bool transformTokenToPSObject(const PSToken& tok, PSObject &obj) 
+    // Take a single token and try to convert it into a PSObject
+    inline bool transformTokenToPSObject(const PSToken& tok, PSObject &obj, bool inProc) 
     {
         switch (tok.type) {
         case PSTokenType::PS_TOKEN_Boolean:
@@ -179,10 +179,10 @@ namespace waavs
                 return obj.resetFromReal(tok.numberValue);
 
         case PSTokenType::PS_TOKEN_LiteralName:
-            return obj.resetFromName(tok.span);
+            return obj.resetFromName(tok.span,false);
 
         case PSTokenType::PS_TOKEN_ExecutableName:
-            return obj.resetFromName(tok.span); // Executability will be resolved later
+			return obj.resetFromName(tok.span, true);
 
         case PSTokenType::PS_TOKEN_String: {
             auto* str = new PSString(tok.span.size());
@@ -236,8 +236,9 @@ namespace waavs {
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out);
 
     static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc) {
-        auto* arr = new PSArray();
+		std::unique_ptr<PSArray> arr = std::make_unique<PSArray>();
         arr->setIsProcedure(isProc);
+
         PSObject element;
 
         while (true) {
@@ -252,6 +253,8 @@ namespace waavs {
             if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
                 PSObject subProc;
                 if (!parseArray(tokgen, subProc, true)) return false;
+                // if we parse a sub-procedure, we need to mark it as executable
+				//subProc.setExecutable(true);
                 arr->append(subProc);
             }
             else if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
@@ -260,51 +263,15 @@ namespace waavs {
                 arr->append(subArray);
             }
             else {
-                if (!transformTokenToPSObject(tok, element)) return false;
+                if (!transformTokenToPSObject(tok, element, isProc)) return false;
                 arr->append(element);
             }
         }
 
-        out.resetFromArray(arr);
+        out.resetFromArray(arr.release());
         return true;
     }
-/*
-    static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc, bool executable) {
-        auto* arr = new PSArray();
-        PSObject element;
 
-        while (true) {
-            PSToken tok;
-            if (!tokgen.next(tok)) break;
-
-            if ((isProc && tok.type == PSTokenType::PS_TOKEN_ProcEnd) ||
-                (!isProc && tok.type == PSTokenType::PS_TOKEN_ArrayEnd)) {
-                break;
-            }
-
-            if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
-                PSObject subProc;
-                if (!parseArray(tokgen, subProc, true, false)) return false;
-                arr->append(subProc);
-            }
-            else if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
-                PSObject subArray;
-                if (!parseArray(tokgen, subArray, false, false)) return false;
-                arr->append(subArray);
-            }
-            else {
-                if (!transformTokenToPSObject(tok, element)) return false;
-                arr->append(element);
-            }
-        }
-
-        arr->setIsProcedure(isProc);
-        out.resetFromArray(arr);
-        out.setExecutable(executable); // ? This is what was missing
-
-        return true;
-    }
-    */
 
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out) {
         PSToken tok;
@@ -313,7 +280,6 @@ namespace waavs {
         if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
             if (!parseArray(tokgen, out, true)) 
                 return false;
-            out.setExecutable(true); // Only top-level procs get this
             return true;
         }
 
@@ -321,7 +287,7 @@ namespace waavs {
             return parseArray(tokgen, out, false); // not a procedure
         }
 
-        return transformTokenToPSObject(tok, out);
+        return transformTokenToPSObject(tok, out, false);
     }
 
 

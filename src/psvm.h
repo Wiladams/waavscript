@@ -13,18 +13,14 @@
 
 namespace waavs
 {
-    // Forward declaration for operators
+    // Forward declarations
     struct PSVirtualMachine;
+    
+    //inline bool dispatchObject(PSVirtualMachine& vm, const PSObject& obj);
+    //inline bool ensureExecutable(PSObject& obj);
+    inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
+    inline bool runArray(PSVirtualMachine& vm, const PSObject& proc);
 
-    using PSOperatorImpl = bool (*)(PSVirtualMachine&, const PSOperatorArgs& args);
-/*
-    struct PSOperatorEntry {
-        PSOperatorSignature signature{};
-        PSOperatorImpl function{ nullptr > ;
-        };
-
-        using PSOperatorEntryMap = std::unordered_map<const char*, PSOperatorEntry>;
-*/
 
     struct PSOperatorTable
     {
@@ -53,35 +49,7 @@ namespace waavs
         }
     };
 
-    /*
-    struct PSOperatorEntryTable
-    {
-        std::unordered_map<const char*, PSOperatorEntry> ops;
 
-        void add(const char* name, PSOperatorEntry entry) {
-            ops[name] = entry;
-        }
-
-        PSOperatorEntry* lookup(const char* name) {
-            auto it = ops.find(name);
-            if (it != ops.end())
-                return &it->second;
-            return nullptr;
-        }
-
-        bool contains(const char* name) const
-        {
-            return ops.find(name) != ops.end();
-        }
-
-        void clear() {
-            ops.clear();
-        }
-    };
-
-    */
-
-    using PSExecutionStack = PSStack<PSObject>;
 
     struct PSVirtualMachine
     {
@@ -96,7 +64,6 @@ namespace waavs
 
         PSDictionaryStack dictionaryStack;
         PSOperatorTable operatorTable;
-		//PSOperatorEntryTable operatorEntryTable;
 
         std::shared_ptr<PSDictionary> systemdict;
         std::shared_ptr<PSDictionary> userdict;
@@ -124,22 +91,6 @@ namespace waavs
         inline const PSExecutionStack& execStack() const { return executionStack_; }
 
 
-        /*
-        //#define PS_OP(NAME, SIG, FN) { { NAME, SIG }, FN }
-
-        void registerBuiltin(const PSOperatorEntry& entry) 
-        {
-            const char* interned = PSNameTable::INTERN(entry.signature.name);
-			operatorEntryTable.add(interned, entry);
-        }
-
-        void registerBuiltins(PSOperatorEntryMap& entries)
-        {
-            for (const auto& entry : entries) {
-                registerBuiltin(entry.second);
-            }
-		}
-        */
 
 		//=====================================================================
 		// OLD WAY OF REGISTERING OPERATORS
@@ -191,173 +142,135 @@ namespace waavs
         bool isExitRequested() const { return exitRequested; }
         void clearExitRequest() { exitRequested = false; }
 
-        void stop() { stopRequested = true; }
+        void stop() 
+        { 
+            execStack().clearToMark();  // clear the rest of currently executing procedure
+            stopRequested = true; 
+        }
         bool isStopRequested() const { return stopRequested; }
         void clearStopRequest() { stopRequested = false; }
 
         bool run() {
             while (!execStack().empty()) {
                 PSObject obj = execStack().pop();
-                if (!execute(obj)) return false;
 
-                if (isExitRequested()) break;
+                // skip over structural markers
+                if (obj.isMark()) {
+                    // debug: skipping execStack mark
+                    continue;
+				}
 
+                if (!execute(obj, false))
+                    return false;;
+
+                if (isExitRequested()) 
+                    break;
                 if (isStopRequested()) {
-                    //printf("Execution stopped.\n");
-                    clearStopRequest();
-                    return true; // Stop is not an error, just a pause
+                    //clearStopRequest();
+                    break; // Stop is not an error, just a pause
 				}
             }
             return true;
         }
 
-        bool execute(const PSObject& obj);
-        bool executeName(const char* name);
-
-
-        // --- Execute elements of a procedure array
-        /*
-        inline bool execArray(PSArray* arr)
-        {
-            if (!arr) return false;
-
-            for (size_t i = 0; i < arr->size(); ++i) {
-                PSObject obj;
-                arr->get(static_cast<int>(i), obj);
-
-                // Canonicalize procedures
-                if (obj.isArray() && obj.asArray()->isProcedure() && !obj.isExecutable()) {
-                    obj.setExecutable(true);
-                }
-
-                if (obj.isExecutable()) {
-                    execStack().push(obj);
-                }
-                else {
-                    opStack().push(obj);
-                }
-            }
-
-            return run();
-        }
-        */
+        bool execute(const PSObject& obj, bool fromExecStack);
 
         
-        inline bool execArray(PSArray* arr) 
-        {
-            if (!arr) return false;
-
-            for (int i = static_cast<int>(arr->size()) - 1; i >= 0; --i) {
-                PSObject obj;
-                arr->get(i, obj);
-                execStack().push(obj);
-            }
-
-            // Now run the execution loop
-            return run();
-        }
-        
-
         void bindArray(PSArray* proc);
         void bind();
-
+        
     };
 
-    //====================================================================
-// New execution model coming online.  runOperator()
-//====================================================================
-/*
-    bool PSVirtualMachine::runOperator(const PSOperatorEntry& entry)
-    {
-        const auto& sig = entry.signature;
-        auto& s = this->opStack();
-
-        if (s.size() < sig.arity)
-            return false;
-
-        PSOperatorArgs args{ sig, {}, sig.arity };
-
-        for (size_t i = 0; i < sig.arity; ++i)
-            if (!s.pop(args.values[i]))
-                return false;
-
-		// reverse direction of arguments if needed
-        for (size_t i = 0; i < sig.arity / 2; ++i)
-            std::swap(args.values[i], args.values[sig.arity - 1 - i]);
-
-		// Check types of arguments
-        for (size_t i = 0; i < sig.arity; ++i)
-            if (!args.values[i].is(sig.kinds[i]))
-                return false;
-
-		// Call the operator's function, passing the VM and arguments
-        return entry.function(*this, args);
-    }
-    */
-
-    bool PSVirtualMachine::executeName(const char* name)
-    {
-        PSObject obj;
-        if (!dictionaryStack.load(name, obj)) {
-            // Name not found � treat as literal
-            opStack().push(PSObject::fromName(name));
-            return true;
-        }
-
-        if (obj.isExecutable()) {
-            return execute(obj);
-        }
-
-        // Literal value � push it
-        opStack().push(obj);
-        return true;
-    }
 
 
     // --- Execute a single PSObject
-    bool PSVirtualMachine::execute(const PSObject& obj)
+    bool PSVirtualMachine::execute(const PSObject& obj, bool fromExecStack = false) 
     {
-        // If it's a name (possibly executable), try resolving it
-        if (obj.isName()) {
+
+        switch (obj.type) {
+        case PSObjectType::Operator: {
+            const PSOperator* op = obj.asOperator();
+            if (op && op->isValid()) {
+                return op->func(*this);
+            }
+            else {
+                return error("invalid operator");
+			}
+        }
+
+        case PSObjectType::Name: {
             const char* name = obj.asName();
-
-            // 1. Try operator table (built-in)
-            const PSOperator* op = lookupOperator(name);
-            if (op) {
-                return op->func(*this);  // Execute the operator directly
-            }
-
-            // 2. Try dictionary stack
             PSObject resolved;
-            if (lookupName(name, resolved)) {
-                return execute(resolved);
+
+			// Look up the name in the dictionary stack
+            if (!dictionaryStack.load(name, resolved)) {
+                return error("undefined name", name);
             }
 
-            // 3. Not found — undefined error
-            printf("Error: undefined name '%s'\n", name);
-            return false;
+            // 1. It's a literal name= ("/foo"), push to opStack as leteral
+            if (obj.isLiteralName())
+                return opStack().push(obj);
+
+            // 2. Built-in operator?  execute it
+            if (resolved.isOperator()) {
+                return execStack().push(resolved);
+            }
+
+            // 3. Name resolves to a procedure?  auto-exec
+            if (resolved.isArray() && resolved.asArray()->isProcedure()) {
+				return pushProcedureToExecStack(*this, resolved);
+            }
+            //if (resolved.isExecutable() ||(resolved.isArray() && resolved.asArray()->isProcedure())) {
+            //    execStack().push(resolved);
+            //}
+            //else {
+			//	opStack().push(resolved);
+            //}
+
+            // 4. Otherwise, it's a liter value, push to operand stack
+            opStack().push(resolved);
+            return true;
         }
 
-        // If it's an executable array, execute it
-        if (obj.isArray() && obj.isExecutable()) {
-            return execArray(obj.asArray());
+        case PSObjectType::Array: {
+            const PSArray* arr = obj.asArray();
+            if (!arr)
+                return error("execute::Array null array");
+
+            if (arr->isProcedure()) {
+                //if (fromExecStack) {
+                //    return pushProcedureToExecStack(*this, obj);
+                //}
+                //else {
+                    opStack().push(obj); // treat it as a literal, for later execution
+                    return true;
+                //}
+            }
+
+            opStack().push(obj); // Non-executable array, treat as literal
+            return true;
         }
 
-        // Any other object — push to operand stack
-        opStack().push(obj);
+        default:
+            // Literal value (number, string, etc.) — push onto operand stack
+            opStack().push(obj);
+			return true;
+        }
+
         return true;
     }
 
 
 
 
+ 
     // --- Replace names in procedure with operator pointers
     inline void PSVirtualMachine::bindArray(PSArray* proc) {
         if (!proc) return;
 
         for (auto& obj : proc->elements) {
             if (obj.type == PSObjectType::Name) {
-                const PSOperator* op = operatorTable.lookup(obj.data.name);
+                const PSOperator* op = operatorTable.lookup(obj.asName());
                 if (op) {
                     obj = PSObject::fromOperator(op);
                 }
@@ -378,6 +291,57 @@ namespace waavs
             opStack().push(obj); // push updated array
         }
     }
+   
 
+	//======================================================================
+    // Helpers
+	//======================================================================
+
+    /*
+    inline bool ensureExecutable(PSObject& obj) {
+        if (obj.isExecutable()) return true;
+
+        if (obj.isArray() && obj.asArray()->isProcedure()) {
+            obj.setExecutable(true); // canonicalize in-place
+            return true;
+        }
+
+        return false;
+    }
+
+    inline bool ensureExecutableOrError(PSVirtualMachine& vm, PSObject& obj) {
+        if (!ensureExecutable(obj))
+            return vm.error("typecheck: ensureExecutableOrError::expected executable procedure");
+        return true;
+    }
+    */
+
+	// Unrolls a procedure (array) onto the execution stack.
+	// The arguments are pushed in reverse order, so the first argument is on top of the stack.
+	// Returns false on error (e.g., if the array is not a procedure).
+    inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc) {
+        if (!proc.isArray()) 
+            return vm.error("typecheck");
+        
+        const PSArray* arr = proc.asArray();
+        if (!arr || !arr->isProcedure()) 
+            return vm.error("pushProcedureToExecStack::typecheck");
+
+        // start by pushing a marker, which is used to properly unwind 
+		// the execution stack when the procedure is done or stopped
+        vm.execStack().push(PSObject::fromMark());
+        for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+        {
+            if (!vm.execStack().push(*it))
+                return false;
+        }
+
+        return true;
+    }
+
+    inline bool runArray(PSVirtualMachine& vm, const PSObject& proc) 
+    {
+        return pushProcedureToExecStack(vm, proc) && vm.run();
+    }
 
 }

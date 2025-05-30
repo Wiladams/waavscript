@@ -186,8 +186,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\psstack.h" />
     <ClInclude Include="..\..\src\psvm.h" />
     <ClInclude Include="..\..\src\ps_interpreter.h" />
+    <ClInclude Include="..\..\src\ps_lexer.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />

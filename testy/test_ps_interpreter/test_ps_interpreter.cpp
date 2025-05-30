@@ -42,8 +42,7 @@ static void test_stack_ops() {
     runPostscript("1 2 3 3 copy = = = = = = "); // expect: 3, 2, 1, 3, 2, 1,
     runPostscript("clear");                // just clear the stack
 }
-
-const char* control_s1 = R"||(
+const char* stopped_s1 = R"||(
 {
   (before stop) =
   stop
@@ -52,19 +51,27 @@ const char* control_s1 = R"||(
 (continued) =
 )||";
 
+static void test_op_stopped() {
+    runPostscript(stopped_s1); // should print "before stop" and then "continued"
+}
 
 static void test_control_flow() {
     printf("\n== Control Flow  ==\n");
     runPostscript("true { 1 } if = ");     // should not error if 'if' is implemented
-    //runPostscript("0 1 2 { = } repeat"); // should not error if 'repeat' is implemented,    expect: 1, 0
+    runPostscript("0 1 2 { = } repeat  % expect: 1, 0"); // should not error if 'repeat' is implemented,    expect: 1, 0
 	runPostscript("0 1 3 {=} for % prints 0 1 2 3"); // expect: 0, 1, 2, 3
-	//runPostscript("3 -1 0 {=} for % prints 3 2 1 0"); // expect: 3, 2, 1, 0
+	runPostscript("3 -1 0 {=} for % prints 3 2 1 0"); // expect: 3, 2, 1, 0
+    runPostscript("0 0.25 3 {=} for % prints 0..3, in increments of 0.25");
+}
+
+void test_forall()
+{
+    printf("\n== ForAll Operator ==\n");
     runPostscript("[ 10 20 30 ] { = } forall");
     runPostscript("(abc) { = } forall");
     runPostscript("[ (hello) 123 true ] { dup type = } forall");
     runPostscript("[ 1 2 3 4 5 ] { dup 3 eq{ exit } if (Value = ) print =} forall");
     runPostscript("[ 1 2 3 4 5 ] { dup mul = } forall");
-	runPostscript(control_s1); // should print "before stop" and then "continued"
 }
 
 static void test_debug_ops() {
@@ -128,17 +135,21 @@ static void test_logic()
 	runPostscript(logic_s1);
 }
 
+
 static void test_procedure()
 {
     printf("\n== Procedure Operators ==\n");
-    runPostscript("true { { (Nested procedure executed) = } exec } if");
-	runPostscript("3 { { (Hello) = } exec } repeat                          % Should print (Hello) 3 times");
+    runPostscript("true { { (Nested procedure executed) = } exec }  if");
+	runPostscript("3 { { (Hello) = } exec } repeat                 % Should print (Hello) 3 times");
+    runPostscript("3 { (Hello) = } repeat                          % Should print (Hello) 3 times");
+
     runPostscript("true { true { (Both conditions met) = } if } if          % Should printf (Both conditions met)");
 }
 
 static void test_repeat()
 {
     printf("\n== Repeat Operator ==\n");
+
     runPostscript("0 3 { (inside repeat) = } repeat");
 }
 
@@ -149,16 +160,39 @@ static void test_nested()
     const char* nested_s1 = R"||(
 % Nested execution
 /innerProc { (hello from inner) = } def
+/outerProc { innerProc  } def
+outerProc
+)||";
+    
+    const char* nested_s2 = R"||(
+% Nested execution
 /outerProc { innerProc exec } def
 outerProc
 )||";
 
+    const char* nested_s3 = R"||(
+/innerProc { (hello from inner) = } def
+/outerProc { /innerProc load exec } def
+outerProc
+
+)||";
+
     runPostscript(nested_s1);
+    //runPostscript(nested_s2);
+    //runPostscript(nested_s3);
+
+
 }
 
 static void test_exec()
 {
     runPostscript("{ 1 2 add } exec =");
+}
+
+static void test_operator_def()
+{
+    printf("\n== Operator Definition ==\n");
+    runPostscript("/x 42 def x =");
 }
 
 static void test_unimplemented_op() 
@@ -170,18 +204,22 @@ static void test_unimplemented_op()
 // ------------ Entry ------------
 
 int main() {
-    //test_arithmetic_ops();
-    //test_stack_ops();
-    //test_control_flow();
-    //test_unimplemented_op();
-    //test_debug_ops();
+    test_arithmetic_ops();
+    test_stack_ops();
+    test_control_flow();
+    test_debug_ops();
     test_loop_op();
-    //test_logic();
-    //test_procedure();
-    //test_repeat();
-    //test_nested();
-    //test_exec();
-    
+    test_forall();
+    test_logic();
+    test_procedure();
+    test_repeat();
+    test_nested();
+    test_exec();
+    test_op_stopped();
+    test_operator_def();
+
+    //test_unimplemented_op();
+
     return 0;
 }
 

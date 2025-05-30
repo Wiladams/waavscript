@@ -53,7 +53,7 @@ void printToken(const PSToken& tok)
 
 
 
-static void test_tokengen(OctetCursor& s)
+static void test_tokengen(const OctetCursor& s)
 {
 	PSTokenGenerator gen(s);
 	PSToken tok;
@@ -63,19 +63,13 @@ static void test_tokengen(OctetCursor& s)
 	}
 }
 
-int main(int argc, char* argv[]) {
-	if (argc < 2)
-	{
-		printf("Usage: scanner <.ps file>\n");
-		return 1;
-	}
-
+static void test_tokengenFile(const char* filename)
+{
 	// create an mmap for the specified file
-	const char* filename = argv[1];
 	auto mapped = MappedFile::create_shared(filename);
 
 	if (nullptr == mapped)
-		return 0;
+		return ;
 
 
 	OctetCursor s(mapped->data(), mapped->size());
@@ -83,6 +77,17 @@ int main(int argc, char* argv[]) {
 	test_tokengen(s);
 
 	mapped->close();
+}
+
+
+int main(int argc, char* argv[]) {
+	if (argc >= 2)
+	{
+		test_tokengenFile(argv[1]);
+		return 1;
+	}
+
+	test_tokengen(OctetCursor("/x 42 def x ="));
 
 	return 0;
 }
