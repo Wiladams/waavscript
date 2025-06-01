@@ -7,14 +7,14 @@
 
 namespace waavs {
     struct PSDictionaryStack {
-        std::vector<std::shared_ptr<PSDictionary>> stack;
+        std::vector<PSDictionaryHandle> stack;
 
         PSDictionaryStack() {
             // Push global dictionary
-            stack.push_back(std::make_shared<PSDictionary>());
+            stack.push_back(PSDictionary::create());
         }
 
-        void push(std::shared_ptr<PSDictionary> dict) {
+        void push(PSDictionaryHandle dict) {
             stack.push_back(dict);
         }
 
@@ -23,7 +23,7 @@ namespace waavs {
                 stack.pop_back();
         }
 
-        std::shared_ptr<PSDictionary> currentdict() {
+        PSDictionaryHandle currentdict() {
             return stack.back();
         }
 
@@ -53,7 +53,7 @@ namespace waavs {
 
         void clear() {
             stack.clear();
-            stack.push_back(std::make_shared<PSDictionary>()); // restore global
+            stack.push_back(PSDictionary::create()); // restore global
         }
     };
 }

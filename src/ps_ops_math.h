@@ -65,9 +65,9 @@ namespace waavs {
             s.pop(b);
             s.pop(a);
 
-            if (a.type != PSObjectType::Int || b.type != PSObjectType::Int || b.data.iVal == 0) return false;
+            if (a.type != PSObjectType::Int || b.type != PSObjectType::Int || b.asInt() == 0) return false;
 
-            s.push(PSObject::fromInt(a.data.iVal / b.data.iVal));
+            s.push(PSObject::fromInt(a.asInt() / b.asInt()));
             return true;
         }},
         { "mod", [](PSVirtualMachine& vm) -> bool {
@@ -136,7 +136,7 @@ namespace waavs {
             s.pop(obj);
 
             if (obj.type != PSObjectType::Int) return false;
-            vm.randSeed = obj.data.iVal & 0x7FFFFFFF;
+            vm.randSeed = obj.asInt() & 0x7FFFFFFF;
             return true;
         }},
         { "rrand", [](PSVirtualMachine& vm) -> bool {

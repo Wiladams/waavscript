@@ -47,11 +47,11 @@ namespace waavs
 
         // convenience functions, assuming size() > 0
         // very risky, since we don't throw exceptions
-        T& pop() {
-            //if (_data.empty())
-            //  return T(); // throw std::out_of_range("Stack is empty");
-            T& value = _data.back();
+        T pop() {
+
+            T value = std::move(_data.back());
             _data.pop_back();
+
             return value;
         }
 
@@ -106,7 +106,8 @@ namespace waavs
             return true;
         }
 
-        T& top() { return _data.back(); }
+        const T& top() const { return _data.back(); }
+
         bool top(T& out) const {
             if (_data.empty()) return false;
             out = _data.back();
@@ -126,6 +127,27 @@ namespace waavs
         typename std::vector<T>::const_iterator begin() const { return _data.begin(); }
         typename std::vector<T>::const_iterator end() const { return _data.end(); }
     };
+
+    struct PSObjectStack : public PSStack<PSObject>
+    {
+        // Push a mark object onto the object stack
+        bool mark() 
+        {
+            return push(PSObject::fromMark());
+        }
+        // Clear the object stack down to the most recent mark object
+        bool clearToMark()
+        {
+            PSObject obj;
+            while (!this->empty()) {
+                if (!this->pop(obj))  // optional: you could assert here since !empty()
+                    return false;
+                if (obj.type == PSObjectType::Mark)
+                    return true;  // Successfully cleared to the mark
+            }
+            return false;  // No mark found
+        }
+	};
 
     struct PSExecutionStack : public PSStack<PSObject>
     {

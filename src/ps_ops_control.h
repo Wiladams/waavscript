@@ -186,7 +186,7 @@ namespace waavs {
 
             if (!proc.isArray()) return vm.error("typecheck");
 
-            PSArray* arr = proc.asArray();
+            auto arr = proc.asArray();
             if (!arr || !arr->isProcedure()) return vm.error("typecheck");
 
             // Save current stop flag

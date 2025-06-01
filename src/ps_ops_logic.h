@@ -17,11 +17,11 @@ namespace waavs {
             s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.data.bVal && b.data.bVal));
+                s.push(PSObject::fromBool(a.asBool() && b.asBool()));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.data.iVal & b.data.iVal));
+                s.push(PSObject::fromInt(a.asInt()& b.asInt()));
                 return true;
             }
             return false;
@@ -38,11 +38,11 @@ namespace waavs {
             s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.data.bVal || b.data.bVal));
+                s.push(PSObject::fromBool(a.asBool() || b.asBool()));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.data.iVal | b.data.iVal));
+                s.push(PSObject::fromInt(a.asInt() | b.asInt()));
                 return true;
             }
             return false;
@@ -59,11 +59,11 @@ namespace waavs {
             s.pop(a);
 
             if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.data.bVal != b.data.bVal));
+                s.push(PSObject::fromBool(a.asBool() != b.asBool()));
                 return true;
             }
             if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.data.iVal ^ b.data.iVal));
+                s.push(PSObject::fromInt(a.asInt() ^ b.asInt()));
                 return true;
             }
             return false;
@@ -78,11 +78,11 @@ namespace waavs {
             s.pop(a);
 
             if (a.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(!a.data.bVal));
+                s.push(PSObject::fromBool(!a.asBool()));
                 return true;
             }
             if (a.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(~a.data.iVal));
+                s.push(PSObject::fromInt(~a.asInt()));
                 return true;
             }
             return false;

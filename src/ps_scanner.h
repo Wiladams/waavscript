@@ -179,15 +179,19 @@ namespace waavs
                 return obj.resetFromReal(tok.numberValue);
 
         case PSTokenType::PS_TOKEN_LiteralName:
-            return obj.resetFromName(tok.span,false);
+            obj.resetFromName(PSNameTable::INTERN(tok.span));
+            return true;
 
         case PSTokenType::PS_TOKEN_ExecutableName:
-			return obj.resetFromName(tok.span, true);
+            obj.resetFromName(PSNameTable::INTERN(tok.span));
+			obj.setExecutable(true);
+            return true;
 
         case PSTokenType::PS_TOKEN_String: {
-            auto* str = new PSString(tok.span.size());
-            for (size_t i = 0; i < tok.span.size(); ++i)
-                str->put(i, tok.span.data()[i]);
+			auto str = PSString::createFromSpan(tok.span.size(), tok.span.data());
+            //for (size_t i = 0; i < tok.span.size(); ++i)
+            //    str->put(i, tok.span.data()[i]);
+
             return obj.resetFromString(str);
         }
 
@@ -211,7 +215,7 @@ namespace waavs
                     };
                 bytes.push_back((decodeHex(hi) << 4) | decodeHex(lo));
             }
-            auto* str = new PSString(bytes.size());
+            auto str = PSString::createFromSize(bytes.size());
             for (size_t i = 0; i < bytes.size(); ++i)
                 str->put(i, bytes[i]);
 
@@ -236,7 +240,7 @@ namespace waavs {
     static inline bool parseObject(PSTokenGenerator& tokgen, PSObject& out);
 
     static inline bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc) {
-		std::unique_ptr<PSArray> arr = std::make_unique<PSArray>();
+		auto arr = PSArray::create();
         arr->setIsProcedure(isProc);
 
         PSObject element;
@@ -268,7 +272,7 @@ namespace waavs {
             }
         }
 
-        out.resetFromArray(arr.release());
+        out.resetFromArray(arr);
         return true;
     }
 

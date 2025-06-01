@@ -65,8 +65,8 @@ namespace waavs
         PSDictionaryStack dictionaryStack;
         PSOperatorTable operatorTable;
 
-        std::shared_ptr<PSDictionary> systemdict;
-        std::shared_ptr<PSDictionary> userdict;
+        PSDictionaryHandle systemdict;
+        PSDictionaryHandle userdict;
 
         int buildProcDepth = 0;
         int32_t randSeed = 1;
@@ -74,8 +74,8 @@ namespace waavs
     public:
         PSVirtualMachine()
         {
-            systemdict = std::make_shared<PSDictionary>();
-            userdict = std::make_shared<PSDictionary>();
+            systemdict = PSDictionary::create();
+            userdict = PSDictionary::create();
 
             // Set up dictionary stack (bottom to top):
             dictionaryStack.push(systemdict); // Lowest priority
@@ -176,7 +176,7 @@ namespace waavs
         bool execute(const PSObject& obj, bool fromExecStack);
 
         
-        void bindArray(PSArray* proc);
+        void bindArray(PSArrayHandle proc);
         void bind();
         
     };
@@ -233,7 +233,7 @@ namespace waavs
         }
 
         case PSObjectType::Array: {
-            const PSArray* arr = obj.asArray();
+            auto arr = obj.asArray();
             if (!arr)
                 return error("execute::Array null array");
 
@@ -265,7 +265,7 @@ namespace waavs
 
  
     // --- Replace names in procedure with operator pointers
-    inline void PSVirtualMachine::bindArray(PSArray* proc) {
+    inline void PSVirtualMachine::bindArray(PSArrayHandle proc) {
         if (!proc) return;
 
         for (auto& obj : proc->elements) {
@@ -323,7 +323,7 @@ namespace waavs
         if (!proc.isArray()) 
             return vm.error("typecheck");
         
-        const PSArray* arr = proc.asArray();
+        auto arr = proc.asArray();
         if (!arr || !arr->isProcedure()) 
             return vm.error("pushProcedureToExecStack::typecheck");
 

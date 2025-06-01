@@ -21,11 +21,19 @@ namespace waavs {
             if (obj.asArray())
                 std::cout << "[...(" << obj.asArray()->size() << ")]";
             else
-				std::cout << "[NULLPTR]";
+                std::cout << "[NULLPTR]";
             break;
         case PSObjectType::Dictionary: std::cout << "<<...>>"; break;
         case PSObjectType::Operator: std::cout << "--OP--"; break;
-        default: std::cout << "--UNKNOWN--"; break;
+        case PSObjectType::Matrix: {
+            auto m = obj.asMatrix();
+            printf("[%g %g %g %g %g %g]", m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+        }
+                                 break;
+
+        default:
+            std::cout << "--UNKNOWN--";
+            break;
         }
     }
 
@@ -33,7 +41,7 @@ namespace waavs {
 
     static void writeObjectDeep(const PSObject& obj);  // Forward declaration
 
-    static void writeArrayDeep(const PSArray* arr) 
+    static void writeArrayDeep(const PSArrayHandle arr) 
     {
         std::cout << "[";
         for (size_t i = 0; i < arr->size(); ++i) {
@@ -45,11 +53,11 @@ namespace waavs {
         std::cout << "]";
     }
 
-    static void writeDictDeep(const PSDictionary* dict) 
+    static void writeDictDeep(const PSDictionaryHandle dict) 
     {
         std::cout << "<<";
         bool first = true;
-        for (const auto& pair : dict->entries) {
+        for (const auto& pair : dict->entries()) {
             if (!first) 
                 std::cout << " ";
             
@@ -97,6 +105,16 @@ namespace waavs {
             std::cout << "--OP:" << (obj.asOperator() && obj.asOperator()->name ? obj.asOperator()->name : "unknown") << "--";
             break;
 
+		case PSObjectType::Matrix:
+            if (obj.isMatrix()) {
+                std::cout << "--MATRIX: ";
+                const auto& m = obj.asMatrix();
+                printf("[[%g %g] [%g %g] [%g %g]]", m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+                std::cout << std::endl;
+            } else {
+                std::cout << "--MATRIX:NULLPTR--";
+            }
+			break;
 
         default:
             std::cout << "--UNKNOWN--";
@@ -138,6 +156,7 @@ namespace waavs {
 
             if (!obj.isString() || !obj.asString()) return false;
             std::cout << obj.asString()->toString();
+
             return true;
         }},
 
@@ -170,7 +189,7 @@ namespace waavs {
         }},
 
         { "errordict", [](PSVirtualMachine& vm) -> bool {
-            PSDictionary* dict = new PSDictionary();
+            auto dict = PSDictionary::create();
             vm.opStack().push(PSObject::fromDictionary(dict));
             return true;
         }},

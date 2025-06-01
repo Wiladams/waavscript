@@ -33,11 +33,11 @@ namespace waavs {
 
             PSObject sizeObj;
 
-			s.pop(sizeObj); // pop size, but ignore it
+			s.pop(sizeObj);
 
-            if (sizeObj.type != PSObjectType::Int) return false;
+            if (!sizeObj.is(PSObjectType::Int)) return false;
 
-            auto* d = new PSDictionary(); // size ignored
+            auto d = PSDictionary::create(sizeObj.asInt());
             s.push(PSObject::fromDictionary(d));
             return true;
         }},
@@ -50,10 +50,9 @@ namespace waavs {
             
             s.pop(dictObj);
 
-            if (dictObj.type != PSObjectType::Dictionary)
-                return false;
+            if (!dictObj.is(PSObjectType::Dictionary)) return vm.error("type mismatch");
 
-            vm.dictionaryStack.push(std::shared_ptr<PSDictionary>(dictObj.data.dict));
+            vm.dictionaryStack.push(dictObj.asDictionary());
             return true;
         }},
 
@@ -88,7 +87,7 @@ namespace waavs {
             if (name.type != PSObjectType::Name) return false;
 
             PSObject value;
-            if (!vm.dictionaryStack.load(name.data.name, value)) {
+            if (!vm.dictionaryStack.load(name.asName(), value)) {
                 return false; // undefined name
             }
 
@@ -106,11 +105,11 @@ namespace waavs {
 
             if (nameObj.type != PSObjectType::Name) return false;
 
-            const char* name = nameObj.data.name;
+            const char* name = nameObj.asName();
 
             for (const auto& dict : vm.dictionaryStack.stack) {
                 if (dict->contains(name)) {
-                    s.push(PSObject::fromDictionary(dict.get()));
+                    s.push(PSObject::fromDictionary(dict));
                     s.push(PSObject::fromBool(true));
                     return true;
                 }
@@ -124,7 +123,7 @@ namespace waavs {
             auto& s = vm.opStack();
             auto top = vm.dictionaryStack.currentdict();
             if (!top) return false;
-            s.push(PSObject::fromDictionary(top.get()));
+            s.push(PSObject::fromDictionary(top));
             return true;
         }},
 
@@ -148,10 +147,10 @@ namespace waavs {
                 dictObj.type != PSObjectType::Dictionary)
                 return false;
 
-            PSDictionary* dict = dictObj.data.dict;
+            auto dict = dictObj.asDictionary();
             if (!dict) return false;
 
-            bool exists = dict->contains(key.data.name);
+            bool exists = dict->contains(key.asName());
             s.push(PSObject::fromBool(exists));
             return true;
         }}

@@ -11,11 +11,12 @@
 #include <vector>
 #include <functional>
 #include <memory>
-
+#include <variant>
 
 #include "ocspan.h"
 #include "nametable.h"
-
+#include "psstring.h"
+#include "psmatrix.h"
 
 
 
@@ -45,88 +46,16 @@ namespace waavs {
         ,Dictionary = 'd'
         ,Operator    = 'O'
         ,Mark    = 'm'
+        ,Matrix = 'x'
         ,Invalid = '?'      // Invalid type, used for uninitialized objects
 		,Any = '*'          // Any type, used for generic operations
     };
 
-
-
-    // --------------------
-    // PSString
-    // --------------------
-    struct PSString
-    {
-        uint32_t fCapacity = 0;
-        uint8_t* data = nullptr;
-        uint32_t length = 0;
-
-        PSString(size_t cap)
-            : fCapacity(cap)
-            , length(0)
-        {
-            data = new uint8_t[cap];
-        }
-
-        PSString(const char* literal) 
-        {
-            length = fCapacity = std::strlen(literal);
-            data = new uint8_t[fCapacity];
-            std::memcpy(data, literal, fCapacity);
-        }
-
-        ~PSString() { delete[] data;}
-
-        size_t size() const {return length;}
-		size_t capacity() const { return fCapacity; }
-
-
-        void reset() {
-            length = 0;
-        }
-
-        std::string toString() const {
-            return std::string(reinterpret_cast<const char*>(data), length);
-        }
-
-        uint8_t get(uint32_t index) const {
-            if (index >= length) return 0; // or throw an error
-            return data[index];
-		}
-        bool get(uint32_t index, uint8_t& out) const {
-            if (index >= length) return false;
-            out = data[index];
-            return true;
-        }
-
-        bool put(uint32_t index, uint8_t value) {
-            if (index >= fCapacity) return false;
-            data[index] = value;
-            if (index >= length) length = index + 1;
-            return true;
-        }
-
-        PSString* getInterval(uint32_t index, uint32_t count) const {
-            if (index >= fCapacity) return new PSString((size_t)0);
-            if (count > fCapacity - index) count = fCapacity - index;
-
-            PSString* out = new PSString(count);
-            for (uint32_t i = 0; i < count; ++i)
-                out->put(i, data[index + i]);
-
-            return out;
-        }
-
-        bool putInterval(uint32_t offset, const PSString& other) {
-            if (offset >= fCapacity) return false;
-            uint32_t count = other.length;
-            if (offset + count > fCapacity) count = fCapacity - offset;
-
-            for (uint32_t i = 0; i < count; ++i)
-                put(offset + i, other.data[i]);
-
-            return true;
-        }
-    };
+    // Handle aliases for clarity
+    using PSStringHandle = std::shared_ptr<PSString>;
+    using PSArrayHandle = std::shared_ptr<PSArray>;
+    using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
+    using PSOperatorHandle = std::shared_ptr<PSOperator>;
 
     // --------------------
     // PSOperator
@@ -157,157 +86,134 @@ namespace waavs {
 		bool isValid() const noexcept { 
             return (name != nullptr) && (func != nullptr); 
         }
+
+
     };
 
 
 
-    // --------------------
-    // PSObject
-    // --------------------
-    struct PSObject
-    {
-        PSObjectType type = PSObjectType::Null;
-
-        union {
-            const char* name;         // strings are interned as char pointers
-            int32_t iVal;
-            double  fVal;
-            uint8_t    bVal;
-            PSString* str;
-            PSArray* arr;
-            PSDictionary* dict;
-            const PSOperator* op;
-        } data;
-
-		bool fIsExec = false; // Is this object executable?
 
 
+struct PSObject {
+private:
+    using Variant = std::variant<
+        std::monostate,                      // Null
+        int32_t,                             // Int
+        double,                              // Real
+        bool,                                // Bool
+        const char*,                         // Name (interned)
+        const PSOperator*,                   // Operator
+		PSMatrix,                            // Matrix
+        PSStringHandle,                      // String
+        PSArrayHandle,                       // Array
+        PSDictionaryHandle,                  // Dictionary
+        std::nullptr_t                       // Mark
+    >;
 
-        // Reset the current instance to a specific type
-        bool reset()
-        {
-			//memset(&data, 0, sizeof(data)); // Clear the union data
-            type = PSObjectType::Null;
-            fIsExec = false;
-            return true;
-        }
+    bool fIsExec = false;
+    Variant fValue;
 
-        bool resetFromInt(int32_t v) {
-            reset();
-            type = PSObjectType::Int;
-            data.iVal = v;
-            return true;
-        }
-        bool resetFromReal(double v) {
-            reset();
-            type = PSObjectType::Real;
-            data.fVal = v;
-            return true;
-        }
-        bool resetFromBool(bool v) {
-            reset();
+public:
+    PSObjectType type = PSObjectType::Null;
 
-            type = PSObjectType::Bool;
-            data.bVal = v ? 1 : 0;
-            return true;
-        }
+    // Reset state
+    bool reset() {
+        fValue = std::monostate{};
+        type = PSObjectType::Null;
+        fIsExec = false;
+        return true;
+    }
 
-        bool resetFromName(const OctetCursor& span, bool isExec=false)
-        {
-            reset();
-
-            const char* internedName = PSNameTable::getTable()->intern(span);
-
-            type = PSObjectType::Name;
-            data.name = internedName;
-			setExecutable(isExec);
-
-            return true;
-        }
-
-        
-        bool resetFromString(PSString* s) {
-            reset();
-
-            type = PSObjectType::String;
-            data.str = s;
-            return true;
-        }
-
-        bool resetFromArray(PSArray* a) {
-            reset();
-
-            type = PSObjectType::Array;
-            data.arr = a;
-            return true;
-        }
-
-        bool resetFromOperator(const PSOperator* f) {
-            reset();
-
-            type = PSObjectType::Operator;
-            data.op = f;
-			setExecutable(true); // Operators are executable by default
-
-            return true;
-        }
-
-        bool resetFromDictionary(PSDictionary* d) {
-            reset();
-
-            type = PSObjectType::Dictionary;
-            data.dict = d;
-            return true;
-        }
-
-        bool resetFromMark() {
-            reset();
-
-            type = PSObjectType::Mark;
-            return true;
-        }
+    bool resetFromInt(int32_t v) {
+        reset(); type = PSObjectType::Int; fValue = v; return true;
+    }
+    bool resetFromReal(double v) {
+        reset(); type = PSObjectType::Real; fValue = v; return true;
+    }
+    bool resetFromBool(bool v) {
+        reset(); type = PSObjectType::Bool; fValue = v; return true;
+    }
+    bool resetFromName(const char* interned) {
+        reset(); type = PSObjectType::Name; fValue = interned; return true;
+    }
+    bool resetFromString(PSStringHandle s) {
+        reset(); type = PSObjectType::String; fValue = s; return true;
+    }
+    bool resetFromArray(PSArrayHandle a) {
+        reset(); type = PSObjectType::Array; fValue = a; return true;
+    }
+    bool resetFromDictionary(PSDictionaryHandle d) {
+        reset(); type = PSObjectType::Dictionary; fValue = d; return true;
+    }
+    bool resetFromOperator(const PSOperator* f) {
+        reset(); type = PSObjectType::Operator; fValue = f; fIsExec = true; return true;
+    }
+    bool resetFromMatrix(const PSMatrix& m) {
+        reset(); type = PSObjectType::Matrix; fValue = m; return true;
+	}
+    bool resetFromMark() {
+        reset(); type = PSObjectType::Mark; fValue = nullptr; return true;
+    }
 
 
+    // Static constructors
+    static PSObject fromInt(int32_t v) { PSObject o; o.resetFromInt(v); return o; }
+    static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
+    static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
+    static PSObject fromName(const char* n) { PSObject o; o.resetFromName(n); return o; }
+    static PSObject fromString(PSStringHandle s) { PSObject o; o.resetFromString(s); return o; }
+    static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
+    static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
+    static PSObject fromOperator(const PSOperator* f) { PSObject o; o.resetFromOperator(f); return o; }
+	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
+    static PSObject fromMark() { PSObject o; o.resetFromMark(); return o; }
 
-        // Some attributes
-        inline bool isExecutable() const {return fIsExec;}
-		void setExecutable(bool flag) { fIsExec = flag; }
 
-        // Validating the type of the object
-        bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
-        bool isNumber() const { return type == PSObjectType::Int || type == PSObjectType::Real; }
-        bool isInt() const { return type == PSObjectType::Int; }
-        bool isReal() const { return type == PSObjectType::Real; }
-        bool isArray() const { return type == PSObjectType::Array; }
-        bool isString() const { return type == PSObjectType::String; }
-        bool isDictionary() const { return type == PSObjectType::Dictionary; }
-        bool isOperator() const { return type == PSObjectType::Operator; }
-        bool isName() const { return type == PSObjectType::Name; }
-        bool isLiteralName() const { return (type == PSObjectType::Name && !isExecutable()); }
-        bool isBool() const { return type == PSObjectType::Bool; }
-        bool isMark() const { return type == PSObjectType::Mark; }
+    // Accessors using std::get
+    template<typename T>
+    T as() const {
+        return std::get<T>(fValue);
+    }
 
-        // Return the object as a specific type
-        int asInt() const { return data.iVal; }
-        double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(data.iVal) : data.fVal; }
-        bool asBool() const { return data.bVal != 0; }
-        PSArray* asArray() const { return (type == PSObjectType::Array) ? data.arr : nullptr; }
-        PSString* asString() const { return (type == PSObjectType::String) ? data.str : nullptr; }
-        const char* asName() const { return (type == PSObjectType::Name) ? data.name : nullptr; }
-        PSDictionary* asDictionary() const { return (type == PSObjectType::Dictionary) ? data.dict : nullptr; }
-        const PSOperator* asOperator() const { return (type == PSObjectType::Operator) ? data.op : nullptr; }
+    template<typename T>
+    T* try_as() {
+        return std::get_if<T>(&fValue);
+    }
 
-        // Convenience static functions of the 'fromXXX()' variety
-        static PSObject fromInt(int32_t v) { PSObject obj; obj.resetFromInt(v); return obj; }
-        static PSObject fromReal(double v) { PSObject obj; obj.resetFromReal(v); return obj; }
-        static PSObject fromBool(bool v) { PSObject obj; obj.resetFromBool(v); return obj; }
-        static PSObject fromName(const OctetCursor& span) { PSObject obj;  obj.resetFromName(span); return obj; }
-        static PSObject fromString(PSString* s) { PSObject obj; obj.resetFromString(s);  return obj; }
-        static PSObject fromArray(PSArray* a) { PSObject obj;  obj.resetFromArray(a);  return obj; }
-        static PSObject fromOperator(const PSOperator* f) { PSObject obj;  obj.resetFromOperator(f);  return obj; }
-        static PSObject fromDictionary(PSDictionary* d) { PSObject obj;  obj.resetFromDictionary(d);   return obj; }
-        static PSObject fromMark() { PSObject obj;  obj.resetFromMark();  return obj; }
-    };
+    // Legacy-style accessors
+    int asInt() const { return as<int32_t>(); }
+    double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(as<int32_t>()) : as<double>(); }
+    bool asBool() const { return as<bool>(); }
+    const char* asName() const { return as<const char*>(); }
+    PSStringHandle asString() const { return as<PSStringHandle>(); }
+    PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
+    PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
+    const PSOperator* asOperator() const { return as<const PSOperator*>(); }
+	PSMatrix asMatrix() const { return as<PSMatrix>(); }
+
+    // Type checks
+    bool isExecutable() const { return fIsExec; }
+    void setExecutable(bool flag) { fIsExec = flag; }
+
+    inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
+    inline bool isNumber() const { return isInt() || isReal(); }
+    inline bool isInt() const { return type == PSObjectType::Int; }
+    inline bool isReal() const { return type == PSObjectType::Real; }
+    inline bool isBool() const { return type == PSObjectType::Bool; }
+    inline bool isName() const { return type == PSObjectType::Name; }
+    inline bool isLiteralName() const { return isName() && !fIsExec; }
+    inline bool isString() const { return type == PSObjectType::String; }
+    inline bool isArray() const { return type == PSObjectType::Array; }
+    inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
+    inline bool isOperator() const { return is(PSObjectType::Operator); }
+    inline bool isMark() const { return type == PSObjectType::Mark; }
+    inline bool isMatrix() const { return is(PSObjectType::Matrix); }
+    inline bool isNull() const { return type == PSObjectType::Null; }
+
+    // Signature helper
+    char typeChar() const { return static_cast<char>(type); }
+};
+
 
     struct PSOperatorSignature
     {
@@ -346,30 +252,49 @@ namespace waavs {
     // PSDictionary
     // --------------------
     struct PSDictionary {
-        std::unordered_map<const char*, PSObject> entries;
+    private:
+        PSDictionary() = default;
+
+        PSDictionary(size_t initialSize) {
+            fEntries.reserve(initialSize);
+        }
+
+        std::unordered_map<const char*, PSObject> fEntries;
+
+    public:
+        
+        static PSDictionaryHandle create(size_t initialSize = 0) {
+            auto ptr = std::shared_ptr<PSDictionary>(new PSDictionary(initialSize));
+
+            return ptr;
+        }
+
+        const std::unordered_map<const char*, PSObject> entries() const {
+            return fEntries;
+		}
 
         size_t size() const {
-            return entries.size();
+            return fEntries.size();
 		}
 
         bool put(const char* key, const PSObject& value) {
-            entries[key] = value;
+            fEntries[key] = value;
             return true;
         }
 
         bool get(const char* key, PSObject& out) const {
-            auto it = entries.find(key);
-            if (it == entries.end()) return false;
+            auto it = fEntries.find(key);
+            if (it == fEntries.end()) return false;
             out = it->second;
             return true;
         }
 
         bool contains(const char* key) const {
-            return entries.find(key) != entries.end();
+            return fEntries.find(key) != fEntries.end();
         }
 
         void clear() {
-            entries.clear();
+            fEntries.clear();
         }
     };
 
@@ -377,15 +302,19 @@ namespace waavs {
     // PSArray
     // --------------------
     struct PSArray {
+    private:
+        // We want this constructor to be private so that we can
+		// totally control how PSArray objects are created
+		// you MUST use the static create() method
+        PSArray() = default;
+
+    public:
         std::vector<PSObject> elements;
 		bool fIsProcedure = false; // Is this array a procedure?
 
-
-        PSArray() = default;
-
-        explicit PSArray(size_t initialSize, const PSObject& fill = PSObject()) {
-            elements.resize(initialSize, fill);
-        }
+        //explicit PSArray(size_t initialSize, const PSObject& fill = PSObject()) {
+        //    elements.resize(initialSize, fill);
+        //}
 
         size_t size() const {return elements.size();}
 
@@ -415,18 +344,23 @@ namespace waavs {
             elements.clear();
         }
 
-        PSArray* copy() const {
-            PSArray* result = new PSArray();
-			result->fIsProcedure = fIsProcedure;
+        PSArrayHandle copy() const {
+            auto result = PSArray::create();
+            result->setIsProcedure(fIsProcedure);
             result->elements = elements;
             return result;
         }
 
-        PSArray* subarray(size_t index, size_t count) const {
-            if (index >= elements.size()) return new PSArray(0);
+        // A subarray is a literal array, because we don't know if they
+        // are getting a whole program or not
+        PSArrayHandle subarray(size_t index, size_t count) const {
+            if (index >= elements.size()) 
+                return PSArray::create(0);
+            
             count = std::min(count, elements.size() - index);
-            PSArray* result = new PSArray();
-			result->fIsProcedure = fIsProcedure;
+            auto result = PSArray::create();
+            //result->setIsProcedure(fIsProcedure);
+
             result->elements.insert(
                 result->elements.end(),
                 elements.begin() + index,
@@ -435,6 +369,31 @@ namespace waavs {
 
             return result;
         }
+
+        // Functional programming
+        // // Predicate-based validation
+        template <typename Pred>
+        bool allOf(Pred pred) const {
+            for (const auto& obj : elements)
+                if (!pred(obj)) return false;
+            return true;
+        }
+
+        bool allOfType(PSObjectType t) const {
+            return allOf([=](const PSObject& o) { return o.is(t); });
+        }
+
+        bool allNumbers() const {
+			return allOfType(PSObjectType::Int) || allOfType(PSObjectType::Real);
+        }
+
+
+        // factory constructor
+        static std::shared_ptr<PSArray> create(size_t initialSize = 0, const PSObject& fill = PSObject()) {
+            auto ptr = std::shared_ptr<PSArray>(new PSArray());
+            ptr->elements.resize(initialSize, fill);
+            return ptr;
+		}
     };
 
 

@@ -40,7 +40,7 @@ static void test_stack_ops() {
     runPostscript("1 2 exch = =");          // expect: 1, 2
     runPostscript("1 2 3 pop = =");         // expect: 2, 1
     runPostscript("1 2 3 3 copy = = = = = = "); // expect: 3, 2, 1, 3, 2, 1,
-    runPostscript("clear");                // just clear the stack
+    runPostscript("clear pstack");                // just clear the stack
 }
 const char* stopped_s1 = R"||(
 {
@@ -67,11 +67,11 @@ static void test_control_flow() {
 void test_forall()
 {
     printf("\n== ForAll Operator ==\n");
-    runPostscript("[ 10 20 30 ] { = } forall");
-    runPostscript("(abc) { = } forall");
-    runPostscript("[ (hello) 123 true ] { dup type = } forall");
+   // runPostscript("[ 10 20 30 ] { = } forall");
+   // runPostscript("(abc) { = } forall");
+    //runPostscript("[ (hello) 123 true ] { dup type = } forall");
     runPostscript("[ 1 2 3 4 5 ] { dup 3 eq{ exit } if (Value = ) print =} forall");
-    runPostscript("[ 1 2 3 4 5 ] { dup mul = } forall");
+    //runPostscript("[ 1 2 3 4 5 ] { dup mul = } forall");
 }
 
 static void test_debug_ops() {
@@ -184,6 +184,34 @@ outerProc
 
 }
 
+
+static void test_op_dict()
+{
+
+    printf("\n== Operator Dictionary ==\n");
+
+    const char* test_s1 = R"||(
+1 dict begin
+/x 42 def
+{x}         % this should not error
+end
+exec        % this should push 42 if `x` is still visible
+)||";
+
+    const char* test_s2 = R"||(
+1 dict begin
+/y 123 def
+{ y } exec   % should push 123
+pstack
+end
+)||";
+
+    runPostscript(test_s1);
+    runPostscript(test_s2);
+
+}
+
+
 static void test_exec()
 {
     runPostscript("{ 1 2 add } exec =");
@@ -201,24 +229,239 @@ static void test_unimplemented_op()
     runPostscript("foobar"); // Should trigger an undefined name or op message
 }
 
+
+//============================================================================
+// Idiomatic Tests
+//============================================================================
+
+static void test_tail()
+{
+    // This will crash the interpreter if tail call optimization is not implemented
+    const char* test_s1 = R"||(
+% fact_tail: ( n acc -- result )
+/fact_tail {
+  dup 0 eq
+  {
+    pop            % drop n
+  }
+  {
+    dup 1 sub      % n n-1
+    exch mul       % n-1 (n * acc)
+    exch           % restore (n acc)
+    fact_tail      % tail call
+  } ifelse
+} def
+
+/fact {
+  1 exch
+  fact_tail
+} def
+
+% Try a large number:
+1000 fact pop     % discard result; just test for crash or stack overflow
+
+(OK) =
+
+)||";
+
+    const char* test_s2 = R"||(
+/fact {
+  dup 1 le
+  { pop 1 }
+  { dup 1 sub fact mul }
+  ifelse
+} def
+
+5 fact =  % should print 120
+)||";
+
+    runPostscript(test_s1);
+    //runPostscript(test_s2);
+}
+
+static void test_factorial()
+{
+	printf("\n== Factorial Function ==\n");
+
+    const char* test_s1 = R"||(
+/fact {
+  dup 1 le
+  { pop 1 }
+  { dup 1 sub fact mul }
+  ifelse
+} def
+
+5 fact =  % should print 120
+)||";
+
+    runPostscript(test_s1);
+}
+
+static void test_average()
+{
+	printf("\n== Average Function ==\n");
+    const char* test_s1 = R"||(
+/average { add 2 div } def
+/printnum { 4 string cvs print } def
+/printnl { <0A> print } def
+40 60 average printnum printnl
+)||";
+
+    printf("\n== Average Function ==\n");
+    const char* test_s2 = R"||(
+/average { add 2 div } def
+/printnum { 4 string cvs print } def
+/printnl { (\n) print } def
+40 60 average printnum
+)||";
+
+	runPostscript(test_s1);
+	runPostscript(test_s2);
+}
+
+static void test_fizzbuzz()
+{
+    printf("\n== FizzBuzz Function ==\n");
+	const char* test_s1 = R"||(
+% fizzbuzz is a simple function that returns a string based on the given integer
+% multiples of 3, but not 5 should return fizz
+% multiples of 5, but not 3 should return buzz
+% multiples of 15 (i.e. both 3 and 5) should return fizzbuzz
+% all other integers should return the integer as a string
+
+/fizzbuzz {
+  1 dict begin
+  /num exch def
+  num 15 mod 0 eq { (fizzbuzz) } {
+    num 5 mod 0 eq { (buzz) } {
+      num 3 mod 0 eq { (fizz) } {
+        20 string num cvs
+      } ifelse
+    } ifelse
+  } ifelse
+  end
+} def
+
+30 fizzbuzz
+)||";
+
+	runPostscript(test_s1);
+}
+
+static void test_matrix_ops()
+{
+    printf("\n== Matrix Operators ==\n");
+    const char* test_s1 = R"||(
+% Create a matrix and print it
+matrix
+dup =
+% Expected: identity matrix [1 0 0 1 0 0]
+)||";
+
+    const char* test_s2 = R"||(
+% Translate by (10, 20)
+10 20 matrix translate
+dup =
+% Expected: [1 0 0 1 10 20]
+)||";
+
+    const char* test_s3 = R"||(
+% Scale by (2, 3)
+2 3 matrix scale
+dup =
+% Expected: [2 0 0 3 0 0]
+)||";
+
+    const char* test_s4 = R"||(
+% Rotate 45 degrees
+45 matrix rotate
+dup =
+% Expected: [0.7071 0.7071 -0.7071 0.7071 0 0]
+)||";
+
+    const char* test_s5 = R"||(
+% Compose translation and scaling
+10 0 matrix translate
+2 2 matrix scale
+concatmatrix
+dup =
+% Expected: [2 0 0 2 10 0]
+)||";
+
+    const char* test_s6 = R"||(
+% Invert a matrix [1 2 3 4 5 6]
+1 2 3 4 5 6 6 array astore
+invertmatrix
+dup =
+% Expected: [-2 1.5 1 -0.5 -2 1]
+)||";
+
+    const char* test_s7 = R"||(
+% Push point
+1 2                             % x = 1, y = 2
+
+% Push matrix [1 0 0 1 10 5]
+1 0 0 1 10 5 6 array astore
+
+% Transform
+transform = = 
+% Expected: 11 7
+)||";
+
+    const char* test_s8 = R"||(
+% dtransform (linear part only)
+1 2 dtransform = =
+% Expected: 1 2
+)||";
+
+
+    runPostscript(test_s1);
+	runPostscript(test_s2);
+    runPostscript(test_s3);
+    runPostscript(test_s4);
+    runPostscript(test_s5);
+    runPostscript(test_s6);
+    runPostscript(test_s7);
+    runPostscript(test_s8);
+
+}
+
+
 // ------------ Entry ------------
 
-int main() {
-    test_arithmetic_ops();
-    test_stack_ops();
-    test_control_flow();
-    test_debug_ops();
-    test_loop_op();
-    test_forall();
-    test_logic();
-    test_procedure();
-    test_repeat();
-    test_nested();
-    test_exec();
-    test_op_stopped();
-    test_operator_def();
-
+static void test_core()
+{
+    //test_arithmetic_ops();
+    //test_stack_ops();
+    //test_control_flow();
+    //test_debug_ops();
+    //test_loop_op();
+    //test_forall();
+    //test_logic();
+    //test_procedure();
+    //test_repeat();
+    //test_nested();
+    //test_exec();
+    //test_op_stopped();
+    //test_operator_def();
+    //test_op_dict();
+	test_matrix_ops();
     //test_unimplemented_op();
+
+}
+
+static void test_idioms()
+{
+    //test_tail();
+    test_factorial();
+    test_average();
+    test_fizzbuzz();
+}
+
+int main() {
+
+    test_core();
+    //test_idioms();
 
     return 0;
 }

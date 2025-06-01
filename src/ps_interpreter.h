@@ -75,10 +75,14 @@ namespace waavs
         
         bool interpret(PSTokenGenerator &tokGen) 
         {
-            PSObject obj;
 
-            while (parseObject(tokGen, obj))
+            while (true)
             {
+                PSObject obj;
+
+                if (!parseObject(tokGen, obj))
+					return true;
+                    
                 if (obj.isExecutable()) {
                     // push to execution stack then run
                     fVM.execStack().push(obj);

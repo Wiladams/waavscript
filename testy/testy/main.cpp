@@ -50,7 +50,7 @@ static void test_dictionarystack()
     }
 
     // Push new scope
-    auto newDict = std::make_shared<PSDictionary>();
+    auto newDict = PSDictionary::create();
     dictStack.push(newDict);
     dictStack.def("x", PSObject::fromInt(99));
 
@@ -72,16 +72,16 @@ static void test_isexecutable()
 	printf("==== test_isexecutable ====\n");
 
     // --- Test: PSString executable ---
-    PSString* str = new PSString("hello");
-    str->isExec = true;
+    auto str = PSString::createFromCString("hello");
     PSObject strObj = PSObject::fromString(str);
+	strObj.setExecutable(true); // Mark as executable
 
     std::cout << "String is executable: " << (strObj.isExecutable() ? "yes" : "no") << "\n";
 
     // --- Test: PSArray executable ---
-    PSArray* arr = new PSArray();
+    auto arr = PSArray::create();
     arr->append(PSObject::fromInt(42));
-    arr->setExecutable(true);
+    arr->setIsExecutable(true);
     PSObject arrObj = PSObject::fromArray(arr);
 
     std::cout << "Array is executable: " << (arrObj.isExecutable() ? "yes" : "no") << "\n";
@@ -109,16 +109,16 @@ static void test_virtualmachine()
 	auto vm = PSVMFactory::createVM();
 
     // Simulate: /x 10 def
-    vm->operandStack.push_back(PSObject::fromName("x"));
-    vm->operandStack.push_back(PSObject::fromInt(10));
-    vm->execute(vm->operatorTable.lookup("def")->func == nullptr ? PSObject::null() : PSObject::fromOperator(vm->operatorTable.lookup("def")));
+    vm->opStack().push(PSObject::fromName("x"));
+    vm->opStack().push(PSObject::fromInt(10));
+    vm->execute(vm->operatorTable.lookup("def")->func == nullptr ? PSObject() : PSObject::fromOperator(vm->operatorTable.lookup("def")));
 
     // Simulate: x (should resolve to 10)
     PSObject lookup = PSObject::fromName("x");
     vm->execute(lookup);
 
-    if (!vm->operandStack.empty()) {
-        PSObject top = vm->operandStack.back();
+    if (!vm->opStack().empty()) {
+        PSObject top = vm->opStack().top();
         std::cout << "Top of stack: " << top.asReal() << "\n"; // Expect 10
     }
 

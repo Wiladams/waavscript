@@ -186,15 +186,24 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\psmatrix.h" />
     <ClInclude Include="..\..\src\psstack.h" />
+    <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />
+    <ClInclude Include="..\..\src\psvmfactory.h" />
     <ClInclude Include="..\..\src\ps_interpreter.h" />
     <ClInclude Include="..\..\src\ps_lexer.h" />
+    <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
     <ClInclude Include="..\..\src\ps_ops_logic.h" />
     <ClInclude Include="..\..\src\ps_ops_math.h" />
+    <ClInclude Include="..\..\src\ps_ops_matrix.h" />
+    <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
+    <ClInclude Include="..\..\src\ps_ops_relational.h" />
+    <ClInclude Include="..\..\src\ps_ops_stack.h" />
+    <ClInclude Include="..\..\src\ps_ops_string.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

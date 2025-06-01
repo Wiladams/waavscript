@@ -12,6 +12,7 @@
 // global name table for interned strings.  Anything that is to be a name used
 // in a table as a key, should be interned here.
 namespace waavs {
+    /*
     struct TransparentLess {
         using is_transparent = void;
 
@@ -31,20 +32,25 @@ namespace waavs {
             return a < b;
         }
     };
-
+    */
 
     struct PSNameTable {
-        std::map<std::string, const char*, TransparentLess> pool;
+    private:
+        //std::map<std::string, const char*, TransparentLess> pool;
+        std::map<std::string, const char*> pool;
 
         const char* intern(std::string_view sv) {
-            auto it = pool.find(sv);
-            if (it != pool.end())
-                return it->second;
+            // Attempt to insert a new entry; try_emplace does nothing if key already exists
+            auto [it, inserted] = pool.try_emplace(std::string(sv), nullptr);
 
-            auto [inserted, _] = pool.emplace(std::string(sv), nullptr);
-            inserted->second = inserted->first.c_str();
-            return inserted->second;
+            if (inserted) {
+                // Assign the stable c_str() from the key (std::string stored in the map)
+                it->second = it->first.c_str();
+            }
+
+            return it->second;
         }
+
 
         const char* intern(const OctetCursor& span) {
             return intern(std::string_view(reinterpret_cast<const char*>(span.data()), span.size()));
@@ -58,6 +64,8 @@ namespace waavs {
             static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
             return gTable.get();
         }
+
+    public:
 
         static const char* INTERN(const OctetCursor& span) {
             return getTable()->intern(span);

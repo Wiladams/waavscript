@@ -14,11 +14,11 @@ namespace waavs {
 
 			PSObject lenObj;
 			s.pop(lenObj);
-			if (lenObj.type != PSObjectType::Int || lenObj.data.iVal < 0) 
+			if (lenObj.type != PSObjectType::Int || lenObj.asInt() < 0) 
 				return false;
 
-			auto* arr = new PSArray();
-			arr->elements.resize(static_cast<size_t>(lenObj.data.iVal));
+			auto arr = PSArray::create();
+			arr->elements.resize(static_cast<size_t>(lenObj.asInt()));
 			s.push(PSObject::fromArray(arr));
 			return true;
 		}},
@@ -30,10 +30,10 @@ namespace waavs {
 
 			PSObject arrObj;
 			s.pop(arrObj);
-			if (arrObj.type != PSObjectType::Array || !arrObj.data.arr)
+			if (arrObj.type != PSObjectType::Array || !arrObj.asArray())
 				return false;
 
-			for (const PSObject& elem : arrObj.data.arr->elements)
+			for (const PSObject& elem : arrObj.asArray()->elements)
 				s.push(elem);
 
 			s.push(arrObj); // push original array back onto the stack
@@ -47,10 +47,10 @@ namespace waavs {
 			PSObject arrObj;
 			s.pop(arrObj);
 
-			if (!arrObj.isArray() || !arrObj.data.arr)
+			if (!arrObj.isArray() || !arrObj.asArray())
 				return false;
 
-			PSArray* arr = arrObj.data.arr;
+			auto arr = arrObj.asArray();
 			size_t count = arr->size();
 			if (s.size() < count) 
 				return false;
@@ -82,14 +82,14 @@ namespace waavs {
 			if (!arrObj.isArray() || !indexObj.isInt() || !countObj.isInt())
 				return false;
 
-			auto* src = arrObj.asArray();
+			auto src = arrObj.asArray();
 			int start = indexObj.asInt();
 			int count = countObj.asInt();
 
 			if (!src || start < 0 || count < 0 || static_cast<size_t>(start + count) > src->elements.size())
 				return false;
 
-			auto* sub = new PSArray();
+			auto sub = PSArray::create();
 			sub->elements.insert(
 				sub->elements.begin(),
 				src->elements.begin() + start,
@@ -117,8 +117,8 @@ namespace waavs {
 			if (!destArrObj.isArray() || !indexObj.isInt() || srcArrObj.isArray())
 				return false;
 
-			auto* dest = destArrObj.asArray();
-			auto* src = srcArrObj.asArray();
+			auto dest = destArrObj.asArray();
+			auto src = srcArrObj.asArray();
 			int index = indexObj.asInt();
 
 			if (!dest || !src || index < 0 || static_cast<size_t>(index + src->size()) > dest->size())
