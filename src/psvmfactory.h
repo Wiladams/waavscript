@@ -14,7 +14,7 @@
 #include "ps_ops_debug.h"
 #include "ps_ops_string.h"
 #include "ps_ops_matrix.h"
-
+#include "ps_ops_graphics.h"
 
 namespace waavs
 {
@@ -41,6 +41,7 @@ namespace waavs
 			vm->registerOps(stackOps);
 			vm->registerOps(stringOps);
 			vm->registerOps(opsMatrix);
+			vm->registerOps(graphicsOps);
 		}
 
 		// Create a new PSVM instance

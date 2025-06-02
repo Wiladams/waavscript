@@ -1,5 +1,6 @@
 #include "ps_interpreter.h"
 #include "psvmfactory.h"
+#include "b2dcontext.h"
 
 #include <memory>
 #include <cstdio>
@@ -9,19 +10,26 @@ using namespace waavs;
 // Utility to wrap input and run interpreter
 static void runPostscript(const char* sourceText) {
     OctetCursor input(sourceText);
-    std::unique_ptr<PSVirtualMachine> vm = PSVMFactory::createVM();
+
     printf("+-----------------------------------------+\n");
     printf("PS INPUT\n %s\n", sourceText);
     printf("+-----------------------------------------+\n");
+
+    auto vm = PSVMFactory::createVM();
 
     if (!vm) {
         printf("Failed to create virtual machine\n");
         return;
     }
-
+    
+    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(640, 480);
+    vm->setGraphicsContext(std::move(ctx));
+    
+    // Run the interpreter
     PSInterpreter interp(*vm);
     interp.interpret(input);
 
+    // If we want, we can save output here
 }
 
 // ------------ Test Cases ------------

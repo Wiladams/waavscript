@@ -197,6 +197,11 @@ namespace waavs {
         { "handleerror", [](PSVirtualMachine&) -> bool {
             std::cerr << "An error occurred." << std::endl;
             return true;
+        }},
+
+        {"showpage", [](PSVirtualMachine&) -> bool {
+            std::cerr << "== SHOWPAGE ==" << std::endl;
+            return true;
         }}
     };
 

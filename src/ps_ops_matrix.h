@@ -186,10 +186,49 @@ namespace waavs {
     }
 
     inline bool op_concat(PSVirtualMachine& vm) {
-        // TODO: CTM := matrix × CTM
-        return false;
+        PSObject obj;
+        if (!vm.opStack().pop(obj) || !obj.isArray())
+            return vm.error("typecheck: expected array");
+
+        PSMatrix m;
+        if (!matrixFromArray(obj.asArray(), m))
+            return vm.error("typecheck: invalid matrix");
+
+        vm.graphics()->concat(m);
+        return true;
     }
 
+
+
+
+    /*
+    inline bool op_translate(PSVirtualMachine& vm) {
+        PSObject ty, tx;
+        if (!vm.opStack().pop(ty) || !vm.opStack().pop(tx) || !tx.isReal() || !ty.isReal())
+            return vm.error("typecheck: expected two numbers");
+
+        vm.graphics()->translate(tx.asReal(), ty.asReal());
+        return true;
+    }
+
+    inline bool op_scale(PSVirtualMachine& vm) {
+        PSObject sy, sx;
+        if (!vm.opStack().pop(sy) || !vm.opStack().pop(sx) || !sx.isReal() || !sy.isReal())
+            return vm.error("typecheck: expected two numbers");
+
+        vm.graphics()->scale(sx.asReal(), sy.asReal());
+        return true;
+    }
+
+    inline bool op_rotate(PSVirtualMachine& vm) {
+        PSObject angle;
+        if (!vm.opStack().pop(angle) || !angle.isReal())
+            return vm.error("typecheck: expected number");
+
+        vm.graphics()->rotate(angle.asReal());
+        return true;
+    }
+    */
 
     // ( tx ty matrix ? matrix' ) or ( tx ty ? )
     inline bool op_translate(PSVirtualMachine& vm) {
@@ -222,8 +261,9 @@ namespace waavs {
 
             if (!tx.isNumber()) return false;
 
-            // TODO: apply to CTM
-            return false; // stub
+            vm.graphics()->translate(tx.asReal(), ty.asReal());
+            
+            return true;
         }
 
         return false;
@@ -260,8 +300,9 @@ namespace waavs {
 
             if (!sx.isNumber()) return false;
 
-            // TODO: apply to CTM
-            return false; // stub
+            vm.graphics()->scale(sx.asReal(), sy.asReal());
+
+            return true;
         }
 
         return false;
@@ -291,8 +332,9 @@ namespace waavs {
         }
         else if (top.isNumber()) {
             double angle = top.asReal();
-            // TODO: apply to CTM
-            return false; // stub
+            vm.graphics()->rotate(angle);
+
+            return true;
         }
 
         return false;

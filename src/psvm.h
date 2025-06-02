@@ -9,15 +9,14 @@
 #include "dictionarystack.h"
 #include "ocspan.h"
 #include "psstack.h"
-
+#include "psgraphicscontext.h"
 
 namespace waavs
 {
     // Forward declarations
     struct PSVirtualMachine;
     
-    //inline bool dispatchObject(PSVirtualMachine& vm, const PSObject& obj);
-    //inline bool ensureExecutable(PSObject& obj);
+
     inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
     inline bool runArray(PSVirtualMachine& vm, const PSObject& proc);
 
@@ -54,6 +53,7 @@ namespace waavs
     struct PSVirtualMachine
     {
     private:
+        std::unique_ptr<PSGraphicsContext> graphicsContext_;
         PSOperandStack operandStack_;
         PSExecutionStack executionStack_;
 		bool stopRequested = false;
@@ -90,6 +90,14 @@ namespace waavs
         inline PSExecutionStack& execStack() { return executionStack_; }
         inline const PSExecutionStack& execStack() const { return executionStack_; }
 
+        // Graphics context access
+        inline PSGraphicsContext* graphics() { 
+            return graphicsContext_.get(); 
+        }
+
+        inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) {
+            graphicsContext_ = std::move(ctx);
+        }
 
 
 		//=====================================================================
@@ -296,25 +304,6 @@ namespace waavs
 	//======================================================================
     // Helpers
 	//======================================================================
-
-    /*
-    inline bool ensureExecutable(PSObject& obj) {
-        if (obj.isExecutable()) return true;
-
-        if (obj.isArray() && obj.asArray()->isProcedure()) {
-            obj.setExecutable(true); // canonicalize in-place
-            return true;
-        }
-
-        return false;
-    }
-
-    inline bool ensureExecutableOrError(PSVirtualMachine& vm, PSObject& obj) {
-        if (!ensureExecutable(obj))
-            return vm.error("typecheck: ensureExecutableOrError::expected executable procedure");
-        return true;
-    }
-    */
 
 	// Unrolls a procedure (array) onto the execution stack.
 	// The arguments are pushed in reverse order, so the first argument is on top of the stack.

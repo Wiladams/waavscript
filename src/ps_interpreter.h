@@ -5,7 +5,6 @@
 #include "ps_lexer.h"
 #include "ps_scanner.h"
 
-
 namespace waavs 
 {
 	// The PSInterpreter takes a strea of tokens and runs them through the PSVirtualMachine.

@@ -1,0 +1,41 @@
+#pragma once
+
+namespace waavs {
+    enum class PSPaintKind : int {
+        RGB,
+        GRAY,
+        CMYK
+    };
+
+    struct PSPaint {
+        PSPaintKind  kind{ PSPaintKind::RGB };
+
+        union {
+            struct { double r, g, b; };
+            struct { double gray; };
+            struct { double c, m, y, k; };
+        };
+
+        static PSPaint fromRGB(double r, double g, double b) {
+            PSPaint p;
+            p.kind = PSPaintKind::RGB;
+            p.r = r; p.g = g; p.b = b;
+            return p;
+        }
+
+        static PSPaint fromGray(double gray) {
+            PSPaint p;
+            p.kind = PSPaintKind::GRAY;
+            p.gray = gray;
+            return p;
+        }
+
+        static PSPaint fromCMYK(double c, double m, double y, double k) {
+            PSPaint p;
+            p.kind = PSPaintKind::CMYK;
+            p.c = c; p.m = m; p.y = y; p.k = k;
+            return p;
+        }
+    };
+
+}
