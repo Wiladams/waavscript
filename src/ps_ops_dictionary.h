@@ -20,9 +20,6 @@ namespace waavs {
                 return vm.error("typecheck: def expects a literal name");
             }
 
-            //if (value.isArray() && value.asArray()->isProcedure())
-            //    value.setExecutable(true);
-
             vm.dictionaryStack.def(key.asName(), value);
             return true;
         }},

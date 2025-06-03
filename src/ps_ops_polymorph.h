@@ -393,11 +393,7 @@ namespace waavs
 
 
 
-    // bind: proc -> proc' (resolve names to operators)
-    inline bool op_bind(PSVirtualMachine& vm) {
-        vm.bind();
-        return true;
-    }
+
 
 
     static const PSOperatorFuncMap polymorphOps = {
@@ -412,7 +408,6 @@ namespace waavs
 	{ "cvlit",  op_cvlit },     // mark an object as literal (not executable)
 	{ "cvx", op_cvx },          // mark an object as executable
 	{ "xcheck", op_xcheck },    // xcheck: object -> bool (check if object is executable)
-    { "bind", op_bind },
     };
 
 }

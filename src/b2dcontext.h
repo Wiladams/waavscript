@@ -29,6 +29,12 @@ namespace waavs {
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
 			ctx.fillAll(BLRgba32(255, 255, 255, 255)); // Fill with white background
 
+			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
+            setRGB(0, 0, 0);
+			//ctx.setStrokeStyle(BLRgba32(0, 0, 0, 255)); // Default stroke color
+			//ctx.setFillStyle(BLRgba32(0, 0, 0, 255)); // Default fill color
+
+
             // Flip coordinate system: origin to bottom-left, Y+ goes up
             double h = image.height();
             BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
@@ -49,21 +55,32 @@ namespace waavs {
             BLPath blPath;
             buildBLPath(blPath);
 
+            ctx.save(); // Save current state
+
+
             ctx.setTransform(blTransform(currentState()->ctm));
             ctx.setFillStyle(convertPaint(currentState()->fillPaint));
 
             // PostScript uses non-zero winding rule by default
             ctx.fillPath(blPath);
 
-            currentPath.clear();
+            currentPath().clear();
+
+            ctx.restore(); // Restore to previous state
+
         }
 
 
         void stroke() override {
             BLPath blPath;
+            BLMatrix2D blTrans;
+
+            blTrans = blTransform(currentState()->ctm);
             buildBLPath(blPath);
 
-            ctx.setTransform(blTransform(currentState()->ctm));
+			ctx.save(); // Save current state
+
+            ctx.setTransform(blTrans);
 
             ctx.setStrokeStyle(convertPaint(currentState()->strokePaint));
             ctx.setStrokeWidth(currentState()->lineWidth);
@@ -72,7 +89,9 @@ namespace waavs {
             ctx.setStrokeMiterLimit(currentState()->miterLimit);
 
             ctx.strokePath(blPath);
-            currentPath.clear();
+            currentPath().clear();
+
+			ctx.restore(); // Restore to previous state
         }
 
 
@@ -104,9 +123,9 @@ namespace waavs {
             static constexpr double B_PI = 3.14159265358979323846;
             static constexpr double B_PI_2 = B_PI / 2.0;
 
-            double cx = 0.0, cy = 0.0;  // Current point
+            //double cx = 0.0, cy = 0.0;  // Current point
 
-            for (const auto& seg : currentPath.segments) {
+            for (const auto& seg : currentPath().segments) {
                 switch (seg.command) {
                 case PSPathCommand::MoveTo:
                     out.moveTo(seg.x1, seg.y1);
@@ -133,8 +152,8 @@ namespace waavs {
                         double t0 = startRad + i * delta;
                         double t1 = t0 + delta;
                         emitArcSegmentAsBezier(out, centerX, centerY, radius, t0, t1);
-                        cx = centerX + radius * std::cos(t1);
-                        cy = centerY + radius * std::sin(t1);
+                        //cx = centerX + radius * std::cos(t1);
+                        //cy = centerY + radius * std::sin(t1);
                     }
                     break;
                 }

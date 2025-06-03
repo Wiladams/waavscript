@@ -101,8 +101,10 @@ namespace waavs {
                 std::cout << "<<>>";
             break;
 
-        case PSObjectType::Operator:
-            std::cout << "--OP:" << (obj.asOperator() && obj.asOperator()->name ? obj.asOperator()->name : "unknown") << "--";
+        case PSObjectType::Operator: {
+                auto op = obj.asOperator();
+                std::cout << "--OP:" << (op.name ? op.name : "UNKNOWN") << "--";
+            }
             break;
 
 		case PSObjectType::Matrix:

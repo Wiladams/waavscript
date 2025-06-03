@@ -22,7 +22,7 @@ static void runPostscript(const char* sourceText) {
         return;
     }
 
-    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(640, 480);
+    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(800,800);
     vm->setGraphicsContext(std::move(ctx));
 
     // Run the interpreter
@@ -35,8 +35,34 @@ static void runPostscript(const char* sourceText) {
 }
 
 // ------------ Test Cases ------------
+static void test_op_curveto()
+{
+    // This will crash the interpreter if tail call optimization is not implemented
+    const char* test_s1 = R"||(
+4 setlinewidth
+newpath
+100 100 moveto
+120 140 160 140 180 100 curveto
+stroke
+)||";
 
+    runPostscript(test_s1);
 
+}
+
+static void test_op_arc()
+{
+    // This will crash the interpreter if tail call optimization is not implemented
+	const char* test_s1 = R"||(
+4 setlinewidth
+1 0 0 setrgbcolor
+
+newpath
+200 200 50 0 360 arc
+stroke
+)||";
+    runPostscript(test_s1);
+}
 
 
 //============================================================================
@@ -65,100 +91,141 @@ stroke
 
 }
 
+static void radialLines()
+{
+	const char* test_s1 = R"||(
+% Create a radial burst pattern
+% draw some axis lines
+ 
+gsave
+4 setlinewidth
+
+newpath
+0 0 1 setrgbcolor
+0 0 moveto
+0 600 lineto
+stroke
+
+newpath
+1 0 0 setrgbcolor
+0 0 moveto
+600 0 lineto
+stroke
+grestore
+
+% Now do the radial lines
+gsave
+300 400 translate
+
+0 1 60 {
+  /i exch def
+  gsave
+    i 6 mul rotate
+    newpath
+    0 0 moveto
+    100 0 lineto
+    stroke
+  grestore
+} for
+grestore
+)||";
+	runPostscript(test_s1);
+}
+
+static void scaledRectangles()
+{
+	const char* test_s1 = R"||(
+% Draw a stack of scaled rectangles
+
+newpath
+100 100 translate          % Move origin away from edge
+
+0 1 5 {
+  /i exch def
+  gsave
+    i 0.5 add dup scale     % Scale up each time
+    i 60 mul 0 translate    % Offset each rectangle in X to prevent overlap
+    0 0 50 30 rectfill
+  grestore
+} for
+)||";
+    runPostscript(test_s1);
+}
+
+
+static void gridOfCircles()
+{
+	const char* test_s1 = R"||(
+% Draw a 10x10 grid of stroked circles
+
+0 1 9 {
+  /y exch def
+  0 1 9 {
+    /x exch def
+    gsave
+      x 50 mul 50 add      % map x = 0..9 to 50,100,...,500
+      y 50 mul 50 add      % map y = 0..9 to 50,100,...,500
+      translate            % move origin to circle center
+
+      newpath
+      0 0 20 0 360 arc     % circle centered at origin
+      closepath
+      stroke               % stroke with current CTM
+    grestore
+  } for
+} for
+
+)||";
+	runPostscript(test_s1);
+}
+
 static void test_flower()
 {
     const char* test_s1 = R"||(
-% Define constants
-/pi 3.1415926535 def
-/radius 50 def
-/petal_angle 90 def
-/circle_radius 20 def
+% Draw a flower-like burst using radial strokes
 
-% Draw a petal (placeholder logic — needs real curve logic to look good)
-% Note: currentpoint and rotate are misused in the original; simplified here
-/draw_petal {
-  newpath
-  100 300 moveto
-  150 350 lineto
-  100 400 lineto
-  50 350 lineto
-  closepath
-  stroke
-} def
+gsave
+300 400 translate          % Move origin to center of canvas
 
-% Draw the flower stem
-/draw_stem {
-  newpath
-  100 200 moveto
-  100 300 lineto
-  stroke
-} def
+0 1 59 {
+  /i exch def
+  gsave
+    i 6 mul rotate         % Rotate CTM by i * 6 degrees
+    newpath
+    0 0 moveto
+    100 0 lineto           % Line pointing right, rotated by CTM
+    stroke                 % Stroke with current transform
+  grestore
+} for
 
-% Draw a leaf
-/draw_leaf {
-  newpath
-  80 250 moveto
-  60 230 lineto
-  70 200 lineto
-  closepath
-  0 1 0 setrgbcolor   % Green
-  fill
-} def
-
-% Draw flower petals around a center point
-/draw_flower {
-  1 0 0 setrgbcolor   % Red
-  6 {
-    gsave
-      100 300 translate
-      60 rotate
-      -50 0 translate
-      draw_petal
-    grestore
-  } repeat
-} def
-
-% Draw the flower center
-/draw_flower_center {
-  newpath
-  100 300 circle_radius 0 360 arc
-  1 1 0 setrgbcolor   % Yellow
-  fill
-} def
-
-% Draw the complete flower
-/draw_flower_full {
-  draw_stem
-  draw_leaf
-  draw_flower
-  draw_flower_center
-} def
-
-% Start drawing
-draw_flower_full
-
-showpage
-
+grestore
 )||";
+
 	runPostscript(test_s1);
 }
 // ------------ Entry ------------
 
 static void test_core()
 {
-    //test_simple();
-    test_flower();
+    //test_op_curveto();
+    //test_op_arc();
+
+    test_simple();
+
 }
 
 static void test_idioms()
 {
-
+    //test_flower();
+	gridOfCircles();
+    //radialLines();
+    //scaledRectangles();
 }
 
 int main() {
 
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }

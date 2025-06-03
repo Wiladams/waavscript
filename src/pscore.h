@@ -102,7 +102,7 @@ private:
         double,                              // Real
         bool,                                // Bool
         const char*,                         // Name (interned)
-        const PSOperator*,                   // Operator
+        PSOperator,                   // Operator
 		PSMatrix,                            // Matrix
         PSStringHandle,                      // String
         PSArrayHandle,                       // Array
@@ -145,7 +145,7 @@ public:
     bool resetFromDictionary(PSDictionaryHandle d) {
         reset(); type = PSObjectType::Dictionary; fValue = d; return true;
     }
-    bool resetFromOperator(const PSOperator* f) {
+    bool resetFromOperator(const PSOperator& f) {
         reset(); type = PSObjectType::Operator; fValue = f; fIsExec = true; return true;
     }
     bool resetFromMatrix(const PSMatrix& m) {
@@ -164,7 +164,7 @@ public:
     static PSObject fromString(PSStringHandle s) { PSObject o; o.resetFromString(s); return o; }
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
-    static PSObject fromOperator(const PSOperator* f) { PSObject o; o.resetFromOperator(f); return o; }
+    static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
     static PSObject fromMark() { PSObject o; o.resetFromMark(); return o; }
 
@@ -188,7 +188,7 @@ public:
     PSStringHandle asString() const { return as<PSStringHandle>(); }
     PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
-    const PSOperator* asOperator() const { return as<const PSOperator*>(); }
+    PSOperator asOperator() const { return as<PSOperator>(); }
 	PSMatrix asMatrix() const { return as<PSMatrix>(); }
 
     // Type checks

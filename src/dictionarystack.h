@@ -29,7 +29,8 @@ namespace waavs {
 
         bool def(const char * key, const PSObject& value) 
         {
-            return currentdict()->put(key, value);
+			auto dict = currentdict();
+            return dict->put(key, value);
         }
 
         bool load(const char * key, PSObject& out) const {

@@ -36,7 +36,6 @@ namespace waavs {
 
     struct PSNameTable {
     private:
-        //std::map<std::string, const char*, TransparentLess> pool;
         std::map<std::string, const char*> pool;
 
         const char* intern(std::string_view sv) {

@@ -38,38 +38,7 @@ namespace waavs
     };
         */
         
-        /*
-        // Let's try a brute force approach
-        bool interpret(PSTokenGenerator& tokGen)
-        {
-            PSObject obj;
 
-            while (parseObject(tokGen, obj))
-            {
-                switch (obj.type)
-                {
-                case PSObjectType::Int:
-                case PSObjectType::Real:
-                case PSObjectType::Bool:
-                case PSObjectType::String:
-                case PSObjectType::Array:
-                case PSObjectType::Dictionary:
-                    fVM.opStack().push(obj);
-                    break;
-
-				case PSObjectType::Name:
-                    if (obj.isExecutable())
-                        fVM.executeName(obj.asName());
-                    else
-						fVM.opStack().push(obj);
-                    break;
-
-                default:
-					return fVM.error("Error: interpreter::interpret ==> Unsupported object type encountered: " );
-                }
-            }
-        }
-        */
         
         
         bool interpret(PSTokenGenerator &tokGen) 

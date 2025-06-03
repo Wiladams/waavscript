@@ -20,22 +20,27 @@ namespace waavs
     inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
     inline bool runArray(PSVirtualMachine& vm, const PSObject& proc);
 
-
+    // contains the mapping of an interned name to a function pointer
+    //
     struct PSOperatorTable
     {
+    private:
         std::unordered_map<const char*, PSOperator> ops;
 
+    public:
         void add(const char* name, PSOperatorFunc fn) 
         {
             ops[name] = PSOperator(name, fn);
         }
 
-        const PSOperator* lookup(const char* name) const 
+        PSOperator lookup(const char* name) const 
         {
             auto it = ops.find(name);
             if (it != ops.end())
-                return &it->second;
-            return nullptr;
+                return it->second;
+
+			// Return a default invalid operator if not found
+            return PSOperator();
         }
 
         bool contains(const char* name) const
@@ -101,17 +106,23 @@ namespace waavs
 
 
 		//=====================================================================
-		// OLD WAY OF REGISTERING OPERATORS
+		// REGISTERING OPERATORS
 		//======================================================================
         // Mass registration of builtin operators.  This is NOT how user
         // defined operators are registered.
-        void registerBuiltin(const char* name, PSOperatorFunc fn)
+        bool registerBuiltin(const char* name, PSOperatorFunc fn)
         {
             const char* interned = PSNameTable::INTERN(name);
+
             PSOperator op(interned, fn);
-            operatorTable.ops[interned] = op;
-            systemdict->put(interned, PSObject::fromOperator(&operatorTable.ops[interned]));
+            operatorTable.add(interned, fn);  // Store internally
+
+            // Instead of getting a pointer (now unnecessary), use local copy
+            systemdict->put(interned, PSObject::fromOperator(op));
+
+            return true;
         }
+
 
         void registerOps(const PSOperatorFuncMap& ops)
         {
@@ -120,7 +131,7 @@ namespace waavs
             }
         }
 
-        const PSOperator * lookupOperator(const char * name) const
+        PSOperator lookupOperator(const char * name) const
         {
 			return operatorTable.lookup(name);
 		}
@@ -133,15 +144,7 @@ namespace waavs
 
 
         // managing execution stack
-        bool error(const char* message) const {
-            printf("%% Error: %s\n", message);
-            return false;
-        }
 
-        bool error(const char* message, const char* detail) const {
-            printf("%% Error: %s (%s)\n", message, detail);
-            return false;
-        }
 
 
         void exit() { 
@@ -181,125 +184,102 @@ namespace waavs
             return true;
         }
 
-        bool execute(const PSObject& obj, bool fromExecStack);
+        // --- Execute a single PSObject
+        bool PSVirtualMachine::execute(const PSObject& obj, bool fromExecStack = false)
+        {
 
-        
-        void bindArray(PSArrayHandle proc);
-        void bind();
-        
+            switch (obj.type) {
+            case PSObjectType::Operator: {
+                auto op = obj.asOperator();
+                if (op.isValid()) {
+                    return op.func(*this);
+                }
+                else {
+                    return error("invalid operator");
+                }
+            }
+
+            case PSObjectType::Name: {
+
+                // 1. If It's a literal name= ("/foo"), push to opStack as leteral
+                if (obj.isLiteralName())
+                    return opStack().push(obj);
+
+                // If it's not a literal name, then it's something we should lookup
+                // It should resolve to either an executable thing (operator,procedure)
+                // or it will be another literal, which can just be put on the opStack
+
+                const char* name = obj.asName();
+                PSObject resolved;
+
+
+                if (!dictionaryStack.load(name, resolved)) {
+                    return error("undefined name", name);
+                }
+
+
+                // 2. If it's an operator?  put it on the exec stack
+                // to be executed later.
+                if (resolved.isOperator()) {
+                    return execStack().push(resolved);
+                }
+
+                // 3. Name resolves to a procedure?  auto-exec
+                if (resolved.isArray() && resolved.asArray()->isProcedure()) {
+                    return pushProcedureToExecStack(*this, resolved);
+                }
+
+                // 4. Otherwise, it's a literal value, push to operand stack
+                opStack().push(resolved);
+                return true;
+            }
+
+            case PSObjectType::Array: {
+                auto arr = obj.asArray();
+                if (!arr)
+                    return error("execute::Array null array");
+
+                if (arr->isProcedure()) {
+                    //if (fromExecStack) {
+                    //    return pushProcedureToExecStack(*this, obj);
+                    //}
+                    //else {
+                    opStack().push(obj); // treat it as a literal, for later execution
+                    return true;
+                    //}
+                }
+
+                opStack().push(obj); // Non-executable array, treat as literal
+                return true;
+            }
+
+            default:
+                // Literal value (number, string, etc.) — push onto operand stack
+                opStack().push(obj);
+                return true;
+            }
+
+            return true;
+        }
+ 
+		//=======================================================================
+        // ERROR handling
+		//=======================================================================
+        bool error(const char* message) const {
+            printf("%% Error: %s\n", message);
+            return false;
+        }
+
+        bool error(const char* message, const char* detail) const {
+            printf("%% Error: %s (%s)\n", message, detail);
+            return false;
+        }
     };
 
 
 
-    // --- Execute a single PSObject
-    bool PSVirtualMachine::execute(const PSObject& obj, bool fromExecStack = false) 
-    {
-
-        switch (obj.type) {
-        case PSObjectType::Operator: {
-            const PSOperator* op = obj.asOperator();
-            if (op && op->isValid()) {
-                return op->func(*this);
-            }
-            else {
-                return error("invalid operator");
-			}
-        }
-
-        case PSObjectType::Name: {
-            const char* name = obj.asName();
-            PSObject resolved;
-
-			// Look up the name in the dictionary stack
-            if (!dictionaryStack.load(name, resolved)) {
-                return error("undefined name", name);
-            }
-
-            // 1. It's a literal name= ("/foo"), push to opStack as leteral
-            if (obj.isLiteralName())
-                return opStack().push(obj);
-
-            // 2. Built-in operator?  execute it
-            if (resolved.isOperator()) {
-                return execStack().push(resolved);
-            }
-
-            // 3. Name resolves to a procedure?  auto-exec
-            if (resolved.isArray() && resolved.asArray()->isProcedure()) {
-				return pushProcedureToExecStack(*this, resolved);
-            }
-            //if (resolved.isExecutable() ||(resolved.isArray() && resolved.asArray()->isProcedure())) {
-            //    execStack().push(resolved);
-            //}
-            //else {
-			//	opStack().push(resolved);
-            //}
-
-            // 4. Otherwise, it's a liter value, push to operand stack
-            opStack().push(resolved);
-            return true;
-        }
-
-        case PSObjectType::Array: {
-            auto arr = obj.asArray();
-            if (!arr)
-                return error("execute::Array null array");
-
-            if (arr->isProcedure()) {
-                //if (fromExecStack) {
-                //    return pushProcedureToExecStack(*this, obj);
-                //}
-                //else {
-                    opStack().push(obj); // treat it as a literal, for later execution
-                    return true;
-                //}
-            }
-
-            opStack().push(obj); // Non-executable array, treat as literal
-            return true;
-        }
-
-        default:
-            // Literal value (number, string, etc.) — push onto operand stack
-            opStack().push(obj);
-			return true;
-        }
-
-        return true;
-    }
 
 
-
-
- 
-    // --- Replace names in procedure with operator pointers
-    inline void PSVirtualMachine::bindArray(PSArrayHandle proc) {
-        if (!proc) return;
-
-        for (auto& obj : proc->elements) {
-            if (obj.type == PSObjectType::Name) {
-                const PSOperator* op = operatorTable.lookup(obj.asName());
-                if (op) {
-                    obj = PSObject::fromOperator(op);
-                }
-            }
-        }
-    }
-
-    // --- Bind a procedure (array on stack)
-    inline void PSVirtualMachine::bind() {
-        if (opStack().empty()) return;
-
-        PSObject obj;
-        opStack().pop(obj);
-
-
-        if (obj.isArray() && obj.asArray()) {
-            bindArray(obj.asArray());
-            opStack().push(obj); // push updated array
-        }
-    }
-   
 
 	//======================================================================
     // Helpers
