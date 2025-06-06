@@ -5,152 +5,163 @@
 
 namespace waavs {
 
-    static const PSOperatorFuncMap dictionaryOps = {
-        { "def", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+    // --- Operator Implementations ---
 
-            PSObject value;
-            PSObject key;
+    static bool op_def(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
 
-            s.pop(value);
-            s.pop(key);
+        PSObject value;
+        PSObject key;
 
-            if (!key.isName() || key.isExecutable()) {
-                return vm.error("typecheck: def expects a literal name");
+        s.pop(value);
+        s.pop(key);
+
+        if (!key.isName() || key.isExecutable())
+            return vm.error("typecheck: def expects a literal name");
+
+        vm.dictionaryStack.def(key.asName(), value);
+        return true;
+    }
+
+    static bool op_dict(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+
+        PSObject sizeObj;
+        s.pop(sizeObj);
+
+        if (!sizeObj.isInt()) return false;
+
+        auto d = PSDictionary::create(sizeObj.asInt());
+        s.push(PSObject::fromDictionary(d));
+        return true;
+    }
+
+    static bool op_begin(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+
+        PSObject dictObj;
+        s.pop(dictObj);
+
+        if (!dictObj.isDictionary())
+            return vm.error("type mismatch");
+
+        vm.dictionaryStack.push(dictObj.asDictionary());
+        return true;
+    }
+
+    static bool op_end(PSVirtualMachine& vm) {
+        vm.dictionaryStack.pop();
+        return true;
+    }
+
+    static bool op_maxlength(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+
+        PSObject dictObj;
+        s.pop(dictObj);
+
+        if (!dictObj.isDictionary()) return false;
+
+        // PostScript allows arbitrary max size, but we return a placeholder.
+        s.push(PSObject::fromInt(999));
+        return true;
+    }
+
+    static bool op_load(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+
+        PSObject name;
+        s.pop(name);
+
+        if (!name.isName()) return false;
+
+        PSObject value;
+        if (!vm.dictionaryStack.load(name.asName(), value))
+            return false;
+
+        s.push(value);
+        return true;
+    }
+
+    static bool op_where(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+
+        PSObject nameObj;
+        s.pop(nameObj);
+
+        if (!nameObj.isName()) return false;
+
+        const char* name = nameObj.asName();
+        for (const auto& dict : vm.dictionaryStack.stack) {
+            if (dict->contains(name)) {
+                s.push(PSObject::fromDictionary(dict));
+                s.push(PSObject::fromBool(true));
+                return true;
             }
+        }
 
-            vm.dictionaryStack.def(key.asName(), value);
-            return true;
-        }},
+        s.push(PSObject::fromBool(false));
+        return true;
+    }
 
-        { "dict", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
+    static bool op_currentdict(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto top = vm.dictionaryStack.currentdict();
+        if (!top) return false;
 
-            PSObject sizeObj;
+        s.push(PSObject::fromDictionary(top));
+        return true;
+    }
 
-			s.pop(sizeObj);
+    static bool op_countdictstack(PSVirtualMachine& vm) {
+        int count = static_cast<int>(vm.dictionaryStack.stack.size());
+        vm.opStack().push(PSObject::fromInt(count));
+        return true;
+    }
 
-            if (!sizeObj.is(PSObjectType::Int)) return false;
+    static bool op_known(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
 
-            auto d = PSDictionary::create(sizeObj.asInt());
-            s.push(PSObject::fromDictionary(d));
-            return true;
-        }},
+        PSObject key;
+        PSObject dictObj;
 
-        { "begin", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
+        s.pop(key);
+        s.pop(dictObj);
 
-            PSObject dictObj;
-            
-            s.pop(dictObj);
+        if (!key.isName() || !dictObj.isDictionary()) return false;
 
-            if (!dictObj.is(PSObjectType::Dictionary)) return vm.error("type mismatch");
+        auto dict = dictObj.asDictionary();
+        if (!dict) return false;
 
-            vm.dictionaryStack.push(dictObj.asDictionary());
-            return true;
-        }},
+        bool exists = dict->contains(key.asName());
+        s.push(PSObject::fromBool(exists));
+        return true;
+    }
 
-        { "end", [](PSVirtualMachine& vm) -> bool {
-            vm.dictionaryStack.pop();
-            return true;
-        }},
+    // --- Operator Map ---
 
-        { "maxlength", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
+    inline const PSOperatorFuncMap& getDictionaryOps() {
+        static const PSOperatorFuncMap table = {
+            { "def",               op_def },
+            { "dict",              op_dict },
+            { "begin",             op_begin },
+            { "end",               op_end },
+            { "maxlength",         op_maxlength },
+            { "load",              op_load },
+            { "where",             op_where },
+            { "currentdict",       op_currentdict },
+            { "countdictstack",    op_countdictstack },
+            { "known",             op_known }
+        };
+        return table;
+    }
 
-            PSObject dictObj;
-
-            s.pop(dictObj);
-            
-            if (dictObj.type != PSObjectType::Dictionary)
-                return false;
-
-            s.push(PSObject::fromInt(999)); // placeholder
-            return true;
-        }},
-
-        { "load", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
-
-            PSObject name;
-			
-            s.pop(name);
-
-            if (name.type != PSObjectType::Name) return false;
-
-            PSObject value;
-            if (!vm.dictionaryStack.load(name.asName(), value)) {
-                return false; // undefined name
-            }
-
-            s.push(value);
-            return true;
-        }},
-
-        { "where", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
-
-            PSObject nameObj;
-
-            s.pop(nameObj);
-
-            if (nameObj.type != PSObjectType::Name) return false;
-
-            const char* name = nameObj.asName();
-
-            for (const auto& dict : vm.dictionaryStack.stack) {
-                if (dict->contains(name)) {
-                    s.push(PSObject::fromDictionary(dict));
-                    s.push(PSObject::fromBool(true));
-                    return true;
-                }
-            }
-
-            s.push(PSObject::fromBool(false));
-            return true;
-        }},
-
-        { "currentdict", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            auto top = vm.dictionaryStack.currentdict();
-            if (!top) return false;
-            s.push(PSObject::fromDictionary(top));
-            return true;
-        }},
-
-        { "countdictstack", [](PSVirtualMachine& vm) -> bool {
-            int count = static_cast<int>(vm.dictionaryStack.stack.size());
-            vm.opStack().push(PSObject::fromInt(count));
-            return true;
-        }},
-
-        { "known", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
-
-            PSObject key;
-            PSObject dictObj;
-
-            s.pop(key);
-            s.pop(dictObj);
-
-            if (key.type != PSObjectType::Name ||
-                dictObj.type != PSObjectType::Dictionary)
-                return false;
-
-            auto dict = dictObj.asDictionary();
-            if (!dict) return false;
-
-            bool exists = dict->contains(key.asName());
-            s.push(PSObject::fromBool(exists));
-            return true;
-        }}
-    };
 
 } // namespace waavs

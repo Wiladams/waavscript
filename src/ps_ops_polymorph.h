@@ -3,7 +3,6 @@
 // NOTE:  Something else must include this, and have PSVirtualMachine defined.
 #include "pscore.h"
 #include "psvm.h"
-#include "nametable.h"
 
 //======================================================================
 // The operators in here are polymorphic, meaning they can apply
@@ -224,14 +223,12 @@ namespace waavs
         s.pop(proc);
         s.pop(container);
 
-        //if (!ensureExecutableOrError(vm, proc))
-        //    return vm.error("forall: procedure is not executable");
 
         auto apply = [&](const PSObject& val1, const PSObject* val2 = nullptr) -> bool {
             if (val2) s.push(*val2);
             s.push(val1);
             
-            if (!runArray(vm, proc)) {
+            if (!vm.runArray(proc)) {
                 return vm.error("forall: failed to run procedure");
 			}
             

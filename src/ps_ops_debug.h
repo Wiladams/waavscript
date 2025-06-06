@@ -5,70 +5,81 @@
 #include <iostream>
 
 namespace waavs {
-    static void writeObjectShallow(const PSObject& obj)
+    static void writeObjectShallow(std::ostream& os, const PSObject& obj)
     {
         switch (obj.type) {
-        case PSObjectType::Int:      std::cout << obj.asInt(); break;
-        case PSObjectType::Real:     std::cout << obj.asReal(); break;
-        case PSObjectType::Bool:     std::cout << (obj.asBool() ? "true" : "false"); break;
-        case PSObjectType::Name:     std::cout << "/" << obj.asName(); break;
+        case PSObjectType::Int:      os << obj.asInt(); break;
+        case PSObjectType::Real:     os << obj.asReal(); break;
+        case PSObjectType::Bool:     os << (obj.asBool() ? "true" : "false"); break;
+        case PSObjectType::Name:     os << "/" << obj.asName(); break;
         case PSObjectType::String:
-            if (obj.asString()) std::cout << "(" << obj.asString()->toString() << ")";
+            if (obj.asString()) os << "(" << obj.asString()->toString() << ")";
             break;
-        case PSObjectType::Null:     std::cout << "NULL"; break;
-        case PSObjectType::Mark:     std::cout << "-MARK-"; break;
+        case PSObjectType::Null:     os << "NULL"; break;
+        case PSObjectType::Mark:     os << "-MARK-"; break;
         case PSObjectType::Array:
             if (obj.asArray())
-                std::cout << "[...(" << obj.asArray()->size() << ")]";
+                os << "[...(" << obj.asArray()->size() << ")]";
             else
-                std::cout << "[NULLPTR]";
+                os << "[NULLPTR]";
             break;
-        case PSObjectType::Dictionary: std::cout << "<<...>>"; break;
-        case PSObjectType::Operator: std::cout << "--OP--"; break;
+        case PSObjectType::Dictionary: os << "<<...>>"; break;
+        case PSObjectType::Operator: os << "--OP--"; break;
         case PSObjectType::Matrix: {
             auto m = obj.asMatrix();
-            printf("[%g %g %g %g %g %g]", m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+            os << "[" << m.m[0] << " " << m.m[1] << " " << m.m[2] << " " << m.m[3] << " " << m.m[4] << " " << m.m[5] << "]";
         }
-                                 break;
+            break;
 
         default:
-            std::cout << "--UNKNOWN--";
+            os << "--UNKNOWN--";
             break;
         }
     }
 
 
 
-    static void writeObjectDeep(const PSObject& obj);  // Forward declaration
+    static void writeObjectDeep(std::ostream& os, const PSObject& obj);  // Forward declaration
 
-    static void writeArrayDeep(const PSArrayHandle arr) 
+    static void writeArrayDeep(std::ostream& os, const PSArrayHandle arr)
     {
         std::cout << "[";
         for (size_t i = 0; i < arr->size(); ++i) {
             const PSObject& element = arr->elements[i];
-            writeObjectDeep(element);
+            writeObjectDeep(os, element);
             if (i + 1 < arr->size())
                 std::cout << " ";
         }
         std::cout << "]";
     }
 
-    static void writeDictDeep(const PSDictionaryHandle dict) 
+    static void writeDictDeep(std::ostream& os, const PSDictionaryHandle dict)
     {
-        std::cout << "<<";
+        if (!dict) {
+            os << "<<NULLDICT>>";
+            return;
+        }
+
+        os << "<<";
         bool first = true;
         for (const auto& pair : dict->entries()) {
             if (!first) 
-                std::cout << " ";
+                os << " ";
             
             first = false;
-            std::cout << "/" << pair.first << " ";
-            writeObjectDeep(pair.second);
+            os << "/" << pair.first << " ";
+            writeObjectDeep(os, pair.second);
         }
-        std::cout << ">>";
+        os << ">>";
     }
 
-    static void writeObjectDeep(const PSObject& obj)
+    static void writeMatrix(std::ostream& os, const PSMatrix& m) {
+        os << "[[" << m.m[0] << " " << m.m[1] << "] ["
+            << m.m[2] << " " << m.m[3] << "] ["
+            << m.m[4] << " " << m.m[5] << "]]";
+    }
+
+    static void writeObjectDeep(std::ostream& os, const PSObject& obj)
     {
         switch (obj.type) {
         case PSObjectType::Int:
@@ -77,134 +88,133 @@ namespace waavs {
         case PSObjectType::Name:
         case PSObjectType::Mark:
         case PSObjectType::Null:
-            writeObjectShallow(obj);
+            writeObjectShallow(os, obj);
             break;
 
         case PSObjectType::String:
             if (obj.asString())
-                std::cout << "(" << obj.asString()->toString() << ")";
+                os << "(" << obj.asString()->toString() << ")";
             else
-                std::cout << "()";
+                os << "()";
             break;
 
         case PSObjectType::Array:
             if (obj.asArray())
-                writeArrayDeep(obj.asArray());
+                writeArrayDeep(os, obj.asArray());
             else
-                std::cout << "[]";
+                os << "[]";
             break;
 
         case PSObjectType::Dictionary:
             if (obj.asDictionary())
-                writeDictDeep(obj.asDictionary());
+                writeDictDeep(os, obj.asDictionary());
             else
-                std::cout << "<<>>";
+                os << "<<>>";
             break;
 
         case PSObjectType::Operator: {
                 auto op = obj.asOperator();
-                std::cout << "--OP:" << (op.name ? op.name : "UNKNOWN") << "--";
+                os << "--OP:" << (op.name ? op.name : "UNKNOWN") << "--";
             }
             break;
 
 		case PSObjectType::Matrix:
-            if (obj.isMatrix()) {
-                std::cout << "--MATRIX: ";
-                const auto& m = obj.asMatrix();
-                printf("[[%g %g] [%g %g] [%g %g]]", m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
-                std::cout << std::endl;
-            } else {
-                std::cout << "--MATRIX:NULLPTR--";
-            }
+            os << "--MATRIX: ";
+		    writeMatrix(os, obj.asMatrix());
+
 			break;
 
         default:
-            std::cout << "--UNKNOWN--";
+            os << "--UNKNOWN--";
             break;
         }
     }
 
-    static const PSOperatorFuncMap debugOps = {
+    static bool op_eqeq(PSVirtualMachine& vm) {
+        if (vm.opStack().empty()) return false;
+        PSObject obj;
+        vm.opStack().pop(obj);
+        writeObjectDeep(std::cout, obj);
+        std::cout << std::endl;
+        return true;
+    }
 
-        { "==", [](PSVirtualMachine& vm) -> bool {
-            if (vm.opStack().empty()) return false;
-            PSObject obj;
-            vm.opStack().pop(obj);
+    static bool op_eq(PSVirtualMachine& vm) {
+        if (vm.opStack().empty()) return false;
+        PSObject obj;
+        if (!vm.opStack().pop(obj)) return false;
+        writeObjectShallow(std::cout, obj);
+        std::cout << std::endl;
+        return true;
+    }
 
-			writeObjectDeep(obj);
+    static bool op_print(PSVirtualMachine& vm) {
+        if (vm.opStack().empty()) return false;
+        PSObject obj;
+        vm.opStack().pop(obj);
 
+        if (!obj.isString() || !obj.asString()) return false;
+        std::cout << obj.asString()->toString();
+        return true;
+    }
+
+    static bool op_flush(PSVirtualMachine&) {
+        std::cout.flush();
+        return true;
+    }
+
+    static bool op_stack(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        for (const auto& obj : s) {
+            writeObjectShallow(std::cout, obj);
+            std::cout << " ";
+        }
+        std::cout << std::endl;
+        return true;
+    }
+
+    static bool op_pstack(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        std::printf("<< pstack BEGIN <<\n");
+        for (const auto& obj : s) {
+            writeObjectDeep(std::cout, obj);
             std::cout << std::endl;
-            return true;
-        }},
+        }
+        std::printf(">> pstack END >>\n");
+        return true;
+    }
 
-        { "=", [](PSVirtualMachine& vm) -> bool {
-            if (vm.opStack().empty()) return false;
+    static bool op_errordict(PSVirtualMachine& vm) {
+        auto dict = PSDictionary::create();
+        vm.opStack().push(PSObject::fromDictionary(dict));
+        return true;
+    }
 
-            PSObject obj;
-            if (!vm.opStack().pop(obj))
-                return false;
+    static bool op_handleerror(PSVirtualMachine&) {
+        std::cerr << "An error occurred." << std::endl;
+        return true;
+    }
 
-			writeObjectShallow(obj);
+    static bool op_showpage(PSVirtualMachine&) {
+        std::cerr << "== SHOWPAGE ==" << std::endl;
+        return true;
+    }
 
-            std::cout << std::endl;
+    // --- Debug Operator Table ---
 
-            return true;
-        }},
-
-        { "print", [](PSVirtualMachine& vm) -> bool {
-            if (vm.opStack().empty()) return false;
-            PSObject obj;
-			vm.opStack().pop(obj);
-
-            if (!obj.isString() || !obj.asString()) return false;
-            std::cout << obj.asString()->toString();
-
-            return true;
-        }},
-
-        { "flush", [](PSVirtualMachine&) -> bool {
-            std::cout.flush();
-            return true;
-        }},
-
-        { "stack", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.opStack();
-            for (const auto& obj : s) {
-                writeObjectShallow(obj);
-				std::cout << " ";
-            }
-			std::cout << std::endl;
-
-            return true;
-        }},
-
-        { "pstack", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.opStack();
-            printf("<< pstack BEGIN <<\n");
-            for (const auto& obj : s) {
-				writeObjectDeep(obj);
-                std::cout << std::endl;
-            }
-            printf(">> pstack END >>\n");
-
-            return true;
-        }},
-
-        { "errordict", [](PSVirtualMachine& vm) -> bool {
-            auto dict = PSDictionary::create();
-            vm.opStack().push(PSObject::fromDictionary(dict));
-            return true;
-        }},
-
-        { "handleerror", [](PSVirtualMachine&) -> bool {
-            std::cerr << "An error occurred." << std::endl;
-            return true;
-        }},
-
-        {"showpage", [](PSVirtualMachine&) -> bool {
-            std::cerr << "== SHOWPAGE ==" << std::endl;
-            return true;
-        }}
-    };
+    inline const PSOperatorFuncMap& getDebugOps() {
+        static const PSOperatorFuncMap table = {
+            { "==",         op_eqeq },
+            { "=",          op_eq },
+            { "print",      op_print },
+            { "flush",      op_flush },
+            { "stack",      op_stack },
+            { "pstack",     op_pstack },
+            { "errordict",  op_errordict },
+            { "handleerror",op_handleerror },
+            { "showpage",   op_showpage }
+        };
+        return table;
+    }
 
 } // namespace waavs

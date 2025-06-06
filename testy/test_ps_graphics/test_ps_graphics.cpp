@@ -203,7 +203,40 @@ grestore
 
 	runPostscript(test_s1);
 }
-// ------------ Entry ------------
+
+static void grid()
+{
+    const char* test_s1 = R"||(
+100 100 translate
+/grid {0.5 0.3 0 0 setcmykcolor 
+gsave
+% Draw X-Y axis lines
+2 setlinewidth 400 0 moveto 0 0 lineto 0 500 lineto stroke
+grestore
+
+% draw horizontal lines
+gsave
+0.3 setlinewidth
+5 { 
+    30 100 moveto 
+    400 100 lineto 
+    stroke 
+    0 100 translate 
+} repeat
+grestore
+
+% draw vertical lines
+gsave
+0.3 setlinewidth
+4 { 100 20 moveto 100 500 lineto stroke 100 0 translate } repeat
+grestore
+} def
+
+grid
+)||";
+
+    runPostscript(test_s1);
+}
 
 static void test_core()
 {
@@ -217,9 +250,10 @@ static void test_core()
 static void test_idioms()
 {
     //test_flower();
-	gridOfCircles();
+	//gridOfCircles();
     //radialLines();
     //scaledRectangles();
+    grid();
 }
 
 int main() {

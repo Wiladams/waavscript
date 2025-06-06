@@ -83,6 +83,16 @@ namespace waavs {
             return ptr;
 		}
 
+        static std::shared_ptr<PSString> createFromVector(const std::vector<uint8_t>& v) 
+        {
+            auto str = PSString::createFromSize(v.size());
+            if (!str || v.empty()) return str;
+
+            std::memcpy(str->data(), v.data(), v.size());
+            str->setLength(v.size());
+            return str;
+        }
+
 
         ~PSString() 
         { 

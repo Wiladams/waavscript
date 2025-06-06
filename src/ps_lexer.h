@@ -1,6 +1,5 @@
 #pragma once
 
-//#include <cstdint>
 #include "ocspan.h"
 
 
@@ -64,6 +63,16 @@ namespace waavs {
 }
 
 namespace waavs {
+	inline bool  decodeHex(uint8_t c, uint8_t& out)
+	{
+		if (!PSCharClass::isHexDigit(c)) return false;
+
+		if (c >= '0' && c <= '9') { out = (c - '0');}
+		if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10;}
+		if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10;}
+
+		return true;
+	}
 
 	static inline const uint8_t* skipWhile(OctetCursor& src, uint8_t categoryMask) noexcept
 	{

@@ -2,7 +2,7 @@
 
 #include "pscore.h"
 #include "psvm.h"
-#include "nametable.h"
+
 
 namespace waavs {
     inline bool op_cvs(PSVirtualMachine& vm) {

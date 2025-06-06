@@ -33,6 +33,9 @@ namespace waavs {
 
         void clear() {
             segments.clear();
+			fCurrentX = 0;
+			fCurrentY = 0;
+			fHasCurrentPoint = false;
         }
 
         bool empty() const {
@@ -63,7 +66,7 @@ namespace waavs {
         void curveto(double x1, double y1,
             double x2, double y2,
             double x3, double y3) {
-			if (!fHasCurrentPoint) return;
+			//if (!fHasCurrentPoint) return;
 
             segments.push_back({ PSPathCommand::CurveTo, x1, y1, x2, y2, x3, y3 });
 

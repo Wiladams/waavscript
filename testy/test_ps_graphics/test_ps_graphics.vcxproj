@@ -190,14 +190,18 @@
     <ClInclude Include="..\..\src\psgraphicscontext.h" />
     <ClInclude Include="..\..\src\psmatrix.h" />
     <ClInclude Include="..\..\src\pspath.h" />
+    <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />
+    <ClInclude Include="..\..\src\psvmfactory.h" />
     <ClInclude Include="..\..\src\ps_interpreter.h" />
+    <ClInclude Include="..\..\src\ps_lexer.h" />
     <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
+    <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -11,7 +11,7 @@
 #include "ocspan.h"
 #include "pscore.h"
 #include "psstack.h"
-#include "nametable.h"
+
 
 using namespace waavs;
 

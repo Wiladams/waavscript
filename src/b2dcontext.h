@@ -5,7 +5,7 @@
 #include "psgraphicscontext.h"
 #include "pspaint.h"
 #include "psmatrix.h"
-#include "pspath.h"
+
 
 #include <blend2d/blend2d.h>
 #include <algorithm>
@@ -31,8 +31,6 @@ namespace waavs {
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);
-			//ctx.setStrokeStyle(BLRgba32(0, 0, 0, 255)); // Default stroke color
-			//ctx.setFillStyle(BLRgba32(0, 0, 0, 255)); // Default fill color
 
 
             // Flip coordinate system: origin to bottom-left, Y+ goes up
@@ -122,8 +120,6 @@ namespace waavs {
         void buildBLPath(BLPath& out) {
             static constexpr double B_PI = 3.14159265358979323846;
             static constexpr double B_PI_2 = B_PI / 2.0;
-
-            //double cx = 0.0, cy = 0.0;  // Current point
 
             for (const auto& seg : currentPath().segments) {
                 switch (seg.command) {

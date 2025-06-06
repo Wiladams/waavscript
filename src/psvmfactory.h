@@ -31,9 +31,9 @@ namespace waavs
 		static inline void registerCoreOps(PSVirtualMachine *vm) 
 		{
 			vm->registerOps(getArrayOps());
-			vm->registerOps(controlOps);
-			vm->registerOps(debugOps);
-			vm->registerOps(dictionaryOps);
+			vm->registerOps(getControlOps());
+			vm->registerOps(getDebugOps());
+			vm->registerOps(getDictionaryOps());
 			vm->registerOps(logicOps);
 			vm->registerOps(mathOps);
 			vm->registerOps(polymorphOps);

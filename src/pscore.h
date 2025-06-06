@@ -14,12 +14,48 @@
 #include <variant>
 
 #include "ocspan.h"
-#include "nametable.h"
 #include "psstring.h"
 #include "psmatrix.h"
 
 
 
+// global name table for interned strings.  Anything that is to be a name used
+// in a table as a key, should be interned here.
+namespace waavs {
+
+    struct PSNameTable {
+    private:
+        std::map<std::string, const char*> pool;
+
+        const char* intern(std::string_view sv) {
+            // Attempt to insert a new entry; try_emplace does nothing if key already exists
+            auto [it, inserted] = pool.try_emplace(std::string(sv), nullptr);
+
+            if (inserted) {
+                // Assign the stable c_str() from the key (std::string stored in the map)
+                it->second = it->first.c_str();
+            }
+
+            return it->second;
+        }
+
+        const char* intern(const OctetCursor& span) { return intern(std::string_view(reinterpret_cast<const char*>(span.data()), span.size())); }
+        const char* intern(const char* cstr) { return intern(std::string_view(cstr)); }
+
+        static PSNameTable* getTable() {
+            static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
+            return gTable.get();
+        }
+
+    public:
+        // NOTE::
+        // These should only be used by things inside pscore.h
+        // there might ba couple of exceptions, like the cvn operator
+        // but for the most part, sting interning should be an internal thing
+        static const char* INTERN(const OctetCursor& span) { return getTable()->intern(span); }
+        static const char* INTERN(const char* cstr) { return getTable()->intern(cstr); }
+    };
+}
 
 namespace waavs {
     // --------------------
@@ -32,24 +68,7 @@ namespace waavs {
     struct PSDictionary;
     struct PSVirtualMachine;
 
-    // --------------------
-    // PSObject Type Enum
-    // --------------------
-    enum struct PSObjectType : char {
-		Null    = 'z'      // Null type, represents a null object
-        ,Int     = 'i'      // Integer type, represents a 32-bit signed integer
-        ,Real    = 'f'      // Real type, represents a double-precision floating-point number
-		,Bool    = 'b'      // Boolean type, represents a true or false value
-		,Name    = 'n'      // Name type, represents an interned name (string)
-		,String = 's'      // String type, represents a PSString object
-        ,Array   = 'a'
-        ,Dictionary = 'd'
-        ,Operator    = 'O'
-        ,Mark    = 'm'
-        ,Matrix = 'x'
-        ,Invalid = '?'      // Invalid type, used for uninitialized objects
-		,Any = '*'          // Any type, used for generic operations
-    };
+
 
     // Handle aliases for clarity
     using PSStringHandle = std::shared_ptr<PSString>;
@@ -70,12 +89,13 @@ namespace waavs {
 
         PSOperator() = default;
 
-        PSOperator(const char* internedName, PSOperatorFunc f) noexcept
-            : name(internedName), func(f) {
+        PSOperator(const char* opName, PSOperatorFunc f) noexcept
+            : name(nullptr), func(f) {
+			name = PSNameTable::INTERN(opName);
         }
 
 		// an operator() overload to call the function
-        bool operator()(PSVirtualMachine& vm) const noexcept {
+        bool operator()(PSVirtualMachine& vm) {
             if (func) {
                 return func(vm);
             }
@@ -91,7 +111,24 @@ namespace waavs {
     };
 
 
-
+    // --------------------
+// PSObject Type Enum
+// --------------------
+    enum struct PSObjectType : char {
+        Null = 'z'      // Null type, represents a null object
+        , Int = 'i'      // Integer type, represents a 32-bit signed integer
+        , Real = 'f'      // Real type, represents a double-precision floating-point number
+        , Bool = 'b'      // Boolean type, represents a true or false value
+        , Name = 'n'      // Name type, represents an interned name (string)
+        , String = 's'      // String type, represents a PSString object
+        , Array = 'a'
+        , Dictionary = 'd'
+        , Operator = 'O'
+        , Mark = 'm'
+        , Matrix = 'x'
+        , Invalid = '?'      // Invalid type, used for uninitialized objects
+        , Any = '*'          // Any type, used for generic operations
+    };
 
 
 struct PSObject {
@@ -133,8 +170,15 @@ public:
     bool resetFromBool(bool v) {
         reset(); type = PSObjectType::Bool; fValue = v; return true;
     }
-    bool resetFromName(const char* interned) {
-        reset(); type = PSObjectType::Name; fValue = interned; return true;
+
+    bool resetFromInternedName(const char* interned) {
+        reset(); type = PSObjectType::Name; fValue =interned; return true;
+	}
+    bool resetFromName(const char* cstr) {
+		return resetFromInternedName(PSNameTable::INTERN(cstr));
+    }
+    bool resetFromName(const OctetCursor& oc) {
+        return resetFromInternedName(PSNameTable::INTERN(oc));
     }
     bool resetFromString(PSStringHandle s) {
         reset(); type = PSObjectType::String; fValue = s; return true;
@@ -161,6 +205,8 @@ public:
     static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
     static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
     static PSObject fromName(const char* n) { PSObject o; o.resetFromName(n); return o; }
+	static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
+	static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
     static PSObject fromString(PSStringHandle s) { PSObject o; o.resetFromString(s); return o; }
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
@@ -171,12 +217,21 @@ public:
 
     // Accessors using std::get
     template<typename T>
-    T as() const {
+    constexpr bool get(T& out) const {
+        if (const T* ptr = std::get_if<T>(&fValue)) {
+            out = *ptr;
+            return true;
+        }
+        return false;
+    }
+
+    template<typename T>
+    constexpr T as() const {
         return std::get<T>(fValue);
     }
 
     template<typename T>
-    T* try_as() {
+    constexpr T* try_as() {
         return std::get_if<T>(&fValue);
     }
 
@@ -278,19 +333,24 @@ public:
 		}
 
         bool put(const char* key, const PSObject& value) {
-            fEntries[key] = value;
+			const char* internedKey = PSNameTable::INTERN(key);
+            fEntries[internedKey] = value;
             return true;
         }
 
         bool get(const char* key, PSObject& out) const {
-            auto it = fEntries.find(key);
+            const char* internedKey = PSNameTable::INTERN(key);
+
+            auto it = fEntries.find(internedKey);
             if (it == fEntries.end()) return false;
             out = it->second;
             return true;
         }
 
         bool contains(const char* key) const {
-            return fEntries.find(key) != fEntries.end();
+            const char* internedKey = PSNameTable::INTERN(key);
+
+            return fEntries.find(internedKey) != fEntries.end();
         }
 
         void clear() {

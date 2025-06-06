@@ -16,31 +16,34 @@ namespace waavs
     // Forward declarations
     struct PSVirtualMachine;
     
-
     inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
-    inline bool runArray(PSVirtualMachine& vm, const PSObject& proc);
 
+
+    /*
     // contains the mapping of an interned name to a function pointer
-    //
+//
     struct PSOperatorTable
     {
     private:
         std::unordered_map<const char*, PSOperator> ops;
 
     public:
-        void add(const char* name, PSOperatorFunc fn) 
+        void add(const char* name, PSOperatorFunc fn)
         {
             ops[name] = PSOperator(name, fn);
         }
 
-        PSOperator lookup(const char* name) const 
+        bool get(const char* name, PSOperator& op) const
         {
             auto it = ops.find(name);
             if (it != ops.end())
-                return it->second;
+            {
+                op = it->second;
+                return true;
+            }
 
-			// Return a default invalid operator if not found
-            return PSOperator();
+            // Return a default invalid operator if not found
+            return false;
         }
 
         bool contains(const char* name) const
@@ -52,9 +55,15 @@ namespace waavs
             ops.clear();
         }
     };
-
-
-
+    */
+	// PSVirtualMachine
+    // 
+	// This is the CPU of the PostScript interpreter.
+	// It manages the execution stack, operand stack, graphics context,
+	// and operator table. It executes operators and handles the PostScript language semantics.
+    // You can use this VM completely in the absense of the PSInterpreter.  Mainly it relies
+	// on the PSObject and PSOperator classes to handle the execution of operators.
+    // 
     struct PSVirtualMachine
     {
     private:
@@ -65,10 +74,8 @@ namespace waavs
         bool exitRequested = false;
 
     public:
-
-
         PSDictionaryStack dictionaryStack;
-        PSOperatorTable operatorTable;
+        //PSOperatorTable operatorTable;
 
         PSDictionaryHandle systemdict;
         PSDictionaryHandle userdict;
@@ -96,13 +103,8 @@ namespace waavs
         inline const PSExecutionStack& execStack() const { return executionStack_; }
 
         // Graphics context access
-        inline PSGraphicsContext* graphics() { 
-            return graphicsContext_.get(); 
-        }
-
-        inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) {
-            graphicsContext_ = std::move(ctx);
-        }
+        PSGraphicsContext* graphics() { return graphicsContext_.get(); }
+        inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) { graphicsContext_ = std::move(ctx);}
 
 
 		//=====================================================================
@@ -112,13 +114,10 @@ namespace waavs
         // defined operators are registered.
         bool registerBuiltin(const char* name, PSOperatorFunc fn)
         {
-            const char* interned = PSNameTable::INTERN(name);
-
-            PSOperator op(interned, fn);
-            operatorTable.add(interned, fn);  // Store internally
+            PSOperator op(name, fn);
 
             // Instead of getting a pointer (now unnecessary), use local copy
-            systemdict->put(interned, PSObject::fromOperator(op));
+            systemdict->put(name, PSObject::fromOperator(op));
 
             return true;
         }
@@ -131,28 +130,16 @@ namespace waavs
             }
         }
 
-        PSOperator lookupOperator(const char * name) const
-        {
-			return operatorTable.lookup(name);
-		}
-
-        bool lookupName(const char* name, PSObject& out) const
-        {
-            return dictionaryStack.load(name, out);
-        }
 
 
-
-        // managing execution stack
-
-
-
+        // request whole program exit
         void exit() { 
             exitRequested = true; 
         }
         bool isExitRequested() const { return exitRequested; }
         void clearExitRequest() { exitRequested = false; }
 
+        // request a stop to the currently executing loop
         void stop() 
         { 
             execStack().clearToMark();  // clear the rest of currently executing procedure
@@ -161,6 +148,9 @@ namespace waavs
         bool isStopRequested() const { return stopRequested; }
         void clearStopRequest() { stopRequested = false; }
 
+
+        // Start running whatever is currently on the 
+        // execution stack
         bool run() {
             while (!execStack().empty()) {
                 PSObject obj = execStack().pop();
@@ -184,8 +174,17 @@ namespace waavs
             return true;
         }
 
+        // runArray()
+        // 
+        // Pus the items of an array onto the execution stack in reverse order
+		// That is, elements[0] ends up on the top of the execution stack.
+        bool runArray(const PSObject& proc)
+        {
+            return pushProcedureToExecStack(proc) && run();
+        }
+
         // --- Execute a single PSObject
-        bool PSVirtualMachine::execute(const PSObject& obj, bool fromExecStack = false)
+        bool execute(const PSObject& obj, bool fromExecStack = false)
         {
 
             switch (obj.type) {
@@ -195,7 +194,7 @@ namespace waavs
                     return op.func(*this);
                 }
                 else {
-                    return error("invalid operator");
+                    return error("PSVirtualMachine::ececute - invalid operator", op.name);
                 }
             }
 
@@ -226,7 +225,7 @@ namespace waavs
 
                 // 3. Name resolves to a procedure?  auto-exec
                 if (resolved.isArray() && resolved.asArray()->isProcedure()) {
-                    return pushProcedureToExecStack(*this, resolved);
+                    return pushProcedureToExecStack(resolved);
                 }
 
                 // 4. Otherwise, it's a literal value, push to operand stack
@@ -240,10 +239,6 @@ namespace waavs
                     return error("execute::Array null array");
 
                 if (arr->isProcedure()) {
-                    //if (fromExecStack) {
-                    //    return pushProcedureToExecStack(*this, obj);
-                    //}
-                    //else {
                     opStack().push(obj); // treat it as a literal, for later execution
                     return true;
                     //}
@@ -274,6 +269,30 @@ namespace waavs
             printf("%% Error: %s (%s)\n", message, detail);
             return false;
         }
+
+        private:
+            // Unrolls a procedure (array) onto the execution stack.
+// The arguments are pushed in reverse order, so the first argument is on top of the stack.
+// Returns false on error (e.g., if the array is not a procedure).
+            bool pushProcedureToExecStack(const PSObject& proc) {
+                if (!proc.isArray())
+                    return error("pushProcedureToExecStack - typecheck, NOT ARRAY");
+
+                auto arr = proc.asArray();
+                if (!arr || !arr->isProcedure())
+                    return error("pushProcedureToExecStack::typecheck, NOT PROC");
+
+                // start by pushing a marker, which is used to properly unwind 
+                // the execution stack when the procedure is done or stopped
+                execStack().push(PSObject::fromMark());
+                for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+                {
+                    if (!execStack().push(*it))
+                        return false;
+                }
+
+                return true;
+            }
     };
 
 
@@ -285,32 +304,8 @@ namespace waavs
     // Helpers
 	//======================================================================
 
-	// Unrolls a procedure (array) onto the execution stack.
-	// The arguments are pushed in reverse order, so the first argument is on top of the stack.
-	// Returns false on error (e.g., if the array is not a procedure).
-    inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc) {
-        if (!proc.isArray()) 
-            return vm.error("typecheck");
-        
-        auto arr = proc.asArray();
-        if (!arr || !arr->isProcedure()) 
-            return vm.error("pushProcedureToExecStack::typecheck");
 
-        // start by pushing a marker, which is used to properly unwind 
-		// the execution stack when the procedure is done or stopped
-        vm.execStack().push(PSObject::fromMark());
-        for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
-        {
-            if (!vm.execStack().push(*it))
-                return false;
-        }
 
-        return true;
-    }
 
-    inline bool runArray(PSVirtualMachine& vm, const PSObject& proc) 
-    {
-        return pushProcedureToExecStack(vm, proc) && vm.run();
-    }
 
 }
