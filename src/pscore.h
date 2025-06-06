@@ -73,13 +73,13 @@ namespace waavs {
     // Handle aliases for clarity
     using PSArrayHandle = std::shared_ptr<PSArray>;
     using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
-    using PSOperatorHandle = std::shared_ptr<PSOperator>;
 
     // --------------------
     // PSOperator
     // --------------------
     // These definitions are used for builtin operators that are known at compile time
-    using PSOperatorFunc = std::function<bool(PSVirtualMachine&)>;
+    //using PSOperatorFunc = std::function<bool(PSVirtualMachine&)>;
+    using PSOperatorFunc = bool(*)(PSVirtualMachine&);
     using PSOperatorFuncMap = std::unordered_map<const char*, PSOperatorFunc>;
 
     struct PSOperator {
