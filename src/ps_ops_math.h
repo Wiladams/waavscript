@@ -1,16 +1,16 @@
 #pragma once
 
 #include <cmath>
-
 #include "pscore.h"
 #include "psvm.h"
-
 
 namespace waavs {
 
 #ifndef PI
-#    define PI 3.14159265358979323846
+#  define PI 3.14159265358979323846
 #endif
+
+    // ----- Reusable Templates -----
 
     template <typename Func>
     inline bool unaryMathOp(PSVirtualMachine& vm, Func func) {
@@ -18,9 +18,7 @@ namespace waavs {
         if (s.empty()) return false;
 
         PSObject a;
-        
         s.pop(a);
-
         if (!a.isNumber()) return false;
 
         double result = func(a.asReal());
@@ -33,116 +31,126 @@ namespace waavs {
         auto& s = vm.opStack();
         if (s.size() < 2) return false;
 
-        PSObject b;
-        PSObject a;
-
-        s.pop(b);
-        s.pop(a);
+        PSObject b, a;
+        s.pop(b); s.pop(a);
 
         if (!a.isNumber() || !b.isNumber()) return false;
 
-        double av = a.asReal();
-        double bv = b.asReal();
-        double result = func(av, bv);
-
+        double result = func(a.asReal(), b.asReal());
         s.push(PSObject::fromReal(result));
         return true;
     }
 
-    static const PSOperatorFuncMap mathOps = {
-        // Arithmetic
-        { "add", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a + b; }); }},
-        { "sub", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a - b; }); }},
-        { "mul", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a * b; }); }},
-        { "div", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a / b; }); }},
-        { "idiv", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+    // ----- Operator Implementations -----
 
-            PSObject b;
-            PSObject a;
+    inline bool op_add(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a + b; }); }
+    inline bool op_sub(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a - b; }); }
+    inline bool op_mul(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a * b; }); }
+    inline bool op_div(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a / b; }); }
+    inline bool op_max(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::max(a, b); }); }
+    inline bool op_min(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::min(a, b); }); }
 
-            s.pop(b);
-            s.pop(a);
+    inline bool op_idiv(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
+        PSObject b, a;
+        s.pop(b); s.pop(a);
+        if (!a.isInt() || !b.isInt() || b.asInt() == 0) return false;
+        s.push(PSObject::fromInt(a.asInt() / b.asInt()));
+        return true;
+    }
 
-            if (a.type != PSObjectType::Int || b.type != PSObjectType::Int || b.asInt() == 0) return false;
+    inline bool op_mod(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
+        PSObject b, a;
+        s.pop(b); s.pop(a);
+        if (!a.isInt() || !b.isInt() || b.asInt() == 0) return false;
+        s.push(PSObject::fromInt(a.asInt() % b.asInt()));
+        return true;
+    }
 
-            s.push(PSObject::fromInt(a.asInt() / b.asInt()));
-            return true;
-        }},
-        { "mod", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+    // Unary math
+    inline bool op_neg(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return -a; }); }
+    inline bool op_abs(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::abs(a); }); }
+    inline bool op_sqrt(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::sqrt(a); }); }
+    inline bool op_ceiling(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::ceil(a); }); }
+    inline bool op_floor(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::floor(a); }); }
+    inline bool op_round(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::round(a); }); }
+    inline bool op_truncate(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return a < 0 ? std::ceil(a) : std::floor(a); }); }
 
-            PSObject b;
-            PSObject a;
+    // Trig
+    inline bool op_sin(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::sin(angle * PI / 180.0); }); }
+    inline bool op_cos(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::cos(angle * PI / 180.0); }); }
 
-            s.pop(b);
-            s.pop(a);
+    inline bool op_atan(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
+        PSObject dx, dy;
+        s.pop(dx); s.pop(dy);
+        if (!dx.isNumber() || !dy.isNumber()) return false;
+        double angle = std::atan2(dy.asReal(), dx.asReal()) * 180.0 / PI;
+        s.push(PSObject::fromReal(angle));
+        return true;
+    }
 
-            if (a.type != PSObjectType::Int || b.type != PSObjectType::Int || b.asInt() == 0) return false;
+    // Exponentials
+    inline bool op_exp(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double base, double exp) { return std::pow(base, exp); }); }
+    inline bool op_ln(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double x) { return std::log(x); }); }
+    inline bool op_log(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double x) { return std::log10(x); }); }
 
-            s.push(PSObject::fromInt(a.asInt() % b.asInt()));
-            return true;
-        }},
-        { "max", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::max(a, b); }); }},
-        { "min", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::min(a, b); }); }},
+    // Random
+    inline bool op_rand(PSVirtualMachine& vm) {
+        vm.randSeed = (1103515245 * vm.randSeed + 12345) & 0x7FFFFFFF;
+        vm.opStack().push(PSObject::fromInt(vm.randSeed));
+        return true;
+    }
 
-        // Unary math
-        { "neg", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return -a; }); }},
-        { "abs", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::abs(a); }); }},
-        { "sqrt", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::sqrt(a); }); }},
-        { "ceiling", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::ceil(a); }); }},
-        { "floor", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::floor(a); }); }},
-        { "round", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return std::round(a); }); }},
-        { "truncate", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double a) { return a < 0 ? std::ceil(a) : std::floor(a); }); }},
+    inline bool op_srand(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
+        PSObject obj;
+        s.pop(obj);
+        if (!obj.isInt()) return false;
+        vm.randSeed = obj.asInt() & 0x7FFFFFFF;
+        return true;
+    }
 
-        // Trigonometry
-        { "sin", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::sin(angle * PI / 180.0); }); }},
-        { "cos", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::cos(angle * PI / 180.0); }); }},
-        { "atan", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+    inline bool op_rrand(PSVirtualMachine& vm) {
+        vm.opStack().push(PSObject::fromInt(vm.randSeed));
+        return true;
+    }
 
-            PSObject dx;
-            PSObject dy;
+    // ----- Operator Map -----
 
-            s.pop(dx);
-            s.pop(dy);
-
-            if (!dx.isNumber() || !dy.isNumber()) return false;
-
-            double angle = std::atan2(dy.asReal(), dx.asReal()) * 180.0 / PI;
-            s.push(PSObject::fromReal(angle));
-            return true;
-        }},
-
-        // Exponential and logarithmic
-        { "exp", [](PSVirtualMachine& vm) { return binaryMathOp(vm, [](double base, double exp) { return std::pow(base, exp); }); }},
-        { "ln",  [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double x) { return std::log(x); }); }},
-        { "log", [](PSVirtualMachine& vm) { return unaryMathOp(vm, [](double x) { return std::log10(x); }); }},
-
-        // Random number generator
-        { "rand", [](PSVirtualMachine& vm) -> bool {
-            vm.randSeed = (1103515245 * vm.randSeed + 12345) & 0x7FFFFFFF;
-            vm.opStack().push(PSObject::fromInt(vm.randSeed));
-            return true;
-        }},
-        { "srand", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
-            PSObject obj;
-            
-            s.pop(obj);
-
-            if (obj.type != PSObjectType::Int) return false;
-            vm.randSeed = obj.asInt() & 0x7FFFFFFF;
-            return true;
-        }},
-        { "rrand", [](PSVirtualMachine& vm) -> bool {
-            vm.opStack().push(PSObject::fromInt(vm.randSeed));
-            return true;
-        }}
-    };
+    inline const PSOperatorFuncMap& getMathOps() {
+        static const PSOperatorFuncMap table = {
+            { "add",      op_add },
+            { "sub",      op_sub },
+            { "mul",      op_mul },
+            { "div",      op_div },
+            { "idiv",     op_idiv },
+            { "mod",      op_mod },
+            { "max",      op_max },
+            { "min",      op_min },
+            { "neg",      op_neg },
+            { "abs",      op_abs },
+            { "sqrt",     op_sqrt },
+            { "ceiling",  op_ceiling },
+            { "floor",    op_floor },
+            { "round",    op_round },
+            { "truncate", op_truncate },
+            { "sin",      op_sin },
+            { "cos",      op_cos },
+            { "atan",     op_atan },
+            { "exp",      op_exp },
+            { "ln",       op_ln },
+            { "log",      op_log },
+            { "rand",     op_rand },
+            { "srand",    op_srand },
+            { "rrand",    op_rrand }
+        };
+        return table;
+    }
 
 } // namespace waavs

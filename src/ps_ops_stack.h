@@ -5,108 +5,94 @@
 
 namespace waavs {
 
-    static const PSOperatorFuncMap stackOps = {
+    // ----- Stack Operator Implementations -----
 
-        { "dup", [](PSVirtualMachine& vm) -> bool {
-			auto& s = vm.opStack();
-            if (s.empty()) return false;
+    inline bool op_dup(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
 
-            PSObject top;
-            if (!s.top(top))
-				return false;
-			s.push(top);
+        PSObject top;
+        if (!s.top(top)) return false;
+        s.push(top);
+        return true;
+    }
 
-			return true;
-        }},
+    inline bool op_pop(PSVirtualMachine& vm) {
+        PSObject obj;
+        return vm.opStack().pop(obj);
+    }
 
-        { "pop", [](PSVirtualMachine& vm)  -> bool {
-            PSObject obj;
-			return vm.opStack().pop(obj);
-        }},
+    inline bool op_exch(PSVirtualMachine& vm) {
+        return vm.opStack().exch();
+    }
 
-        { "exch", [](PSVirtualMachine& vm)  -> bool {
-            return vm.opStack().exch();
-        }},
+    inline bool op_index(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        PSObject countObj;
 
-		// Finds the 'index'th item on the stack and duplicates it 
-        // on the top of the stack
-        { "index", [](PSVirtualMachine& vm)  -> bool {
-			// Top of stack should be an integer indicating the index
-			// of the object to retrieve (0-based index)
-			auto& s = vm.opStack();
+        if (!s.pop(countObj)) return false;
+        if (!countObj.isInt()) return false;
 
-            PSObject countObj;
-			
-			if (!s.pop(countObj))
-                return false;
+        int n = countObj.asInt();
+        PSObject nthObj;
+        if (!s.nth(n, nthObj)) return false;
 
-			// type check for integer
-            if (!countObj.isInt())
-                return false;
+        return s.push(nthObj);
+    }
 
-            int n = countObj.asInt();
+    inline bool op_roll(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        PSObject jObj, nObj;
 
-			// Try to get the nth object from the stack
-            PSObject nthObj;
-            if (!s.nth(n, nthObj)) 
-				return false;
+        if (!s.pop(jObj)) return false;
+        if (!s.pop(nObj)) return false;
+        if (!jObj.isInt() || !nObj.isInt()) return false;
 
-			// Push the nth object back onto the stack
-            return s.push(nthObj);
-        }},
+        int count = nObj.asInt();
+        int shift = jObj.asInt();
 
-        { "roll", [](PSVirtualMachine& vm)  -> bool {
-			auto& s = vm.opStack();
+        return s.roll(count, shift);
+    }
 
-            PSObject jObj;
-            PSObject nObj;
+    inline bool op_clear(PSVirtualMachine& vm) {
+        return vm.opStack().clear();
+    }
 
-            if (!s.pop(jObj)) return false;
-            if (!s.pop(nObj)) return false;
+    inline bool op_count(PSVirtualMachine& vm) {
+        int count = static_cast<int>(vm.opStack().size());
+        return vm.opStack().push(PSObject::fromInt(count));
+    }
 
-			// type check for integers
-            if (!jObj.isInt() || !nObj.isInt())
-				return false;
+    inline bool op_mark(PSVirtualMachine& vm) {
+        return vm.opStack().mark();
+    }
 
-            // get actual values
-            int count = nObj.asInt();
-            int shift = jObj.asInt();
+    inline bool op_cleartomark(PSVirtualMachine& vm) {
+        return vm.opStack().clearToMark();
+    }
 
-            return s.roll(count, shift);
-        }},
+    inline bool op_counttomark(PSVirtualMachine& vm) {
+        int count = 0;
+        if (!vm.opStack().countToMark(count)) return false;
+        return vm.opStack().push(PSObject::fromInt(count));
+    }
 
-        // clear
-        // removes all items from the stack
-        { "clear", [](PSVirtualMachine& vm)  -> bool {
-			return vm.opStack().clear();
-        }},
+    // ----- Operator Table -----
 
-        // count
-		// Pushes the count of the current size of the operand stack 
-        // onto the operand stack
-        { "count", [](PSVirtualMachine& vm)  -> bool {
-            int count = static_cast<int>(vm.opStack().size());
-			return vm.opStack().push(PSObject::fromInt(count));
-        }},
-
-        // Places a mark on the current position of the operand stack
-        { "mark", [](PSVirtualMachine& vm)  -> bool {
-            return vm.opStack().mark();
-        }},
-
-        // Removes objects from the operand stack up to and including the most recent mark
-        { "cleartomark", [](PSVirtualMachine& vm)  -> bool {
-            return vm.opStack().clearToMark();
-        }},
-
-		// Counts the number of objects on the operand stack until it finds a mark object
-        { "counttomark", [](PSVirtualMachine& vm)  -> bool {
-            int count = 0;
-            if (!vm.opStack().countToMark(count))
-                return false;
-			
-            return vm.opStack().push(PSObject::fromInt(count));
-        }},
-    };
+    inline const PSOperatorFuncMap& getStackOps() {
+        static const PSOperatorFuncMap table = {
+            { "dup",          op_dup },
+            { "pop",          op_pop },
+            { "exch",         op_exch },
+            { "index",        op_index },
+            { "roll",         op_roll },
+            { "clear",        op_clear },
+            { "count",        op_count },
+            { "mark",         op_mark },
+            { "cleartomark",  op_cleartomark },
+            { "counttomark",  op_counttomark }
+        };
+        return table;
+    }
 
 } // namespace waavs

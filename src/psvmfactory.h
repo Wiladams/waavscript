@@ -35,13 +35,13 @@ namespace waavs
 			vm->registerOps(getDebugOps());
 			vm->registerOps(getDictionaryOps());
 			vm->registerOps(getLogicOps());
-			vm->registerOps(mathOps);
+			vm->registerOps(getMathOps());
 			vm->registerOps(getPolymorphOps());
-			vm->registerOps(relationalOps);
-			vm->registerOps(stackOps);
+			vm->registerOps(getRelationalOps());
+			vm->registerOps(getStackOps());
 			vm->registerOps(getStringOps());
-			vm->registerOps(opsMatrix);
-			vm->registerOps(graphicsOps);
+			vm->registerOps(getMatrixOps());
+			vm->registerOps(getGraphicsOps());
 		}
 
 		// Create a new PSVM instance

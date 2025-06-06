@@ -439,46 +439,47 @@ namespace waavs {
 
 
     // Add other graphics operators here...
+    inline const PSOperatorFuncMap& getGraphicsOps() {
+        static const PSOperatorFuncMap table = {
+            // Graphics state management
+            { "gsave",         op_gsave },
+            { "grestore",      op_grestore },
 
-    static const PSOperatorFuncMap graphicsOps = {
-        // Graphics state management
-        { "gsave",       op_gsave },
-        { "grestore",    op_grestore },
+            // Color setting
+            { "setgray",       op_setgray },
+            { "setrgbcolor",   op_setrgbcolor },
+            { "setcmykcolor",  op_setcmykcolor },
 
-        // Color setting
-        { "setgray",       op_setgray },
-        { "setrgbcolor",   op_setrgbcolor },
-        { "setcmykcolor",  op_setcmykcolor },
+            // Drawing attributes
+            { "setlinewidth",  op_setlinewidth },
+            { "setlinecap",    op_setlinecap },
+            { "setlinejoin",   op_setlinejoin },
 
-        // Drawing attributes
-        { "setlinewidth", op_setlinewidth },
-        { "setlinecap",   op_setlinecap },
-        { "setlinejoin",  op_setlinejoin },
+            // Path operations
+            { "newpath",       op_newpath },
+            { "currentpoint",  op_currentpoint },
+            { "moveto",        op_moveto },
+            { "rmoveto",       op_rmoveto },
+            { "lineto",        op_lineto },
+            { "rlineto",       op_rlineto },
+            { "arc",           op_arc },
+            { "arcto",         op_arcto },
+            { "arcn",          op_arcn },
+            { "rectpath",      op_rectpath },
+            { "rectfill",      op_rectfill },
 
-        // Path operations
-        { "newpath",     op_newpath },
-		{ "currentpoint", op_currentpoint },
-        { "moveto",      op_moveto },
-        { "rmoveto",     op_rmoveto },
-        { "lineto",      op_lineto },
-        { "rlineto",     op_rlineto },
-        { "arc",         op_arc },
-		{ "arcto",       op_arcto },
-        { "arcn",        op_arcn },
-        { "rectpath",    op_rectpath },
-		{ "rectfill",    op_rectfill },
-		
-        // Curves
-		{ "curveto",     op_curveto },
-		{ "rcurveto",    op_rcurveto },
-        { "closepath",   op_closepath },
+            // Curves
+            { "curveto",       op_curveto },
+            { "rcurveto",      op_rcurveto },
+            { "closepath",     op_closepath },
 
-        // Path rendering
-        { "stroke",      op_stroke },
-        { "fill",        op_fill },
+            // Path rendering
+            { "stroke",        op_stroke },
+            { "fill",          op_fill }
+        };
+        return table;
+    }
 
-
-    };
 
 
 } // namespace waavs

@@ -201,6 +201,10 @@
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
     <ClInclude Include="..\..\src\ps_ops_logic.h" />
+    <ClInclude Include="..\..\src\ps_ops_math.h" />
+    <ClInclude Include="..\..\src\ps_ops_matrix.h" />
+    <ClInclude Include="..\..\src\ps_ops_relational.h" />
+    <ClInclude Include="..\..\src\ps_ops_stack.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>

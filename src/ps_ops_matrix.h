@@ -345,24 +345,27 @@ namespace waavs {
 
 namespace waavs {
 
-    static const PSOperatorFuncMap opsMatrix = {
-        { "matrix",              op_matrix },
-        { "invertmatrix",        op_invertmatrix },
-        { "concatmatrix",        op_concatmatrix },
-        { "transform",           op_transform },
-        { "dtransform",          op_dtransform },
-        { "itransform",          op_itransform },
-        { "idtransform",         op_idtransform },
+    inline const PSOperatorFuncMap& getMatrixOps() {
+        static const PSOperatorFuncMap table = {
+            { "matrix",              op_matrix },
+            { "invertmatrix",        op_invertmatrix },
+            { "concatmatrix",        op_concatmatrix },
+            { "transform",           op_transform },
+            { "dtransform",          op_dtransform },
+            { "itransform",          op_itransform },
+            { "idtransform",         op_idtransform },
+            { "currentmatrix",       op_currentmatrix },
+            { "setmatrix",           op_setmatrix },
+            { "initmatrix",          op_initmatrix },
+            { "defaultmatrix",       op_defaultmatrix },
+            { "currentscreenmatrix", op_currentscreenmatrix },
+            { "concat",              op_concat },
+            { "translate",           op_translate },
+            { "scale",               op_scale },
+            { "rotate",              op_rotate }
+        };
+        return table;
+    }
 
-        { "currentmatrix",       op_currentmatrix },
-        { "setmatrix",           op_setmatrix },
-        { "initmatrix",          op_initmatrix },
-        { "defaultmatrix",       op_defaultmatrix },
-        { "currentscreenmatrix", op_currentscreenmatrix },
-        { "concat",              op_concat },
-        { "translate",           op_translate },
-        { "scale",               op_scale },
-        { "rotate",              op_rotate },
-    };
 
 }
