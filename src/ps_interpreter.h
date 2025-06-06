@@ -56,7 +56,7 @@ namespace waavs
             return true;
 
         case PSTokenType::PS_TOKEN_String: {
-            auto str = PSString::createFromSpan(tok.span.size(), tok.span.data());
+            auto str = PSString::fromSpan(tok.span.data(), tok.span.size());
             return obj.resetFromString(str);
         }
 
@@ -64,7 +64,7 @@ namespace waavs
             std::vector<uint8_t> decoded;
             if (!spanToHexString(tok.span, decoded))
                 return false;
-            auto str = PSString::createFromVector(decoded);
+            auto str = PSString::fromVector(decoded);
             return obj.resetFromString(str);
         }
 

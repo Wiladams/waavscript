@@ -34,12 +34,12 @@ namespace waavs
 			vm->registerOps(getControlOps());
 			vm->registerOps(getDebugOps());
 			vm->registerOps(getDictionaryOps());
-			vm->registerOps(logicOps);
+			vm->registerOps(getLogicOps());
 			vm->registerOps(mathOps);
-			vm->registerOps(polymorphOps);
+			vm->registerOps(getPolymorphOps());
 			vm->registerOps(relationalOps);
 			vm->registerOps(stackOps);
-			vm->registerOps(stringOps);
+			vm->registerOps(getStringOps());
 			vm->registerOps(opsMatrix);
 			vm->registerOps(graphicsOps);
 		}

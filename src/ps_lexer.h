@@ -63,6 +63,7 @@ namespace waavs {
 }
 
 namespace waavs {
+	// Turn a supposed hex ascii character into a byte value.
 	inline bool  decodeHex(uint8_t c, uint8_t& out)
 	{
 		if (!PSCharClass::isHexDigit(c)) return false;
@@ -74,6 +75,7 @@ namespace waavs {
 		return true;
 	}
 
+	// Skip characters in the input stream that match the given category mask
 	static inline const uint8_t* skipWhile(OctetCursor& src, uint8_t categoryMask) noexcept
 	{
 		const uint8_t* p = src.begin();
@@ -91,6 +93,7 @@ namespace waavs {
 		return p;
 	}
 
+	// Skip characters in the input stream until a character matching the given category mask is found
 	static inline const uint8_t* skipUntil(OctetCursor& src, uint8_t categoryMask) noexcept
 	{
 		const uint8_t* p = src.begin();
@@ -139,6 +142,13 @@ namespace waavs
 
 namespace waavs {
 
+	// nextPSLexeme
+	// Return the next lexically significant token from the input stream.
+	// Updates the source cursor to point to the next position after the token.
+	//
+	// This is pretty low level.  It will do things like isolate a number, but 
+	// won't actually give you the decimal value for that number
+	//
 	inline bool nextPSLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
 		using CC = PSCharClass;
 

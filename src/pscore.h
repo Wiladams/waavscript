@@ -71,7 +71,6 @@ namespace waavs {
 
 
     // Handle aliases for clarity
-    using PSStringHandle = std::shared_ptr<PSString>;
     using PSArrayHandle = std::shared_ptr<PSArray>;
     using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
     using PSOperatorHandle = std::shared_ptr<PSOperator>;
@@ -141,7 +140,7 @@ private:
         const char*,                         // Name (interned)
         PSOperator,                   // Operator
 		PSMatrix,                            // Matrix
-        PSStringHandle,                      // String
+        PSString,                      // String
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
         std::nullptr_t                       // Mark
@@ -180,7 +179,7 @@ public:
     bool resetFromName(const OctetCursor& oc) {
         return resetFromInternedName(PSNameTable::INTERN(oc));
     }
-    bool resetFromString(PSStringHandle s) {
+    bool resetFromString(PSString s) {
         reset(); type = PSObjectType::String; fValue = s; return true;
     }
     bool resetFromArray(PSArrayHandle a) {
@@ -207,7 +206,7 @@ public:
     static PSObject fromName(const char* n) { PSObject o; o.resetFromName(n); return o; }
 	static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
 	static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
-    static PSObject fromString(PSStringHandle s) { PSObject o; o.resetFromString(s); return o; }
+    static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
@@ -240,7 +239,7 @@ public:
     double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(as<int32_t>()) : as<double>(); }
     bool asBool() const { return as<bool>(); }
     const char* asName() const { return as<const char*>(); }
-    PSStringHandle asString() const { return as<PSStringHandle>(); }
+    PSString asString() const { return as<PSString>(); }
     PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
     PSOperator asOperator() const { return as<PSOperator>(); }

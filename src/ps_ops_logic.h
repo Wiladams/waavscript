@@ -5,88 +5,91 @@
 
 namespace waavs {
 
-    static const PSOperatorFuncMap logicOps = {
-        { "and", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+    inline bool op_and(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
 
-            PSObject b;
-            PSObject a;
+        PSObject b, a;
+        s.pop(b); s.pop(a);
 
-            s.pop(b);
-            s.pop(a);
+        if (a.isBool() && b.isBool()) {
+            s.push(PSObject::fromBool(a.asBool() && b.asBool()));
+            return true;
+        }
+        if (a.isInt() && b.isInt()) {
+            s.push(PSObject::fromInt(a.asInt() & b.asInt()));
+            return true;
+        }
+        return false;
+    }
 
-            if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.asBool() && b.asBool()));
-                return true;
-            }
-            if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.asInt()& b.asInt()));
-                return true;
-            }
-            return false;
-        }},
+    inline bool op_or(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
 
-        { "or", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+        PSObject b, a;
+        s.pop(b); s.pop(a);
 
-            PSObject b;
-            PSObject a;
-            
-            s.pop(b);
-            s.pop(a);
+        if (a.isBool() && b.isBool()) {
+            s.push(PSObject::fromBool(a.asBool() || b.asBool()));
+            return true;
+        }
+        if (a.isInt() && b.isInt()) {
+            s.push(PSObject::fromInt(a.asInt() | b.asInt()));
+            return true;
+        }
+        return false;
+    }
 
-            if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.asBool() || b.asBool()));
-                return true;
-            }
-            if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.asInt() | b.asInt()));
-                return true;
-            }
-            return false;
-        }},
+    inline bool op_xor(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
 
-        { "xor", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.size() < 2) return false;
+        PSObject b, a;
+        s.pop(b); s.pop(a);
 
-            PSObject b;
-            PSObject a;
+        if (a.isBool() && b.isBool()) {
+            s.push(PSObject::fromBool(a.asBool() != b.asBool()));
+            return true;
+        }
+        if (a.isInt() && b.isInt()) {
+            s.push(PSObject::fromInt(a.asInt() ^ b.asInt()));
+            return true;
+        }
+        return false;
+    }
 
-            s.pop(b);
-            s.pop(a);
+    inline bool op_not(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        if (s.empty()) return false;
 
-            if (a.type == PSObjectType::Bool && b.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(a.asBool() != b.asBool()));
-                return true;
-            }
-            if (a.type == PSObjectType::Int && b.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(a.asInt() ^ b.asInt()));
-                return true;
-            }
-            return false;
-        }},
+        PSObject a;
+        s.pop(a);
 
-        { "not", [](PSVirtualMachine& vm) -> bool {
-            auto& s = vm.opStack();
-            if (s.empty()) return false;
+        if (a.isBool()) {
+            s.push(PSObject::fromBool(!a.asBool()));
+            return true;
+        }
+        if (a.isInt()) {
+            s.push(PSObject::fromInt(~a.asInt()));
+            return true;
+        }
+        return false;
+    }
 
-            PSObject a;
-            
-            s.pop(a);
-
-            if (a.type == PSObjectType::Bool) {
-                s.push(PSObject::fromBool(!a.asBool()));
-                return true;
-            }
-            if (a.type == PSObjectType::Int) {
-                s.push(PSObject::fromInt(~a.asInt()));
-                return true;
-            }
-            return false;
-        }}
-    };
+    inline const PSOperatorFuncMap& getLogicOps()
+    {
+        static const PSOperatorFuncMap table = {
+            { "and", op_and },
+            { "or",  op_or },
+            { "xor", op_xor },
+            { "not", op_not }
+        };
+        return table;
+    }
 
 } // namespace waavs

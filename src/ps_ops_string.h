@@ -18,8 +18,8 @@ namespace waavs {
         if (!strObj.isString()) return vm.error("typecheck");
 
         auto buf = strObj.asString();
-        char* dst = reinterpret_cast<char*>(buf->data());
-        size_t maxLen = buf->capacity();
+        char* dst = reinterpret_cast<char*>(buf.data());
+        size_t maxLen = buf.capacity();
 
         int len = 0;
 
@@ -44,7 +44,7 @@ namespace waavs {
         // Ensure length is valid and clamped to capacity
         if (len < 0) len = 0;
         if (static_cast<size_t>(len) > maxLen) len = static_cast<int>(maxLen);
-        buf->setLength(len);
+        buf.setLength(len);
 
         return s.push(strObj);
 
@@ -57,12 +57,12 @@ namespace waavs {
         PSObject strObj;
         s.pop(strObj);
 
-        if (!strObj.isString() || !strObj.asString())
+        if (!strObj.isString())
             return vm.error("typecheck");
 
         auto psStr = strObj.asString();
-        const uint8_t* data = psStr->data();
-        size_t len = psStr->length();
+        const uint8_t* data = psStr.data();
+        size_t len = psStr.length();
         OctetCursor oc(data, len);
 
         const char* interned = PSNameTable::INTERN(oc);
@@ -89,7 +89,7 @@ namespace waavs {
         if (len < 0) return vm.error("rangecheck");
 
         // Allocate string
-        auto psStr = PSString::createFromSize(static_cast<size_t>(len));
+        PSString psStr(static_cast<size_t>(len));
 
 
         // Push onto stack
@@ -98,11 +98,13 @@ namespace waavs {
     }
 
 
-    static const PSOperatorFuncMap stringOps = {
-
-        { "cvs", op_cvs },
-        { "cvn", op_cvn},
-		{ "string", op_string  }
-
-    };
+    static const PSOperatorFuncMap& getStringOps()
+    {
+        static const PSOperatorFuncMap table = {
+            { "cvs",    op_cvs },
+            { "cvn",    op_cvn },
+            { "string", op_string }
+        };
+        return table;
+    }
 }

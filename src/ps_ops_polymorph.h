@@ -40,9 +40,9 @@ namespace waavs
             {
                 auto str = container.asString();
                 int idx = index.asInt();
-                if (!str || idx < 0 || static_cast<size_t>(idx) >= str->length())
+                if ( idx < 0 || static_cast<size_t>(idx) >= str.length())
                     return false;
-                s.push(PSObject::fromInt(str->data()[idx]));
+                s.push(PSObject::fromInt(str.data()[idx]));
                 return true;
             }
 
@@ -92,9 +92,9 @@ namespace waavs
                 auto str = container.asString();
                 int idx = index.asInt();
                 int byte = value.asInt();
-                if (!str || idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str->capacity())
+                if (idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str.capacity())
                     return false;
-				str->put(idx, static_cast<char>(byte));
+				str.put(idx, static_cast<char>(byte));
                 return true;
             }
 
@@ -126,7 +126,7 @@ namespace waavs
             return true;
 
         case PSObjectType::String:
-            s.push(PSObject::fromInt(static_cast<int>(obj.asString()->length())));
+            s.push(PSObject::fromInt(static_cast<int>(obj.asString().length())));
             return true;
 
         case PSObjectType::Dictionary:
@@ -203,9 +203,9 @@ namespace waavs
 			auto src = srcObject.asString();
 
             // Make sure neither one is null
-            if (!dest || !src) return  vm.error("op_copy:invalidaccess");
+            //if (!dest || !src) return  vm.error("op_copy:invalidaccess");
 
-            if (!dest->putInterval(0, *src)) return false;
+            if (!dest.putInterval(0, src)) return false;
 
             return s.push(destObject);
         }
@@ -249,10 +249,10 @@ namespace waavs
 
         case PSObjectType::String: {
             auto str = container.asString();
-            for (int i = 0; i < str->length(); ++i) {
+            for (int i = 0; i < str.length(); ++i) {
                 PSObject obj;
                 uint8_t byte;
-				str->get(i, byte);
+				str.get(i, byte);
                 obj = PSObject::fromInt(static_cast<unsigned char>(byte));
                 if (!apply(obj)) break;
             }
@@ -386,25 +386,21 @@ namespace waavs
 
 
 
-
-
-
-
-
-
-
-    static const PSOperatorFuncMap polymorphOps = {
-	{ "get", op_get },          // get: container index -> value (get value from container at index)
-	{ "put", op_put },          // put: a b c -> a b (c = a[b])
-	{ "length", op_length },    // length: container -> length (number of elements in container)
-	{ "copy", op_copy },        // copy: (n x? ... x? ? x? ... x? x? ... x?) — duplicate top n items
-	{ "forall", op_forall },    // forall: proc container -> (apply proc to each element in container)
-    { "eq", op_equality },      // Polymorphic equality
-    { "ne", op_ne },            // Logical negation of `eq`
-	{ "type", op_type },        // type: object -> type (get the type of an object as a name)
-	{ "cvlit",  op_cvlit },     // mark an object as literal (not executable)
-	{ "cvx", op_cvx },          // mark an object as executable
-	{ "xcheck", op_xcheck },    // xcheck: object -> bool (check if object is executable)
-    };
-
+    static const PSOperatorFuncMap& getPolymorphOps()
+    {
+        static const PSOperatorFuncMap table = {
+            { "get",     op_get },
+            { "put",     op_put },
+            { "length",  op_length },
+            { "copy",    op_copy },
+            { "forall",  op_forall },
+            { "eq",      op_equality },
+            { "ne",      op_ne },
+            { "type",    op_type },
+            { "cvlit",   op_cvlit },
+            { "cvx",     op_cvx },
+            { "xcheck",  op_xcheck }
+        };
+        return table;
+    }
 }

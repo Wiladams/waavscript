@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace waavs {
     // --------------------
@@ -14,142 +15,117 @@ namespace waavs {
     //     the size of the string.  The capacity tells you the size
     //     of the allocated buffer.
     // --------------------
-    struct PSString
-    {
+    struct PSString {
     private:
-        uint32_t fCapacity = 0;
-        uint8_t* fData = nullptr;
+        std::unique_ptr<uint8_t[]> fData;
         uint32_t fLength = 0;
-
-        PSString() = default;
-
-        PSString(size_t cap)
-            : fCapacity(cap)
-            , fLength(0)
-        {
-            fData = new uint8_t[cap];       // Allocate memory for the string
-            memset(fData, 0, fCapacity);    // Fill with 0s
-        }
-
-        PSString(size_t len, const uint8_t* src)
-            :fCapacity(len)
-            , fLength(len)
-        {
-            fData = new uint8_t[len];
-            std::memcpy(fData, src, len);
-        }
-
-        PSString(const char* literal)
-        {
-            fLength = fCapacity = std::strlen(literal);
-            fData = new uint8_t[fCapacity];
-			std::copy_n(reinterpret_cast<const uint8_t*>(literal), fCapacity, fData);
-        }
+        uint32_t fCapacity = 0;
 
     public:
-        // brute force
-        void setLength(size_t len) 
-        { 
-            if (len > fCapacity) 
-                len = fCapacity; // Ensure we don't exceed capacity
-            fLength = len; 
-		}
+        PSString() = default;
 
-		// Factory methods to create PSString instances
-        static std::shared_ptr<PSString> createFromSize(size_t len)
-        {
-            auto ptr = std::shared_ptr<PSString>(new PSString(len));
-
-            return ptr;
+        explicit PSString(size_t cap)
+            : fData(new uint8_t[cap]()), fLength(0), fCapacity(static_cast<uint32_t>(cap)) {
         }
 
-        static std::shared_ptr<PSString> createFromSpan(size_t len, const uint8_t * src)
-        {
-            if (!src)
-				return PSString::createFromSize((size_t)0); // Return empty string if src is null
-
-            auto ptr = std::shared_ptr<PSString>(new PSString(len, src));
-
-            return ptr;
+        PSString(const uint8_t* src, size_t len)
+            : fData(new uint8_t[len]), fLength(static_cast<uint32_t>(len)), fCapacity(static_cast<uint32_t>(len)) {
+            std::memcpy(fData.get(), src, len);
         }
 
-        static std::shared_ptr<PSString> createFromCString(const char* src)
-        {
-            if (!src)
-                return PSString::createFromSize((size_t)0); // Return empty string if src is null
-
-            auto ptr = std::shared_ptr<PSString>(new PSString(src));
-
-            return ptr;
-		}
-
-        static std::shared_ptr<PSString> createFromVector(const std::vector<uint8_t>& v) 
-        {
-            auto str = PSString::createFromSize(v.size());
-            if (!str || v.empty()) return str;
-
-            std::memcpy(str->data(), v.data(), v.size());
-            str->setLength(v.size());
-            return str;
+        PSString(const char* cstr) {
+            if (cstr) {
+                size_t len = std::strlen(cstr);
+                fData = std::unique_ptr<uint8_t[]>(new uint8_t[len]);
+                std::memcpy(fData.get(), cstr, len);
+                fLength = fCapacity = static_cast<uint32_t>(len);
+            }
         }
 
-
-        ~PSString() 
-        { 
-            delete[] fData; 
+        // Copy constructor
+        PSString(const PSString& other)
+            : fData(new uint8_t[other.fCapacity])
+            , fLength(other.fLength)
+            , fCapacity(other.fCapacity) {
+            std::memcpy(fData.get(), other.fData.get(), fLength);
         }
 
-        size_t length() const { return fLength; }
-        size_t capacity() const { return fCapacity; }
-        uint8_t* data() { return fData; }
+        // Copy assignment
+        PSString& operator=(const PSString& other) {
+            if (this != &other) {
+                fData.reset(new uint8_t[other.fCapacity]);
+                fLength = other.fLength;
+                fCapacity = other.fCapacity;
+                std::memcpy(fData.get(), other.fData.get(), fLength);
+            }
+            return *this;
+        }
 
-        void reset() {
-            fLength = 0;
+        // Move constructor
+        PSString(PSString&&) noexcept = default;
+
+        // Move assignment
+        PSString& operator=(PSString&&) noexcept = default;
+
+        // Public interface
+        size_t length() const noexcept { return fLength; }
+        size_t capacity() const noexcept { return fCapacity; }
+        uint8_t* data() noexcept { return fData.get(); }
+        const uint8_t* data() const noexcept { return fData.get(); }
+
+        void reset() noexcept { fLength = 0; }
+
+        void setLength(uint32_t len) noexcept {
+            fLength = (len <= fCapacity) ? len : fCapacity;
         }
 
         std::string toString() const {
-			return fLength > 0 ? std::string(reinterpret_cast<const char*>(fData), fLength) : std::string();
+            return std::string(reinterpret_cast<const char*>(fData.get()), fLength);
         }
 
-        uint8_t get(uint32_t index) const {
-            if (index >= fLength) return 0; // or throw an error
-            return fData[index];
+        uint8_t get(uint32_t i) const noexcept {
+            return (i < fLength) ? fData[i] : 0;
         }
-        bool get(uint32_t index, uint8_t& out) const {
-            if (index >= fLength) return false;
-            out = fData[index];
+
+        bool get(uint32_t i, uint8_t& out) const noexcept {
+            if (i >= fLength) return false;
+            out = fData[i];
             return true;
         }
 
-        bool put(uint32_t index, uint8_t value) {
-            if (index >= fCapacity) return false;
-            fData[index] = value;
-            if (index >= fLength) fLength = index + 1;
+        bool put(uint32_t i, uint8_t value) {
+            if (i >= fCapacity) return false;
+            fData[i] = value;
+            if (i >= fLength) fLength = i + 1;
             return true;
         }
 
-        std::shared_ptr<PSString> getInterval(uint32_t index, uint32_t count) const {
-            if (index >= fCapacity) 
-                return PSString::createFromSize((size_t)0);
-            
-            if (count > fCapacity - index) count = fCapacity - index;
-
-            auto out = PSString::createFromSpan(count, fData);
-
-            return out;
+        PSString getInterval(uint32_t offset, uint32_t count) const {
+            if (offset >= fLength) return PSString();
+            if (count > fLength - offset) count = fLength - offset;
+            return PSString(fData.get() + offset, count);
         }
 
-        bool putInterval(uint32_t offset, const PSString& other) {
+        bool putInterval(uint32_t offset, const PSString& src) {
             if (offset >= fCapacity) return false;
-            uint32_t count = other.fLength;
+            uint32_t count = src.fLength;
             if (offset + count > fCapacity) count = fCapacity - offset;
-
-            for (uint32_t i = 0; i < count; ++i)
-                put(offset + i, other.fData[i]);
-
+            std::memcpy(fData.get() + offset, src.fData.get(), count);
+            if (offset + count > fLength) fLength = offset + count;
             return true;
         }
 
+        // Optional helpers
+        static PSString fromSpan(const uint8_t* src, size_t len) {
+            return len == 0 ? PSString() : PSString(src, len);
+		}
 
+        static PSString fromVector(const std::vector<uint8_t>& v) {
+            return v.empty() ? PSString() : PSString(v.data(), v.size());
+        }
+
+        static PSString fromCString(const char* s) {
+            return s ? PSString(s) : PSString();
+        }
     };
 }

@@ -200,6 +200,7 @@
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
+    <ClInclude Include="..\..\src\ps_ops_logic.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>
