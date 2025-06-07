@@ -15,6 +15,8 @@ namespace waavs {
     protected:
         PSGraphicsStack stateStack;
         PSPath fCurrentPath;
+		double pageWidth = 612; // Default A4 width in points
+		double pageHeight = 792; // Default A4 height in points
 
     public:
         virtual ~PSGraphicsContext() = default;
@@ -39,6 +41,32 @@ namespace waavs {
             //}
             //return false; // Last segment is not a point
 		}
+
+        // Device information
+        virtual void setPageSize(double w, double h) {
+            pageWidth = w;
+            pageHeight = h;
+        }
+
+        virtual void getPageSize(double& w, double& h) const {
+            w = pageWidth;
+            h = pageHeight;
+        }
+
+        virtual void reset() {
+            stateStack.reset();
+        }
+
+        virtual void showPage() {
+            printf("showpage: flush and start new page (%gx%g)\n", pageWidth, pageHeight);
+            newpath();            // Clear current path
+        }
+
+        virtual void erasePage() {
+            printf("erasepage: clear page content (%gx%g)\n", pageWidth, pageHeight);
+            newpath();            // Simulate clearing
+        }
+
         // --- Stack operations ---
         virtual void gsave() {
             stateStack.gsave();
@@ -48,9 +76,15 @@ namespace waavs {
             stateStack.grestore();
         }
 
-        virtual void reset() {
-            stateStack.reset();
+
+        virtual void initGraphics() {
+            reset();              // Clear state stack
+            resetCTM();           // Identity CTM
+            newpath();            // Clear current path
+            setRGB(0, 0, 0);      // Default black color
+            setLineWidth(1);      // Default line width
         }
+
 
         // --- CTM operations ---
         virtual void setCTM(const PSMatrix& m) {

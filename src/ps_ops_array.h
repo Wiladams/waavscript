@@ -5,24 +5,6 @@
 
 namespace waavs {
 
-	inline void bindArray(PSVirtualMachine& vm, PSArrayHandle arr) {
-		if (!arr || !arr->isProcedure()) return;
-
-		for (auto& obj : arr->elements) {
-			if (obj.isName() && obj.isExecutable()) {
-				PSObject resolved;
-				if (vm.dictionaryStack.load(obj.asName(), resolved)) {
-					if (resolved.isOperator()) {
-						obj.resetFromOperator(resolved.asOperator());
-					}
-				}
-			}
-			// Do NOT recurse into nested procedures
-		}
-	}
-
-
-
 	// ( int -- array )
 	inline bool op_array(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
@@ -142,7 +124,8 @@ namespace waavs {
 		auto arr = obj.asArray();
 		if (!arr || !arr->isProcedure()) return false;
 
-		bindArray(vm, arr);
+		vm.bindArray(arr);
+		//bindArray(vm, arr);
 		vm.opStack().push(obj);
 
 		return true;

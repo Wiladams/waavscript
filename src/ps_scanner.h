@@ -24,6 +24,8 @@ namespace waavs
         PS_TOKEN_ProcEnd,            // }
         PS_TOKEN_ArrayBegin,         // [
         PS_TOKEN_ArrayEnd,           // ]
+        PS_TOKEN_DictBegin,          // << Dictionary begin
+        PS_TOKEN_DictEnd,            // >> Dictionary end
         PS_TOKEN_Operator,           // Bound operator (optional at scan time)
         PS_TOKEN_Mark,               // e.g. from 'mark' operator
         PS_TOKEN_Null                // 'null'
@@ -130,6 +132,14 @@ namespace waavs
 
             case PSLexType::ArrayEnd:
 				out.reset(PSTokenType::PS_TOKEN_ArrayEnd, lex.span);
+                return true;
+
+            case PSLexType::DictBegin:
+                out.reset(PSTokenType::PS_TOKEN_DictBegin, lex.span);
+                return true;
+
+            case PSLexType::DictEnd:
+                out.reset(PSTokenType::PS_TOKEN_DictEnd, lex.span);
                 return true;
 
             default:

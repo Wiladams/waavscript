@@ -14,48 +14,11 @@
 namespace waavs
 {
     // Forward declarations
-    struct PSVirtualMachine;
+    //struct PSVirtualMachine;
     
-    inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
+    //inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
 
 
-    /*
-    // contains the mapping of an interned name to a function pointer
-//
-    struct PSOperatorTable
-    {
-    private:
-        std::unordered_map<const char*, PSOperator> ops;
-
-    public:
-        void add(const char* name, PSOperatorFunc fn)
-        {
-            ops[name] = PSOperator(name, fn);
-        }
-
-        bool get(const char* name, PSOperator& op) const
-        {
-            auto it = ops.find(name);
-            if (it != ops.end())
-            {
-                op = it->second;
-                return true;
-            }
-
-            // Return a default invalid operator if not found
-            return false;
-        }
-
-        bool contains(const char* name) const
-        {
-            return ops.find(name) != ops.end();
-        }
-
-        void clear() {
-            ops.clear();
-        }
-    };
-    */
 	// PSVirtualMachine
     // 
 	// This is the CPU of the PostScript interpreter.
@@ -174,6 +137,23 @@ namespace waavs
             return true;
         }
 
+        void bindArray(PSArrayHandle arr) 
+        {
+            if (!arr) return;
+
+            for (auto& obj : arr->elements) {
+                if (obj.isName() && obj.isExecutable()) {
+                    PSObject resolved;
+                    if (dictionaryStack.load(obj.asName(), resolved)) {
+                        if (resolved.isOperator()) {
+                            obj.resetFromOperator(resolved.asOperator());
+                        }
+                    }
+                }
+                // Do NOT recurse into nested procedures
+            }
+        }
+
         // runArray()
         // 
         // Pus the items of an array onto the execution stack in reverse order
@@ -279,8 +259,9 @@ namespace waavs
                     return error("pushProcedureToExecStack - typecheck, NOT ARRAY");
 
                 auto arr = proc.asArray();
-                if (!arr || !arr->isProcedure())
-                    return error("pushProcedureToExecStack::typecheck, NOT PROC");
+                // An array can be pushed to the exec stack
+                //if (!arr || !arr->isProcedure())
+                //    return error("pushProcedureToExecStack::typecheck, NOT PROC");
 
                 // start by pushing a marker, which is used to properly unwind 
                 // the execution stack when the procedure is done or stopped

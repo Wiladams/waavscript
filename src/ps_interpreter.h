@@ -135,22 +135,57 @@ namespace waavs
             return true;
         }
 
+        bool parseDictionary(PSTokenGenerator& tokgen, PSObject& out) {
+            auto dict = PSDictionary::create();
+
+
+            while (true) {
+                PSObject keyObj, valObj;
+                
+                PSToken tok;
+                if (!tokgen.next(tok)) break;
+
+                if (tok.type == PSTokenType::PS_TOKEN_DictEnd)
+                    break;
+
+                // Parse key
+                if (!transformTokenToPSObject(tok, keyObj, false)) return false;
+                if (!keyObj.isLiteralName())
+                    return fVM.error("Dictionary keys must be literal names");
+
+                // Parse value
+				if (!parseObject(tokgen, valObj)) 
+					return fVM.error("Failed to parse dictionary value");
+
+                dict->put(keyObj.asName(), valObj);
+            }
+
+            out.resetFromDictionary(dict);
+            return true;
+        }
+
+
 
         bool parseObject(PSTokenGenerator& tokgen, PSObject& out) {
             PSToken tok;
             if (!tokgen.next(tok)) return false;
 
-            if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
-                if (!parseArray(tokgen, out, true))
-                    return false;
-                return true;
+            switch (tok.type) {
+            case PSTokenType::PS_TOKEN_ProcBegin: {
+                bool success = parseArray(tokgen, out, true);
+                return success;
+            }
+            case PSTokenType::PS_TOKEN_ArrayBegin: {
+                bool success = parseArray(tokgen, out, false);
+                return success;
             }
 
-            if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
-                return parseArray(tokgen, out, false); // not a procedure
-            }
+            case PSTokenType::PS_TOKEN_DictBegin:
+                return parseDictionary(tokgen, out);
 
-            return transformTokenToPSObject(tok, out, false);
+            default:
+                return transformTokenToPSObject(tok, out, false);
+            }
         }
 
         bool interpret(PSTokenGenerator &tokGen) 

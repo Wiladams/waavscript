@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <cstdio>
+#include <string>
 
 
 using namespace waavs;
@@ -59,7 +60,7 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 		return;
 	}
 
-	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(800, 800);
+	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(612, 792);	// US Letter size in points (8.5 x 11 inches)
 	vm->setGraphicsContext(std::move(ctx));
 
 	// Run the interpreter
@@ -71,6 +72,20 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 
 }
 
+// Utility to replace .ps with .png or append .png if no .ps is found
+std::string defaultOutputFilename(const std::string& inputFilename) {
+	std::string output = inputFilename;
+	size_t pos = output.rfind(".ps");
+	if (pos != std::string::npos && pos == output.length() - 3) {
+		// Found ".ps" at the end
+		output.replace(pos, 3, ".png");
+	}
+	else {
+		// No .ps suffix; just append .png
+		output += ".png";
+	}
+	return output;
+}
 
 int main(int argc, char** argv)
 {
@@ -98,18 +113,9 @@ int main(int argc, char** argv)
 	OctetCursor mappedSpan(mapped->data(), mapped->size());
 
 
+	auto outfilename = defaultOutputFilename(filename);
 
-	// Save the image from the drawing context out to a file
-	// or do whatever you're going to do with it
-	const char* outfilename = nullptr;
-
-
-	if (argc >= 3)
-		outfilename = argv[2];
-	else
-		outfilename = "output.png";
-
-	runPostscript(mappedSpan, outfilename);
+	runPostscript(mappedSpan, outfilename.c_str());
 
 	return 0;
 }

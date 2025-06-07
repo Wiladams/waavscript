@@ -127,6 +127,8 @@ namespace waavs
 		ProcEnd,
 		ArrayBegin,
 		ArrayEnd,
+		DictBegin,  // for <<
+		DictEnd,    // for >>
 		Comment,
 		Delimiter,
 		Eof
@@ -237,23 +239,57 @@ namespace waavs {
 			return true;
 		}
 
+		// Dictionary start or hex string
 		// Hexadecimal strings (starts with '<')
 		// <45365664>
+		// or Dictionary
+		// << /key1 (value1) /key2 <value2> >>
 		if (c == '<') {
-			++src; // skip '<'
-			const uint8_t* strStart = src.begin();
-			const uint8_t* p = strStart;
-			const uint8_t* end = src.end();
+			const uint8_t* p = src.begin();
+			if (src.size() >= 2 && src.peek(1) == '<') {
+				// DictBegin: <<
+				lex.type = PSLexType::DictBegin;
+				lex.span = OctetCursor(p, 2);
+				src.skip(2);
+				return true;
+			}
+			else {
+				// HexString: <...>
+				++src; // skip '<'
+				const uint8_t* strStart = src.begin();
+				const uint8_t* q = strStart;
+				const uint8_t* end = src.end();
 
-			while (p < end && *p != '>') ++p;
+				while (q < end && *q != '>') ++q;
 
-			lex.type = (p < end) ? PSLexType::HexString : PSLexType::UnterminatedString;
-			lex.span = OctetCursor(strStart, p - strStart);
+				lex.type = (q < end) ? PSLexType::HexString : PSLexType::UnterminatedString;
+				lex.span = OctetCursor(strStart, q - strStart);
 
-			if (p < end) ++p; // skip '>'
-			src.fStart = p;
-			return true;
+				if (q < end) ++q; // skip '>'
+				src.fStart = q;
+				return true;
+			}
 		}
+
+		// Dictionary end (>>)
+		if (c == '>') {
+			const uint8_t* p = src.begin();
+			if (src.size() >= 2 && src.peek(1) == '>') {
+				// DictEnd: >>
+				lex.type = PSLexType::DictEnd;
+				lex.span = OctetCursor(p, 2);
+				src.skip(2);
+				return true;
+			}
+			else {
+				// Single '>' (possibly malformed)
+				lex.type = PSLexType::Delimiter;
+				lex.span = OctetCursor(p, 1);
+				src.skip(1);
+				return true;
+			}
+		}
+
 
 		// Number (starts with digit, '.', '+', or '-')
 		if (PSCharClass::isNumericBegin(c)) {
@@ -274,7 +310,7 @@ namespace waavs {
 
 		// Name token (default)
 		if (CC::isNameChar(c)) {
-			const uint8_t* p = start;
+			//const uint8_t* p = start;
 			skipWhile(src, PS_NAME_CHAR);
 			lex.type = PSLexType::Name;
 			lex.span = OctetCursor(start, src.begin() - start);

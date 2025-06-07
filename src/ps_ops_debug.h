@@ -191,10 +191,7 @@ namespace waavs {
         return true;
     }
 
-    static bool op_showpage(PSVirtualMachine&) {
-        std::cerr << "== SHOWPAGE ==" << std::endl;
-        return true;
-    }
+
 
     // --- Debug Operator Table ---
 
@@ -208,7 +205,6 @@ namespace waavs {
             { "pstack",     op_pstack },
             { "errordict",  op_errordict },
             { "handleerror",op_handleerror },
-            { "showpage",   op_showpage }
         };
         return table;
     }

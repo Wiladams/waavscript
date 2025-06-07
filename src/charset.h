@@ -120,7 +120,7 @@ namespace waavs {
 		charset& operator+=(const charset& aset) noexcept { this->add(aset); return *this; }
 
 		// Convenience for removing characters and ranges from a set
-		charset& operator-=(const char achar) noexcept { bits[achar]=0; return *this; }
+		charset& operator-=(const char achar) noexcept { bits[static_cast<uint8_t>(achar)]=0; return *this; }
 		charset& operator-=(const char* chars) noexcept 
 		{ 
 			return this->remove(chars);

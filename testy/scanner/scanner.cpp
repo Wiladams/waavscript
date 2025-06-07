@@ -48,6 +48,10 @@ void printToken(const PSToken& tok)
 	case PSTokenType::PS_TOKEN_Boolean:
 		printf("  Boolean: %d\n", (unsigned int)tok.boolValue);
 		break;
+
+	default:
+		printf("  Other token type: %d\n", (int)tok.type);
+		break;
 	}
 }
 

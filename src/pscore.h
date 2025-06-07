@@ -78,7 +78,6 @@ namespace waavs {
     // PSOperator
     // --------------------
     // These definitions are used for builtin operators that are known at compile time
-    //using PSOperatorFunc = std::function<bool(PSVirtualMachine&)>;
     using PSOperatorFunc = bool(*)(PSVirtualMachine&);
     using PSOperatorFuncMap = std::unordered_map<const char*, PSOperatorFunc>;
 
@@ -133,14 +132,14 @@ namespace waavs {
 struct PSObject {
 private:
     using Variant = std::variant<
-        std::monostate,                      // Null
+        std::monostate,                      // INVALID
         int32_t,                             // Int
         double,                              // Real
         bool,                                // Bool
         const char*,                         // Name (interned)
-        PSOperator,                   // Operator
+        PSOperator,                          // Operator
 		PSMatrix,                            // Matrix
-        PSString,                      // String
+        PSString,                            // String
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
         std::nullptr_t                       // Mark
@@ -307,13 +306,17 @@ public:
     // --------------------
     struct PSDictionary {
     private:
+		// Actual storage for the dictionary entries
+		// the key is an interned string (const char*),
+		// this is reinfoced upon insertion
+        std::unordered_map<const char*, PSObject> fEntries;
+
         PSDictionary() = default;
 
         PSDictionary(size_t initialSize) {
             fEntries.reserve(initialSize);
         }
 
-        std::unordered_map<const char*, PSObject> fEntries;
 
     public:
         
@@ -323,13 +326,9 @@ public:
             return ptr;
         }
 
-        const std::unordered_map<const char*, PSObject> entries() const {
-            return fEntries;
-		}
+        const std::unordered_map<const char*, PSObject>& entries() const {return fEntries;}
 
-        size_t size() const {
-            return fEntries.size();
-		}
+        size_t size() const {return fEntries.size();}
 
         bool put(const char* key, const PSObject& value) {
 			const char* internedKey = PSNameTable::INTERN(key);
@@ -361,27 +360,30 @@ public:
     // PSArray
     // --------------------
     struct PSArray {
-    private:
-        // We want this constructor to be private so that we can
-		// totally control how PSArray objects are created
-		// you MUST use the static create() method
-        PSArray() = default;
-
     public:
         std::vector<PSObject> elements;
-		bool fIsProcedure = false; // Is this array a procedure?
+        bool fIsProcedure = false;
 
-        //explicit PSArray(size_t initialSize, const PSObject& fill = PSObject()) {
-        //    elements.resize(initialSize, fill);
-        //}
+        // Constructors
+        PSArray() = default;
 
-        size_t size() const {return elements.size();}
+        explicit PSArray(size_t size, const PSObject& fill = PSObject())
+            : elements(size, fill) {
+        }
 
-        // Is this array a procedure or not?
-        constexpr bool isProcedure() const noexcept {return fIsProcedure;}
-        void setIsProcedure(bool flag) noexcept {fIsProcedure = flag;}
+        // Copy/move support
+        PSArray(const PSArray&) = default;
+        PSArray(PSArray&&) noexcept = default;
+        PSArray& operator=(const PSArray&) = default;
+        PSArray& operator=(PSArray&&) noexcept = default;
 
+        // Size and flags
+        size_t size() const { return elements.size(); }
 
+        constexpr bool isProcedure() const noexcept { return fIsProcedure; }
+        void setIsProcedure(bool flag) noexcept { fIsProcedure = flag; }
+
+        // Element access
         bool get(size_t index, PSObject& out) const {
             if (index >= elements.size()) return false;
             out = elements[index];
@@ -403,34 +405,27 @@ public:
             elements.clear();
         }
 
-        PSArrayHandle copy() const {
-            auto result = PSArray::create();
-            result->setIsProcedure(fIsProcedure);
-            result->elements = elements;
+        // Make a deep copy of this array
+        std::shared_ptr<PSArray> copy() const {
+            auto result = std::make_shared<PSArray>(*this);
             return result;
         }
 
-        // A subarray is a literal array, because we don't know if they
-        // are getting a whole program or not
-        PSArrayHandle subarray(size_t index, size_t count) const {
-            if (index >= elements.size()) 
-                return PSArray::create(0);
-            
-            count = std::min(count, elements.size() - index);
-            auto result = PSArray::create();
-            //result->setIsProcedure(fIsProcedure);
+        // Return a literal subarray from this array
+        std::shared_ptr<PSArray> subarray(size_t index, size_t count) const {
+            auto result = std::make_shared<PSArray>();
+            if (index >= elements.size()) return result;
 
+            count = std::min(count, elements.size() - index);
             result->elements.insert(
                 result->elements.end(),
                 elements.begin() + index,
                 elements.begin() + index + count
             );
-
             return result;
         }
 
-        // Functional programming
-        // // Predicate-based validation
+        // Predicate-based validation
         template <typename Pred>
         bool allOf(Pred pred) const {
             for (const auto& obj : elements)
@@ -443,16 +438,13 @@ public:
         }
 
         bool allNumbers() const {
-			return allOfType(PSObjectType::Int) || allOfType(PSObjectType::Real);
+            return allOfType(PSObjectType::Int) || allOfType(PSObjectType::Real);
         }
 
-
-        // factory constructor
-        static std::shared_ptr<PSArray> create(size_t initialSize = 0, const PSObject& fill = PSObject()) {
-            auto ptr = std::shared_ptr<PSArray>(new PSArray());
-            ptr->elements.resize(initialSize, fill);
-            return ptr;
-		}
+        // Factory method
+        static std::shared_ptr<PSArray> create(size_t size = 0, const PSObject& fill = PSObject()) {
+            return std::make_shared<PSArray>(size, fill);
+        }
     };
 
 

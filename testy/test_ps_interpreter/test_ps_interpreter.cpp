@@ -434,6 +434,23 @@ transform = =
 
 }
 
+static void test_dictionary_inline()
+{
+    printf("\n== Dictionary Inline ==\n");
+    const char* test_s1 = R"||(
+/inchesWide 8.5 def % letter
+/inchesHigh 11 def
+/ppi 72 def % adobe points per inch
+/pointsWide inchesWide ppi mul def
+/pointsHigh inchesHigh ppi mul def
+/escala_cm 1 2.54 div 72 mul def 
+<<
+  /PageSize [pointsWide pointsHigh]
+>> setpagedevice
+)||";
+
+	runPostscript(test_s1);
+}
 
 // ------------ Entry ------------
 
@@ -453,8 +470,9 @@ static void test_core()
     //test_op_stopped();
     //test_operator_def();
     //test_op_dict();
-	test_matrix_ops();
+	//test_matrix_ops();
     //test_unimplemented_op();
+    test_dictionary_inline();
 
 }
 

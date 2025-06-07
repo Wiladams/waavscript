@@ -171,14 +171,14 @@ namespace waavs
 
         // 2. Array form: array1 array2 copy
         // copy array1 into array2
-        if (top.isArray()) {
-            if (!srcObject.isArray() || !destObject.isArray())
-                return false; // vm.error("typecheck");
+        if (srcObject.isArray()) {
+            if ( !destObject.isArray())
+                return vm.error("op_copy:typecheck ARRAY - destination object not array");
 
             auto dest = destObject.asArray();
             auto src = srcObject.asArray();
 
-            if (!dest || !src) return false; // vm.error("invalidaccess");
+            if (!dest || !src) return vm.error("op_copy:invalidaccess");
 
             size_t maxSize = std::min(dest->size(), src->size());
 
@@ -193,11 +193,11 @@ namespace waavs
 
         // 3. String form: string1 string2 copy
 		// copy string1 into string2
-        if (top.isString()) 
+        if (srcObject.isString()) 
         {
             // Type check
-            if (!srcObject.isString() || !destObject.isString())
-				return false; // vm.error("typecheck");
+            if (!destObject.isString())
+				return vm.error("op_copy:typecheck");
 
 			auto dest = destObject.asString();
 			auto src = srcObject.asString();
@@ -205,7 +205,8 @@ namespace waavs
             // Make sure neither one is null
             //if (!dest || !src) return  vm.error("op_copy:invalidaccess");
 
-            if (!dest.putInterval(0, src)) return false;
+            if (!dest.putInterval(0, src)) 
+                return vm.error("op_copy:putInterval failed");
 
             return s.push(destObject);
         }

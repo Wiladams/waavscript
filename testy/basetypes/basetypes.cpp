@@ -68,7 +68,7 @@ static void test_psobject()
 
 	// create a PSString based onject, put it onto the stack
 	// then pop it off
-	auto str = PSString::createFromCString("Hello, World!");
+	auto str = PSString::fromCString("Hello, World!");
 	PSObject obj;
 	for (int i = 0; i < 10; ++i) {
 		obj.resetFromString(str);
@@ -81,14 +81,14 @@ static void test_psobject()
 	PSObject obj2;
 	while (!stack2.empty()) {
 		stack2.pop(obj2);
-		std::cout << obj2.asString()->toString() << std::endl;  // Expect "Hello, World!"
+		std::cout << obj2.asString().toString() << std::endl;  // Expect "Hello, World!"
 	}
 
 	printf("STACK 1\n");
 	// Now try to do the same with the first stack
 	while (!stack1.empty()) {
 		stack1.pop(obj);
-		std::cout << obj.asString()->toString() << std::endl;  // Expect "Hello, World!"
+		std::cout << obj.asString().toString() << std::endl;  // Expect "Hello, World!"
 	}
 
 }

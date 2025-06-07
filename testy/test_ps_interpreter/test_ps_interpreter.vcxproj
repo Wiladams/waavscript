@@ -163,6 +163,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>../../lib/ARM64/Release</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -179,6 +180,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>../../lib/ARM64/Release</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -202,6 +204,7 @@
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_ops_enviro.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
     <ClInclude Include="..\..\src\ps_ops_logic.h" />
     <ClInclude Include="..\..\src\ps_ops_math.h" />

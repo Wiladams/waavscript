@@ -186,6 +186,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\b2dcontext.h" />
+    <ClInclude Include="..\..\src\ocspan.h" />
     <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\psgraphicscontext.h" />
     <ClInclude Include="..\..\src\psmatrix.h" />
@@ -199,10 +200,12 @@
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_ops_enviro.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
     <ClInclude Include="..\..\src\ps_ops_logic.h" />
     <ClInclude Include="..\..\src\ps_ops_math.h" />
     <ClInclude Include="..\..\src\ps_ops_matrix.h" />
+    <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
     <ClInclude Include="..\..\src\ps_ops_relational.h" />
     <ClInclude Include="..\..\src\ps_ops_stack.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
