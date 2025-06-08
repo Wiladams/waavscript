@@ -184,6 +184,10 @@
   <ItemGroup>
     <ClCompile Include="post2img.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\ps_ops_control.h" />
+    <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

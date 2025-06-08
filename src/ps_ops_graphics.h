@@ -430,7 +430,7 @@ namespace waavs {
         PSObject k, y, m, c;
         if (!vm.opStack().pop(k) || !vm.opStack().pop(y) || !vm.opStack().pop(m) || !vm.opStack().pop(c) ||
             !c.isNumber() || !m.isNumber() || !y.isNumber() || !k.isNumber())
-            return vm.error("typecheck: expected 4 numbers");
+            return vm.error("op_setcmykcolor:typecheck: expected 4 numbers");
 
         vm.graphics()->setCMYK(c.asReal(), m.asReal(), y.asReal(), k.asReal());
         return true;

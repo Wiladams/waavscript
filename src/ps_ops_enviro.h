@@ -44,10 +44,6 @@ namespace waavs {
         return true;
     }
 
-
-
-
-
     bool op_currentpagedevice(PSVirtualMachine& vm) {
         double w = 0.0, h = 0.0;
         vm.graphics()->getPageSize(w, h);

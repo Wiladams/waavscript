@@ -31,7 +31,7 @@ namespace waavs {
         double fStartY{ 0 };
 
 
-        void clear() {
+        void reset() {
             segments.clear();
 			fCurrentX = 0;
 			fCurrentY = 0;
@@ -58,6 +58,7 @@ namespace waavs {
         }
 
         void lineto(double x, double y) {
+			if (!fHasCurrentPoint) return;
             segments.push_back({ PSPathCommand::LineTo, x, y });
 			fCurrentX = x;
 			fCurrentY = y;

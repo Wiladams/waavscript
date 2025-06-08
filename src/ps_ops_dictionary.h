@@ -17,8 +17,8 @@ namespace waavs {
         s.pop(value);
         s.pop(key);
 
-        if (!key.isName() || key.isExecutable())
-            return vm.error("typecheck: def expects a literal name");
+        if (!key.isLiteralName())
+            return vm.error("op_def:typecheck: def expects a literal name");
 
         vm.dictionaryStack.def(key.asName(), value);
         return true;
@@ -145,6 +145,25 @@ namespace waavs {
         return true;
     }
 
+    static bool op_store(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2) return false;
+
+        PSObject value;
+        PSObject key;
+
+        s.pop(value);
+        s.pop(key);
+
+        if (!key.isName())
+            return vm.error("typecheck: store expects a name key");
+
+        if (!vm.dictionaryStack.store(key.asName(), value))
+            return vm.error("store: failed to store key");
+
+        return true;
+    }
+
     // --- Operator Map ---
 
     inline const PSOperatorFuncMap& getDictionaryOps() {
@@ -158,7 +177,8 @@ namespace waavs {
             { "where",             op_where },
             { "currentdict",       op_currentdict },
             { "countdictstack",    op_countdictstack },
-            { "known",             op_known }
+            { "known",             op_known },
+            { "store",             op_store }
         };
         return table;
     }

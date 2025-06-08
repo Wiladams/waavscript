@@ -6,7 +6,7 @@ namespace waavs {
 
 
 
-	// PostScript character classifier — 256-byte aligned lookup table
+	// PostScript character classifier - 256-byte aligned lookup table
 	struct alignas(256) PSCharClassifier final {
 		uint8_t table[256];
 

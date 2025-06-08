@@ -166,7 +166,7 @@ namespace waavs {
         // --- Drawing operations (stubs) ---
         virtual void stroke() {
             printf("stroke: %zu path segments\n", fCurrentPath.segments.size());
-            fCurrentPath.clear();
+            fCurrentPath.reset();
         }
 
 
@@ -178,7 +178,7 @@ namespace waavs {
 
         // --- Path construction  ---
         virtual void newpath() {
-            fCurrentPath.clear();
+            fCurrentPath.reset();
         }
 
         virtual void moveto(double x, double y) {

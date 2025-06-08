@@ -120,8 +120,9 @@ namespace waavs
 
                 // skip over structural markers
                 if (obj.isMark()) {
-                    // debug: skipping execStack mark
-                    continue;
+                    // If we've reached a marker, that indicates the end
+                    // of a function frame, so we should return.
+                    return true;
 				}
 
                 if (!execute(obj, false))
@@ -259,6 +260,8 @@ namespace waavs
                     return error("pushProcedureToExecStack - typecheck, NOT ARRAY");
 
                 auto arr = proc.asArray();
+				auto& elems = arr->elements;
+
                 // An array can be pushed to the exec stack
                 //if (!arr || !arr->isProcedure())
                 //    return error("pushProcedureToExecStack::typecheck, NOT PROC");
@@ -266,7 +269,7 @@ namespace waavs
                 // start by pushing a marker, which is used to properly unwind 
                 // the execution stack when the procedure is done or stopped
                 execStack().push(PSObject::fromMark());
-                for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+                for (auto it = elems.rbegin(); it !=elems.rend(); ++it)
                 {
                     if (!execStack().push(*it))
                         return false;

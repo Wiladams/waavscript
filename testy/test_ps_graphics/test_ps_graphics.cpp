@@ -208,10 +208,16 @@ static void grid()
 {
     const char* test_s1 = R"||(
 100 100 translate
-/grid {0.5 0.3 0 0 setcmykcolor 
-gsave
+/grid {
+0.5 0.3 0 0 setcmykcolor 
+
 % Draw X-Y axis lines
-2 setlinewidth 400 0 moveto 0 0 lineto 0 500 lineto stroke
+gsave
+    2 setlinewidth 
+    400 0 moveto 
+    0 0 lineto 
+    0 500 lineto 
+    stroke
 grestore
 
 % draw horizontal lines
@@ -228,7 +234,12 @@ grestore
 % draw vertical lines
 gsave
 0.3 setlinewidth
-4 { 100 20 moveto 100 500 lineto stroke 100 0 translate } repeat
+4 { 
+    100 20 moveto 
+    100 500 lineto 
+    stroke 
+    100 0 translate 
+} repeat
 grestore
 } def
 

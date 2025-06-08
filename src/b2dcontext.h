@@ -51,18 +51,21 @@ namespace waavs {
 
         void fill() override {
             BLPath blPath;
+            BLMatrix2D blTrans;
+
+            blTrans = blTransform(currentState()->ctm);
             buildBLPath(blPath);
+
 
             ctx.save(); // Save current state
 
 
-            ctx.setTransform(blTransform(currentState()->ctm));
+            ctx.setTransform(blTrans);
             ctx.setFillStyle(convertPaint(currentState()->fillPaint));
 
-            // PostScript uses non-zero winding rule by default
             ctx.fillPath(blPath);
 
-            currentPath().clear();
+            currentPath().reset();
 
             ctx.restore(); // Restore to previous state
 
@@ -87,7 +90,7 @@ namespace waavs {
             ctx.setStrokeMiterLimit(currentState()->miterLimit);
 
             ctx.strokePath(blPath);
-            currentPath().clear();
+            currentPath().reset();
 
 			ctx.restore(); // Restore to previous state
         }
