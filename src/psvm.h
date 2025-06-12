@@ -13,11 +13,6 @@
 
 namespace waavs
 {
-    // Forward declarations
-    //struct PSVirtualMachine;
-    
-    //inline bool pushProcedureToExecStack(PSVirtualMachine& vm, const PSObject& proc);
-
 
 	// PSVirtualMachine
     // 
@@ -38,12 +33,9 @@ namespace waavs
 
     public:
         PSDictionaryStack dictionaryStack;
-        //PSOperatorTable operatorTable;
-
         PSDictionaryHandle systemdict;
         PSDictionaryHandle userdict;
 
-        int buildProcDepth = 0;
         int32_t randSeed = 1;
 
     public:
@@ -85,7 +77,7 @@ namespace waavs
             return true;
         }
 
-
+		// quickly register a set of operators
         void registerOps(const PSOperatorFuncMap& ops)
         {
             for (const auto& entry : ops) {
@@ -138,22 +130,6 @@ namespace waavs
             return true;
         }
 
-        void bindArray(PSArrayHandle arr) 
-        {
-            if (!arr) return;
-
-            for (auto& obj : arr->elements) {
-                if (obj.isName() && obj.isExecutable()) {
-                    PSObject resolved;
-                    if (dictionaryStack.load(obj.asName(), resolved)) {
-                        if (resolved.isOperator()) {
-                            obj.resetFromOperator(resolved.asOperator());
-                        }
-                    }
-                }
-                // Do NOT recurse into nested procedures
-            }
-        }
 
         // runArray()
         // 
@@ -164,31 +140,45 @@ namespace waavs
             return pushProcedureToExecStack(proc) && run();
         }
 
+ 
+
+
         // --- Execute a single PSObject
         bool execute(const PSObject& obj, bool fromExecStack = false)
         {
 
             switch (obj.type) {
-            case PSObjectType::Operator: {
-                auto op = obj.asOperator();
-                if (op.isValid()) {
-                    return op.func(*this);
+                // Literal value (number, string, etc.) — push onto operand stack
+
+                case PSObjectType::Int:
+                case PSObjectType::Real:
+                case PSObjectType::Bool:
+                case PSObjectType::String:
+                case PSObjectType::Matrix:
+                case PSObjectType::Mark:
+                case PSObjectType::Null:
+                    opStack().push(obj);
+                    return true;
+
+                case PSObjectType::Operator: {
+                    auto op = obj.asOperator();
+                    if (op.isValid()) {
+                        return op.func(*this);
+                    }
+                    else {
+                        return error("PSVirtualMachine::ececute - invalid operator", op.name);
+                    }
                 }
-                else {
-                    return error("PSVirtualMachine::ececute - invalid operator", op.name);
-                }
-            }
 
             case PSObjectType::Name: {
 
-                // 1. If It's a literal name= ("/foo"), push to opStack as leteral
+                // 1. If It's a literal name= ("/foo"), push to opStack as literal
                 if (obj.isLiteralName())
                     return opStack().push(obj);
 
                 // If it's not a literal name, then it's something we should lookup
                 // It should resolve to either an executable thing (operator,procedure)
                 // or it will be another literal, which can just be put on the opStack
-
                 const char* name = obj.asName();
                 PSObject resolved;
 
@@ -219,20 +209,19 @@ namespace waavs
                 if (!arr)
                     return error("execute::Array null array");
 
-                if (arr->isProcedure()) {
+                //if (arr->isProcedure()) {
                     opStack().push(obj); // treat it as a literal, for later execution
                     return true;
-                    //}
-                }
-
-                opStack().push(obj); // Non-executable array, treat as literal
-                return true;
+                //}
+                //else {
+                //    return resolveLiteralArray(obj);
+                //}
             }
 
-            default:
+            //default:
                 // Literal value (number, string, etc.) — push onto operand stack
-                opStack().push(obj);
-                return true;
+                //opStack().push(obj);
+                //return true;
             }
 
             return true;
@@ -253,8 +242,8 @@ namespace waavs
 
         private:
             // Unrolls a procedure (array) onto the execution stack.
-// The arguments are pushed in reverse order, so the first argument is on top of the stack.
-// Returns false on error (e.g., if the array is not a procedure).
+            // The arguments are pushed in reverse order, so the first argument is on top of the stack.
+            // Returns false on error (e.g., if the array is not a procedure).
             bool pushProcedureToExecStack(const PSObject& proc) {
                 if (!proc.isArray())
                     return error("pushProcedureToExecStack - typecheck, NOT ARRAY");
@@ -268,7 +257,7 @@ namespace waavs
 
                 // start by pushing a marker, which is used to properly unwind 
                 // the execution stack when the procedure is done or stopped
-                execStack().push(PSObject::fromMark());
+                execStack().push(PSObject::fromMark(PSMark("pushArray")));
                 for (auto it = elems.rbegin(); it !=elems.rend(); ++it)
                 {
                     if (!execStack().push(*it))
@@ -278,18 +267,5 @@ namespace waavs
                 return true;
             }
     };
-
-
-
-
-
-
-	//======================================================================
-    // Helpers
-	//======================================================================
-
-
-
-
 
 }

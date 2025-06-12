@@ -36,7 +36,7 @@ static void runPostscript(const char* sourceText) {
 
 static void test_arithmetic_ops() {
     printf("== Arithmetic Operators ==\n");
-    runPostscript("10 5 add =");   // expect: 15
+    runPostscript("10 5 add =   % expect 15");
     runPostscript("10 5 sub =");   // expect: 5
     runPostscript("10 5 mul =");   // expect: 50
     runPostscript("10 5 div =");   // expect: 2
@@ -318,12 +318,10 @@ static void test_average()
     printf("\n== Average Function ==\n");
     const char* test_s2 = R"||(
 /average { add 2 div } def
-/printnum { 4 string cvs print } def
-/printnl { (\n) print } def
-40 60 average printnum
+40 60 average =
 )||";
 
-	runPostscript(test_s1);
+	//runPostscript(test_s1);
 	runPostscript(test_s2);
 }
 
@@ -456,7 +454,8 @@ static void test_dictionary_inline()
 
 static void test_core()
 {
-    //test_arithmetic_ops();
+	printf("== Core Tests ==\n");
+    test_arithmetic_ops();
     //test_stack_ops();
     //test_control_flow();
     //test_debug_ops();
@@ -472,22 +471,23 @@ static void test_core()
     //test_op_dict();
 	//test_matrix_ops();
     //test_unimplemented_op();
-    test_dictionary_inline();
+    //test_dictionary_inline();
 
 }
 
 static void test_idioms()
 {
+	printf("\n== Idiomatic Tests ==\n");
     //test_tail();
-    test_factorial();
+    //test_factorial();
     test_average();
-    test_fizzbuzz();
+    //test_fizzbuzz();
 }
 
 int main() {
 
     test_core();
-    //test_idioms();
+    test_idioms();
 
     return 0;
 }

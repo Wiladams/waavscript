@@ -24,8 +24,8 @@ namespace waavs {
 	};
 
 	struct PSCharClass {
-		static constexpr uint8_t table[256] = {
-			0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,  1,  0,  0,
+		alignas(256) static constexpr uint8_t table[256] = {
+			1,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  0,  1,  1,  0,  0,
 			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 			1,  2,  2,  2,  2, 48,  2,  2, 80, 80,  2,  6,  2,  6,  6, 16,
 		   14, 14, 14, 14, 14, 14, 14, 14, 14, 14,  2,  2, 16,  2, 16,  2,
@@ -40,7 +40,8 @@ namespace waavs {
 			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0 };
+			0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+		};
 
 		static constexpr uint8_t flags(uint8_t c) noexcept { return table[c]; }
 
@@ -49,7 +50,7 @@ namespace waavs {
 		static constexpr bool isWhitespace(uint8_t c) noexcept { return is(c, PS_WHITESPACE); }
 		static constexpr bool isNameChar(uint8_t c) noexcept { return is(c, PS_NAME_CHAR); }
 		static constexpr bool isNumeric(uint8_t c) noexcept { return is(c, PS_NUMERIC); }
-		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (c == '+' || c == '-') || isdigit(c); }
+		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (isdigit(c) || c == '+' || c == '-'); }
 		static constexpr bool isHexDigit(uint8_t c) noexcept { return is(c, PS_HEX_DIGIT); }
 		static constexpr bool isDelimiter(uint8_t c) noexcept { return is(c, PS_DELIMITER); }
 		static constexpr bool isCommentStart(uint8_t c) noexcept { return is(c, PS_COMMENT_START); }
@@ -63,17 +64,6 @@ namespace waavs {
 }
 
 namespace waavs {
-	// Turn a supposed hex ascii character into a byte value.
-	inline bool  decodeHex(uint8_t c, uint8_t& out)
-	{
-		if (!PSCharClass::isHexDigit(c)) return false;
-
-		if (c >= '0' && c <= '9') { out = (c - '0');}
-		if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10;}
-		if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10;}
-
-		return true;
-	}
 
 	// Skip characters in the input stream that match the given category mask
 	static inline const uint8_t* skipWhile(OctetCursor& src, uint8_t categoryMask) noexcept
@@ -123,12 +113,12 @@ namespace waavs
 		String,
 		UnterminatedString,
 		HexString,
-		ProcBegin,
-		ProcEnd,
-		ArrayBegin,
-		ArrayEnd,
-		DictBegin,  // for <<
-		DictEnd,    // for >>
+		LBRACE,			// {
+		RBRACE,			// }
+		LBRACKET,		// [
+		RBRACKET,		// ]
+		LLANGLE,		// for <<
+		RRANGLE,		// for >>
 		Comment,
 		Delimiter,
 		Eof
@@ -143,6 +133,151 @@ namespace waavs
 }
 
 namespace waavs {
+	static bool scanCommentLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
+	{
+		const uint8_t* start = src.begin();
+		const uint8_t* p = start + 1; // skip '%'
+		const uint8_t* end = src.end();
+		while (p < end && *p != '\n' && *p != '\r') {
+			++p;
+		}
+		// Handle line endings
+		if (p < end && *p == '\r') {
+			if (p + 1 < end && *(p + 1) == '\n') ++p; // consume \r\n
+			else ++p; // just consume \r
+		}
+		else if (p < end && *p == '\n') {
+			++p; // consume \n
+		}
+		src.fStart = p; // Update cursor position
+		lex.type = PSLexType::Comment;
+		lex.span = OctetCursor(start, p - start); // span includes '%'
+		
+		return true;
+	}
+
+	// scanStringLexeme
+	//
+	// Strings are probably the most complex of the data structures in Postscript,
+	// at least from a scanning perspective.  This routine isolates that complexity.
+	//
+	static bool scanStringLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
+	{
+		const uint8_t* start = src.begin(); // points to '('
+		const uint8_t* p = start + 1;
+		const uint8_t* end = src.end();
+
+		int depth = 1;
+		bool inEscape = false;
+
+		while (p < end && depth > 0) {
+			uint8_t c = *p++;
+
+			if (inEscape) {
+				if (c >= '0' && c <= '7') {
+					// Consume up to 2 more octal digits
+					int count = 0;
+					while (count < 2 && p < end && *p >= '0' && *p <= '7') {
+						++p;
+						++count;
+					}
+				}
+				else if (c == '\n' || c == '\r') {
+					// Line continuation: consume \n or \r\n
+					if (c == '\r' && p < end && *p == '\n') ++p;
+				}
+				// For all other escape cases: do nothing extra
+				inEscape = false;
+			}
+			else {
+				if (c == '\\') {
+					inEscape = true;
+				}
+				else if (c == '(') {
+					++depth;
+				}
+				else if (c == ')') {
+					--depth;
+				}
+			}
+		}
+
+		const uint8_t* spanEnd = p;
+		lex.type = (depth == 0) ? PSLexType::String : PSLexType::UnterminatedString;
+		lex.span = OctetCursor(start + 1, (spanEnd - 1) - (start + 1));  // span excludes outer parens
+		src.fStart = spanEnd;
+
+		return true;
+	}
+
+	static bool scanNumberLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
+	{
+		const uint8_t* start = src.begin();
+		const uint8_t* p = start;
+		const uint8_t* end = src.end();
+
+		// Optional sign at the start
+		if (*p == '+' || *p == '-') ++p;
+
+		// Try to detect radix format: digits followed by '#' (e.g., 16#1A)
+		const uint8_t* radixDigitsStart = p;
+		while (p < end && isdigit(*p)) ++p;
+
+		if (p < end && *p == '#') {
+			++p; // skip '#'
+
+			const uint8_t* valueStart = p;
+			while (p < end && PSCharClass::isNameChar(*p)) ++p; // allow base-36 alphanumerics
+
+			if (valueStart < p) {
+				// We have something like 16#1A
+				lex.type = PSLexType::Number;
+				lex.span = OctetCursor(start, p - start);
+				src.fStart = p;
+				return true;
+			}
+		}
+
+		// Not radix format — try regular number with optional '.' and exponent
+		p = start;
+		if (*p == '+' || *p == '-') ++p;
+
+		bool hasDigits = false;
+		bool hasDot = false;
+		bool hasExp = false;
+
+		while (p < end) {
+			uint8_t c = *p;
+
+			if (isdigit(c)) {
+				hasDigits = true;
+				++p;
+			}
+			else if (c == '.' && !hasDot && !hasExp) {
+				hasDot = true;
+				++p;
+			}
+			else if ((c == 'e' || c == 'E') && hasDigits && !hasExp) {
+				hasExp = true;
+				++p;
+				if (p < end && (*p == '+' || *p == '-')) ++p;
+			}
+			else {
+				break;
+			}
+		}
+
+		if (p > start && hasDigits) {
+			lex.type = PSLexType::Number;
+			lex.span = OctetCursor(start, p - start);
+			src.fStart = p;
+			return true;
+		}
+
+		// Fallback — not a number
+		return false;
+	}
+
 
 	// nextPSLexeme
 	// Return the next lexically significant token from the input stream.
@@ -151,7 +286,7 @@ namespace waavs {
 	// This is pretty low level.  It will do things like isolate a number, but 
 	// won't actually give you the decimal value for that number
 	//
-	inline bool nextPSLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+	static bool nextPSLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
 		using CC = PSCharClass;
 
 		// Skip whitespace
@@ -168,17 +303,7 @@ namespace waavs {
 
 		// Handle comments (consume to end of line)
 		if (CC::isCommentStart(c)) {
-			++src; // skip '%'
-			const uint8_t* p = src.begin();
-			const uint8_t* end = src.end();
-			
-			// skip to end of line
-			while (p < end && *p != '\n' && *p != '\r') 
-				++p;
-			lex.type = PSLexType::Comment;
-			lex.span = OctetCursor(start, p - start);
-			src.fStart = p;
-			return true;
+			return scanCommentLexeme(src, lex);
 		}
 
 		// Literal name: starts with '/'
@@ -194,13 +319,13 @@ namespace waavs {
 		// Procedure delimiters
 		if (c == '{') {
 			++src;
-			lex.type = PSLexType::ProcBegin;
+			lex.type = PSLexType::LBRACE;
 			lex.span = OctetCursor(start, 1);
 			return true;
 		}
 		if (c == '}') {
 			++src;
-			lex.type = PSLexType::ProcEnd;
+			lex.type = PSLexType::RBRACE;
 			lex.span = OctetCursor(start, 1);
 			return true;
 		}
@@ -208,35 +333,20 @@ namespace waavs {
 		// Array delimiters
 		if (c == '[') {
 			++src;
-			lex.type = PSLexType::ArrayBegin;
+			lex.type = PSLexType::LBRACKET;
 			lex.span = OctetCursor(start, 1);
 			return true;
 		}
 		if (c == ']') {
 			++src;
-			lex.type = PSLexType::ArrayEnd;
+			lex.type = PSLexType::RBRACKET;
 			lex.span = OctetCursor(start, 1);
 			return true;
 		}
 
 		// Strings
 		if (c == '(') {
-			++src; // skip '('
-			const uint8_t* strStart = src.begin();
-			const uint8_t* p = strStart;
-			const uint8_t* end = src.end();
-			bool inEscape = false;
-			while (p < end) {
-				if (inEscape) { inEscape = false; ++p; continue; }
-				if (*p == '\\') { inEscape = true; ++p; continue; }
-				if (*p == ')') break;
-				++p;
-			}
-			lex.type = (p < end) ? PSLexType::String : PSLexType::UnterminatedString;
-			lex.span = OctetCursor(strStart, p - strStart);
-			if (p < end) ++p; // skip ')'
-			src.fStart = p;
-			return true;
+			return scanStringLexeme(src, lex);
 		}
 
 		// Dictionary start or hex string
@@ -248,7 +358,7 @@ namespace waavs {
 			const uint8_t* p = src.begin();
 			if (src.size() >= 2 && src.peek(1) == '<') {
 				// DictBegin: <<
-				lex.type = PSLexType::DictBegin;
+				lex.type = PSLexType::LLANGLE;
 				lex.span = OctetCursor(p, 2);
 				src.skip(2);
 				return true;
@@ -271,12 +381,12 @@ namespace waavs {
 			}
 		}
 
-		// Dictionary end (>>)
+		// End of Hexstring, or Dictionary end (>>)
 		if (c == '>') {
 			const uint8_t* p = src.begin();
 			if (src.size() >= 2 && src.peek(1) == '>') {
 				// DictEnd: >>
-				lex.type = PSLexType::DictEnd;
+				lex.type = PSLexType::RRANGLE;
 				lex.span = OctetCursor(p, 2);
 				src.skip(2);
 				return true;
@@ -293,24 +403,11 @@ namespace waavs {
 
 		// Number (starts with digit, '.', '+', or '-')
 		if (PSCharClass::isNumericBegin(c)) {
-			const uint8_t* p = start;
-			const uint8_t* end = src.end();
-			if (*p == '+' || *p == '-') ++p;
-			bool hasDigits = false;
-			while (p < end && PSCharClass::is(*p, PS_NUMERIC)) {
-				hasDigits = true;
-				++p;
-			}
-			if (hasDigits) {
-				lex = { PSLexType::Number, OctetCursor(start, p - start) };
-				src.fStart = p;
-				return true;
-			}
+			return scanNumberLexeme(src, lex);
 		}
 
 		// Name token (default)
 		if (CC::isNameChar(c)) {
-			//const uint8_t* p = start;
 			skipWhile(src, PS_NAME_CHAR);
 			lex.type = PSLexType::Name;
 			lex.span = OctetCursor(start, src.begin() - start);

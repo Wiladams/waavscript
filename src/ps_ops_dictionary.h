@@ -164,6 +164,38 @@ namespace waavs {
         return true;
     }
 
+    static bool op_dictbegin(PSVirtualMachine& vm) {
+        return vm.opStack().push(PSObject::fromMark(PSMark("dictbegin")));
+    }
+
+    static bool op_dictend(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        int count{ 0 };
+        s.countToMark(count);
+
+        if (count < 0)
+            return vm.error("dictend: unmatched >> with no mark");
+
+        if ((count % 2) != 0)
+            return vm.error("dictend: odd number of items in dictionary literal");
+
+        auto dict = PSDictionary::create();
+
+        for (int i = 0; i < count / 2; ++i) {
+            PSObject val = s.pop();
+            PSObject key = s.pop();
+
+            if (!key.isLiteralName())
+                return vm.error("dictend: key must be a literal name");
+
+            dict->put(key.asName(), val);
+        }
+
+        s.pop(); // pop the mark
+
+        return s.push(PSObject::fromDictionary(dict));
+    }
+
     // --- Operator Map ---
 
     inline const PSOperatorFuncMap& getDictionaryOps() {
@@ -178,7 +210,9 @@ namespace waavs {
             { "currentdict",       op_currentdict },
             { "countdictstack",    op_countdictstack },
             { "known",             op_known },
-            { "store",             op_store }
+            { "store",             op_store },
+            { "<<",                op_dictbegin },
+            { ">>",                op_dictend },
         };
         return table;
     }

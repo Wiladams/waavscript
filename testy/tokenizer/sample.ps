@@ -11,3 +11,26 @@
 !@#$               % Misc delimiters or invalid tokens
 Name2              % Executable name
 << /key (value) >> % Dictionary syntax (if supported)
+()                     % Empty string
+(abc\(def\))           % Escaped parens
+(abc\\)                % Backslash
+(abc\012def)           % Octal (\012 = newline)
+(abc\
+def)                  % Line continuation
+(nested (deeper (even))) % Nested levels
+
+
+% Radix number scanning
+2#1010         % -> 10
+10#123         % -> 123
+10#-456        % -> -456
+16#DEAD        % -> 57005
+8#007          % -> 7
+36#Z           % -> 35
+
+10#            % invalid - no value part
+1#123          % invalid - radix out of range
+2#102          % invalid - digit not in base
+
+% goes at the end, because anything after is just part of the string
+(unterminated string   % Should return UnterminatedString

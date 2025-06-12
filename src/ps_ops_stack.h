@@ -77,6 +77,25 @@ namespace waavs {
         return vm.opStack().push(PSObject::fromInt(count));
     }
 
+
+    inline bool op_rightbracket(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        int count{ 0 };
+        s.countToMark(count);
+        if (count < 0)
+            return vm.error("rightbracket: no matching mark");
+
+        auto arr = PSArray::create(count);
+        for (int i = count - 1; i >= 0; --i) {
+            arr->put(i, s.pop());
+        }
+
+        s.pop(); // pop the mark
+
+        return s.push(PSObject::fromArray(arr));
+    }
+
+
     // ----- Operator Table -----
 
     inline const PSOperatorFuncMap& getStackOps() {
@@ -89,6 +108,8 @@ namespace waavs {
             { "clear",        op_clear },
             { "count",        op_count },
             { "mark",         op_mark },
+            { "[",            op_mark},         // alias for mark
+            { "]",            op_rightbracket}, // alias for rightbracket
             { "cleartomark",  op_cleartomark },
             { "counttomark",  op_counttomark }
         };

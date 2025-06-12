@@ -133,7 +133,7 @@ namespace waavs
         // Push a mark object onto the object stack
         bool mark() 
         {
-            return push(PSObject::fromMark());
+            return push(PSObject::fromMark(PSMark()));
         }
         // Clear the object stack down to the most recent mark object
         bool clearToMark()
@@ -154,7 +154,7 @@ namespace waavs
         // Push a mark object onto the execution stack
         bool mark() 
         {
-            return push(PSObject::fromMark());
+            return push(PSObject::fromMark(PSMark()));
         }
 
         // Clear the execution stack down to the most recent mark object
@@ -176,7 +176,7 @@ namespace waavs
     {
         bool mark() 
         {
-            return push(PSObject::fromMark());
+            return push(PSObject::fromMark(PSMark()));
 		}
 
         // cleartomark

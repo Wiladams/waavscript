@@ -53,7 +53,7 @@ namespace waavs {
         // there might ba couple of exceptions, like the cvn operator
         // but for the most part, sting interning should be an internal thing
         static const char* INTERN(const OctetCursor& span) { return getTable()->intern(span); }
-        static const char* INTERN(const char* cstr) { return getTable()->intern(cstr); }
+        static const char* INTERN(const char* cstr) { return getTable()->intern(cstr?cstr:""); }
     };
 }
 
@@ -74,6 +74,23 @@ namespace waavs {
     using PSArrayHandle = std::shared_ptr<PSArray>;
     using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
 
+	// --------------------
+	// PSMark
+	// Used to mark positions on a stack or in a procedure
+	// --------------------
+    struct PSMark {
+    private:
+		const char* fName = nullptr; // Name of the marker, always interned
+        
+    public:
+        PSMark(const char* name=nullptr) noexcept
+			: fName(PSNameTable::INTERN(name)) {
+		}
+
+        const char * name() const noexcept { 
+            return fName; 
+		}
+    };
     // --------------------
     // PSOperator
     // --------------------
@@ -142,7 +159,7 @@ private:
         PSString,                            // String
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
-        std::nullptr_t                       // Mark
+        PSMark                               // Mark
     >;
 
     bool fIsExec = false;
@@ -193,8 +210,8 @@ public:
     bool resetFromMatrix(const PSMatrix& m) {
         reset(); type = PSObjectType::Matrix; fValue = m; return true;
 	}
-    bool resetFromMark() {
-        reset(); type = PSObjectType::Mark; fValue = nullptr; return true;
+    bool resetFromMark(const PSMark& m) {
+        reset(); type = PSObjectType::Mark; fValue = m; return true;
     }
 
 
@@ -210,7 +227,7 @@ public:
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
-    static PSObject fromMark() { PSObject o; o.resetFromMark(); return o; }
+    static PSObject fromMark(const PSMark &m) { PSObject o; o.resetFromMark(m); return o; }
 
 
     // Accessors using std::get
@@ -243,6 +260,7 @@ public:
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
     PSOperator asOperator() const { return as<PSOperator>(); }
 	PSMatrix asMatrix() const { return as<PSMatrix>(); }
+	PSMark asMark() const { return as<PSMark>(); }
 
     // Type checks
     bool isExecutable() const { return fIsExec; }
@@ -255,6 +273,7 @@ public:
     inline bool isBool() const { return type == PSObjectType::Bool; }
     inline bool isName() const { return type == PSObjectType::Name; }
     inline bool isLiteralName() const { return isName() && !fIsExec; }
+	inline bool isExecutableName() const { return isName() && fIsExec; }
     inline bool isString() const { return type == PSObjectType::String; }
     inline bool isArray() const { return type == PSObjectType::Array; }
     inline bool isDictionary() const { return is(PSObjectType::Dictionary); }

@@ -17,12 +17,16 @@ int main() {
             uint8_t flags = 0;
 
             // Whitespace
-            if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+            if (c == 0 || c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\f')
                 flags |= PS_WHITESPACE;
 
             // Delimiters
-            if (c == '/' || c == '[' || c == ']' || c == '(' || c == ')' ||
-                c == '{' || c == '}' || c == '<' || c == '>')
+            //if (c == '/' || c == '[' || c == ']' || c == '(' || c == ')' || c == '<' || c == '>'
+            if ( c == '(' || c == ')' || 
+				c == '<' || c == '>' ||
+                c == '[' || c == ']' || 
+                c == '{' || c == '}' || 
+                c == '/' || c == '%')
                 flags |= PS_DELIMITER;
 
             // Comment start

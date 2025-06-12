@@ -56,6 +56,17 @@ namespace waavs
                 return true;
             }
 
+        case PSObjectType::Matrix:
+            if (!index.is(PSObjectType::Int)) return vm.error("op_get:PSObjectType::Matrix, expects to see an Int");
+            {
+                int idx = index.asInt();
+                const PSMatrix& mat = container.asMatrix();
+                if (idx < 0 || idx >= 6)
+                    return false;
+                s.push(PSObject::fromReal(mat.m[idx]));
+                return true;
+            }
+
         default:
             return false;
         }

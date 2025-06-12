@@ -4,86 +4,32 @@
 #include "psvm.h"
 #include "ps_scanner.h"
 
-namespace waavs
+
+namespace waavs 
 {
-
-    static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
+    // Unrolls a procedure (array) onto the execution stack.
+// The arguments are pushed in reverse order, so the first argument is on top of the stack.
+// Returns false on error (e.g., if the array is not a procedure).
+    static bool pushProcedureToExecStack(PSVirtualMachine & vm, const PSObject& proc) 
     {
-        out.clear();
+        if (!proc.isArray())
+            return vm.error("pushProcedureToExecStack - typecheck, NOT ARRAY");
 
-        while (!src.empty()) {
-            skipWhile(src, PS_WHITESPACE);
-            if (src.empty()) break;
+        auto arr = proc.asArray();
+        auto& elems = arr->elements;
 
-            uint8_t hiChar = *src.fStart++;
-            skipWhile(src, PS_WHITESPACE);
-
-            uint8_t loChar = src.empty() ? '0' : *src.fStart++;
-
-            uint8_t hi, lo;
-            if (!decodeHex(hiChar, hi) || !decodeHex(loChar, lo))
+        // start by pushing a marker, which is used to properly unwind 
+        // the execution stack when the procedure is done or stopped
+        vm.execStack().push(PSObject::fromMark(PSMark("pushArray")));
+        for (auto it = elems.rbegin(); it != elems.rend(); ++it)
+        {
+            if (!vm.execStack().push(*it))
                 return false;
-
-            out.push_back((hi << 4) | lo);
         }
 
         return true;
     }
 
-
-
-    // Take a single token and try to convert it into a PSObject
-    static bool transformTokenToPSObject(const PSToken& tok, PSObject& obj, bool inProc) noexcept
-    {
-        switch (tok.type) {
-        case PSTokenType::PS_TOKEN_Boolean:
-            return obj.resetFromBool(tok.boolValue);
-
-        case PSTokenType::PS_TOKEN_Number:
-            // Use int if the number is whole
-            if (tok.numberValue == static_cast<int32_t>(tok.numberValue))
-                return obj.resetFromInt(static_cast<int32_t>(tok.numberValue));
-            else
-                return obj.resetFromReal(tok.numberValue);
-
-        case PSTokenType::PS_TOKEN_LiteralName:
-            obj.resetFromName(tok.span);
-            return true;
-
-        case PSTokenType::PS_TOKEN_ExecutableName:
-            obj.resetFromName(tok.span);
-            obj.setExecutable(true);
-            return true;
-
-        case PSTokenType::PS_TOKEN_String: {
-            auto str = PSString::fromSpan(tok.span.data(), tok.span.size());
-            return obj.resetFromString(str);
-        }
-
-        case PSTokenType::PS_TOKEN_HexString: {
-            std::vector<uint8_t> decoded;
-            if (!spanToHexString(tok.span, decoded))
-                return false;
-            auto str = PSString::fromVector(decoded);
-            return obj.resetFromString(str);
-        }
-
-        case PSTokenType::PS_TOKEN_Null:
-            return obj.reset();
-
-
-        case PSTokenType::PS_TOKEN_Mark:
-            return obj.resetFromMark();
-
-        default:
-            return obj.reset();
-        }
-    }
-} // namespace waavs
-
-
-namespace waavs 
-{
 	// The PSInterpreter takes a strea of tokens and runs them through the PSVirtualMachine.
     // This is the main entry point when you're running a PS script
     // or running an interactive interface.
@@ -97,111 +43,64 @@ namespace waavs
             : fVM(vm) 
         {
         }
-        
-        bool parseArray(PSTokenGenerator& tokgen, PSObject& out, bool isProc) {
-            auto arr = PSArray::create();
-            arr->setIsProcedure(isProc);
 
-            PSObject element;
+        bool execArray(PSObject &obj)
+        {
+            // push to execution stack then run
+            pushProcedureToExecStack(fVM, obj);
 
-            while (true) {
-                PSToken tok;
-                if (!tokgen.next(tok)) break;
-
-                if ((isProc && tok.type == PSTokenType::PS_TOKEN_ProcEnd) ||
-                    (!isProc && tok.type == PSTokenType::PS_TOKEN_ArrayEnd)) {
-                    break;
-                }
-
-                if (tok.type == PSTokenType::PS_TOKEN_ProcBegin) {
-                    PSObject subProc;
-                    if (!parseArray(tokgen, subProc, true)) return false;
-                    // if we parse a sub-procedure, we need to mark it as executable
-                    //subProc.setExecutable(true);
-                    arr->append(subProc);
-                }
-                else if (tok.type == PSTokenType::PS_TOKEN_ArrayBegin) {
-                    PSObject subArray;
-                    if (!parseArray(tokgen, subArray, false)) return false;
-                    arr->append(subArray);
-                }
-                else {
-                    if (!transformTokenToPSObject(tok, element, isProc)) return false;
-                    arr->append(element);
-                }
-            }
-
-            out.resetFromArray(arr);
-            return true;
+            return fVM.run();
         }
 
-        bool parseDictionary(PSTokenGenerator& tokgen, PSObject& out) {
-            auto dict = PSDictionary::create();
+        // This is meant to run executable names
+        bool execName(PSObject& obj)
+        {
+            // Lookup the thing in the dictionary stack
+            const char* name = obj.asName();
+            PSObject resolved;
 
-
-            while (true) {
-                PSObject keyObj, valObj;
-                
-                PSToken tok;
-                if (!tokgen.next(tok)) break;
-
-                if (tok.type == PSTokenType::PS_TOKEN_DictEnd)
-                    break;
-
-                // Parse key
-                if (!transformTokenToPSObject(tok, keyObj, false)) return false;
-                if (!keyObj.isLiteralName())
-                    return fVM.error("Dictionary keys must be literal names");
-
-                // Parse value
-				if (!parseObject(tokgen, valObj)) 
-					return fVM.error("Failed to parse dictionary value");
-
-                dict->put(keyObj.asName(), valObj);
+            if (!fVM.dictionaryStack.load(name, resolved)) {
+                return fVM.error("undefined name", name);
             }
 
-            out.resetFromDictionary(dict);
+            // 2. If it's an operator?  run it immediately
+            if (resolved.isOperator()) {
+                auto op = resolved.asOperator();
+
+                // Run the operator if it's valid, otherwise return false
+                if (op.isValid()) {
+                    return op.func(fVM);
+                } return false;
+            }
+
+            // 3. Name resolves to a procedure?  auto-exec
+            if (resolved.isExecutable() && resolved.isArray()) {
+                return execArray(resolved);
+            }
+
+            // 4. Otherwise, it's a literal value, push to operand stack
+            fVM.opStack().push(resolved);
+
             return true;
         }
 
 
-
-        bool parseObject(PSTokenGenerator& tokgen, PSObject& out) {
-            PSToken tok;
-            if (!tokgen.next(tok)) return false;
-
-            switch (tok.type) {
-            case PSTokenType::PS_TOKEN_ProcBegin: {
-                bool success = parseArray(tokgen, out, true);
-                return success;
-            }
-            case PSTokenType::PS_TOKEN_ArrayBegin: {
-                bool success = parseArray(tokgen, out, false);
-                return success;
-            }
-
-            case PSTokenType::PS_TOKEN_DictBegin:
-                return parseDictionary(tokgen, out);
-
-            default:
-                return transformTokenToPSObject(tok, out, false);
-            }
-        }
-
-        bool interpret(PSTokenGenerator &tokGen) 
+        bool interpret(PSObjectGenerator &objGen)
         {
 
             while (true)
             {
                 PSObject obj;
 
-                if (!parseObject(tokGen, obj))
-					return true;
+                // return the next object from the object generator
+                if (!objGen.next(obj)) return false;
+
                     
-                if (obj.isExecutable()) {
-                    // push to execution stack then run
-                    fVM.execStack().push(obj);
-                    fVM.run();
+                // The only things we try to execute directly are
+				// executable names.  Everything else is pushed onto the stack.
+                if (obj.isExecutableName()) 
+                {
+                    execName(obj);
 
                     if (fVM.isExitRequested()) {
                         break;
@@ -209,7 +108,7 @@ namespace waavs
 
                     if (fVM.isStopRequested()) {
                         fVM.clearStopRequest();
-                        break;
+                        continue;
                     }
                 }
                 else {
@@ -221,9 +120,9 @@ namespace waavs
         }
         
         bool interpret(const OctetCursor input) {
-            PSTokenGenerator tokGen(input);
+            PSObjectGenerator objGen(input);
         
-			return interpret(tokGen);
+			return interpret(objGen);
         }
 
     };

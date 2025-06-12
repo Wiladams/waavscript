@@ -9,7 +9,7 @@ using namespace waavs;
 
 void printLexeme(const PSLexeme& lex)
 {
-	printf("Lexeme Type: %d   Value: %.*s\n", (int)lex.type, (unsigned int)lex.span.size(), lex.span.data());
+	printf("Lexeme Type: %d   VALUE: %.*s\n", (int)lex.type, (unsigned int)lex.span.size(), lex.span.data());
 
 }
 

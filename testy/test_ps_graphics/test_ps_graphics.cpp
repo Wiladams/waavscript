@@ -260,17 +260,17 @@ static void test_core()
 
 static void test_idioms()
 {
-    //test_flower();
+    test_flower();
 	//gridOfCircles();
     //radialLines();
     //scaledRectangles();
-    grid();
+    //grid();
 }
 
 int main() {
 
-    //test_core();
-    test_idioms();
+    test_core();
+    //test_idioms();
 
     return 0;
 }

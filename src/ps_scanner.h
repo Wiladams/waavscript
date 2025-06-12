@@ -6,164 +6,205 @@
 #include "ps_lexer.h"
 #include "typeconv.h"
 
-
+//
+// The scanner's job is to convert a stream of lexemes into a stream of PSObjects
+// Chapter 2 of Blue Book
+//
 
 namespace waavs
 {
-    enum class PSTokenType : uint8_t
+
+    // Turn a supposed hex ascii character into a byte value.
+    static inline bool  decodeHex(uint8_t c, uint8_t& out) noexcept
     {
-        PS_TOKEN_Invalid = 0,
-        PS_TOKEN_EOI,                // End of input
-        PS_TOKEN_Boolean,            // true / false
-        PS_TOKEN_Number,             // Any numeric value
-        PS_TOKEN_LiteralName,        // /foo
-        PS_TOKEN_ExecutableName,     // foo
-        PS_TOKEN_String,             // (abc)
-        PS_TOKEN_HexString,          // <48656C6C6F> 
-        PS_TOKEN_ProcBegin,          // {
-        PS_TOKEN_ProcEnd,            // }
-        PS_TOKEN_ArrayBegin,         // [
-        PS_TOKEN_ArrayEnd,           // ]
-        PS_TOKEN_DictBegin,          // << Dictionary begin
-        PS_TOKEN_DictEnd,            // >> Dictionary end
-        PS_TOKEN_Operator,           // Bound operator (optional at scan time)
-        PS_TOKEN_Mark,               // e.g. from 'mark' operator
-        PS_TOKEN_Null                // 'null'
-    };
+        if (!PSCharClass::isHexDigit(c)) return false;
 
+        if (c >= '0' && c <= '9') { out = (c - '0'); }
+        if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; }
+        if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10; }
 
-    struct PSToken 
+        return true;
+    }
+
+    static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
     {
-        PSTokenType type = PSTokenType::PS_TOKEN_Invalid;
-        OctetCursor span; // Original input
-        double numberValue = 0.0; // only valid for Number
-        bool boolValue = false;   // only valid for Boolean
+        out.clear();
 
-        inline void reset(PSTokenType t, const OctetCursor &oc) 
-        {
-            type = t;
-            span = oc;
-            numberValue = 0.0;
-            boolValue = false;
-		}
+        while (!src.empty()) {
+            skipWhile(src, PS_WHITESPACE);
+            if (src.empty()) break;
 
-        inline void reset(PSTokenType t, const OctetCursor& oc, bool bValue)
-        {
-            type = t;
-            span = oc;
-            numberValue = 0.0;
-            boolValue = bValue;
+            uint8_t hiChar = *src.fStart++;
+            skipWhile(src, PS_WHITESPACE);
+
+            uint8_t loChar = src.empty() ? '0' : *src.fStart++;
+
+            uint8_t hi, lo;
+            if (!decodeHex(hiChar, hi) || !decodeHex(loChar, lo))
+                return false;
+
+            out.push_back((hi << 4) | lo);
         }
 
-        inline void reset(PSTokenType t, const OctetCursor& oc, double numValue)
-        {
-            type = t;
-            span = oc;
-            numberValue = numValue;
-            boolValue = false;
-		}
-    };
+        return true;
+    }
 
-    static inline bool nextPSToken(PSLexemeGenerator& lexgen, PSToken& out) 
+
+    static inline bool objectFromLex(PSLexeme lex, PSObject& obj)
     {
-        PSLexeme lex;
-        while (lexgen.next(lex)) {
-            switch (lex.type) {
-            case PSLexType::Whitespace:
-            case PSLexType::Comment:
-                continue; // Skip
+        switch (lex.type) {
+            // In the case of whitespace, we'll return a null object
+        case PSLexType::Whitespace:
+        case PSLexType::Comment:
+		case PSLexType::RBRACE: // } - end of procedure
+            obj.reset();
+            return true;
 
-            case PSLexType::LiteralName:
-				out.reset(PSTokenType::PS_TOKEN_LiteralName, lex.span);
-                return true;
+        case PSLexType::LiteralName:
+            return obj.resetFromName(lex.span);
 
-            case PSLexType::Name: {
-                // Recognize built-in constants
-                if (lex.span == "true") {
-					out.reset(PSTokenType::PS_TOKEN_Boolean, lex.span, true);
-                    return true;
-                }
-                else if (lex.span == "false") {
-                    out.reset(PSTokenType::PS_TOKEN_Boolean, lex.span, false);
-                    return true;
-                }
-                else if (lex.span == "null") {
-                    out.reset(PSTokenType::PS_TOKEN_Null, lex.span);
-                    return true;
-                }
-                else {
-					out.reset(PSTokenType::PS_TOKEN_ExecutableName, lex.span);
-                    return true;
-                }
+        case PSLexType::Name: {
+            // Recognize built-in constants
+            if (lex.span == "true") {
+                return obj.resetFromBool(true);
             }
-
-            case PSLexType::Number: {
-                double value = 0.0;
-                if (readDecimal(lex.span, value)) {
-					out.reset(PSTokenType::PS_TOKEN_Number, lex.span, value);
-                    return true;
-                }
-                else {
-					out.reset(PSTokenType::PS_TOKEN_Invalid, lex.span);
-                    return true;
-                }
+            else if (lex.span == "false") {
+                return obj.resetFromBool(false);
             }
-
-            case PSLexType::String:
-				out.reset(PSTokenType::PS_TOKEN_String, lex.span);
-                return true;
-
-			case PSLexType::HexString:
-				out.reset(PSTokenType::PS_TOKEN_HexString, lex.span);
-				return true;
-
-            case PSLexType::ProcBegin:
-				out.reset(PSTokenType::PS_TOKEN_ProcBegin, lex.span);
-
-                return true;
-
-            case PSLexType::ProcEnd:
-				out.reset(PSTokenType::PS_TOKEN_ProcEnd, lex.span);
-                return true;
-
-            case PSLexType::ArrayBegin:
-				out.reset(PSTokenType::PS_TOKEN_ArrayBegin, lex.span);
-                return true;
-
-            case PSLexType::ArrayEnd:
-				out.reset(PSTokenType::PS_TOKEN_ArrayEnd, lex.span);
-                return true;
-
-            case PSLexType::DictBegin:
-                out.reset(PSTokenType::PS_TOKEN_DictBegin, lex.span);
-                return true;
-
-            case PSLexType::DictEnd:
-                out.reset(PSTokenType::PS_TOKEN_DictEnd, lex.span);
-                return true;
-
-            default:
-				out.reset(PSTokenType::PS_TOKEN_Invalid, lex.span);
+            else if (lex.span == "null") {
+                return obj.reset();
+            }
+            else {
+                // Otherwise, treat it as an executable name
+                if (!obj.resetFromName(lex.span)) return false;
+                obj.setExecutable(true);
                 return true;
             }
         }
 
-		out.reset(PSTokenType::PS_TOKEN_EOI, OctetCursor()); // End of input
+        case PSLexType::Number:     // 123.456
+        {
+            double value = 0.0;
+            if (readDecimal(lex.span, value)) {
+                return obj.resetFromReal(value);
+            }
+            else {
+                return false; // Invalid number format
+            }
+        }
+
+        case PSLexType::String: {    // (abc)
+            // BUGBUG - here we can do string decoding, or perhaps we leave
+            // that to the PSString class?
+            PSString str = PSString::fromSpan(lex.span.data(), lex.span.size());
+            return obj.resetFromString(str);
+        }
+
+        case PSLexType::HexString: { // <48656C6C6F>
+            std::vector<uint8_t> decoded;
+            if (!spanToHexString(lex.span, decoded))
+                return false;
+            PSString str = PSString::fromVector(decoded);
+            return obj.resetFromString(str);
+        }
+
+        // The default case is to return anything not already identified
+        // as an executable name
+        default:
+            if (!obj.resetFromName(lex.span)) return false;
+            obj.setExecutable(true);
+            return true;
+
+            // These need to have operators named after them to be dealt with
+            // op_arraybegin, op_arrayend, op_dictbegin, op_dictend
+            // Their registration must be the token span
+            //case PSLexType::LBRACKET:   // [
+            //case PSLexType::RBRACKET:   // ]
+            //case PSLexType::LLANGLE:    // <<
+            //case PSLexType::RRANGLE:    // >>
+        }
+
 
         return false;
     }
 
-    struct PSTokenGenerator
+    static inline bool nextPSObject(PSLexemeGenerator& lexgen, PSObject& obj);
+
+
+    // Scan a procedure, which is a sequence of tokens that ends with a ProcEnd token.
+    static bool scanProcedure(PSLexemeGenerator& lexgen, PSObject& out)
+    {
+        auto arr = PSArray::create();
+        arr->setIsProcedure(true);
+
+
+        while (true) {
+            PSObject element;
+            PSLexeme lex;
+
+			if (!nextPSObject(lexgen, element)) return false;   // unterminated procedure
+
+            // We get a null object either at procEnd, or end of input
+            if (element.isNull()) {
+                // If we hit a null object, we break
+                break;
+			}
+
+            arr->append(element);
+        }
+
+        out.resetFromArray(arr);
+        out.setExecutable(true); // mark the procedure as executable
+
+        return true;
+    }
+
+
+    // Take the stream of lexemes, and return the next PSObject from there
+    //
+    static inline bool nextPSObject(PSLexemeGenerator& lexgen, PSObject &obj) 
+    {
+        PSLexeme lex;
+        while (lexgen.next(lex)) {
+
+            switch (lex.type) {
+                // Just consume whitespace
+                case PSLexType::Whitespace:
+                case PSLexType::Comment:
+                    continue; // Skip
+
+                case PSLexType::Eof:
+				    return obj.reset(); // Reset the object to null on EOF
+
+				case PSLexType::LBRACE: // {
+                    return scanProcedure(lexgen, obj);
+
+                case PSLexType::RBRACE: // }
+                    return obj.reset();
+
+                // The default case is to return anything not already identified
+                // as an executable name
+                default:
+				    return objectFromLex(lex, obj);
+            }
+        }
+
+        return false;
+    }
+
+    struct PSObjectGenerator
     {
         PSLexemeGenerator lexgen;
-        explicit PSTokenGenerator(const OctetCursor &oc) : lexgen(oc) {}
+        explicit PSObjectGenerator(const OctetCursor &oc) : lexgen(oc) {}
 
-        bool next(PSToken& tok) 
+        bool next(PSObject& obj) 
         {
-            return nextPSToken(lexgen, tok);
+            return nextPSObject(lexgen, obj);
         }
 
 
 	};
+
+
 }
 

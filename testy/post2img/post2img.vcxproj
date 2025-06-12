@@ -185,8 +185,13 @@
     <ClCompile Include="post2img.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\psgraphicscontext.h" />
+    <ClInclude Include="..\..\src\psvm.h" />
+    <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_ops_stack.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

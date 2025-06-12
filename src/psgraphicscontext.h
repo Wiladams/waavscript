@@ -21,6 +21,10 @@ namespace waavs {
     public:
         virtual ~PSGraphicsContext() = default;
 
+        virtual PSMatrix getDeviceDefaultMatrix() const {
+			return PSMatrix::identity(); // Default to identity matrix
+        }
+
         // --- State access ---
         PSGraphicsState* currentState() { return stateStack.get(); }
         PSGraphicsStack& states() { return stateStack; }
@@ -114,6 +118,18 @@ namespace waavs {
 
         virtual void rotate(double angle) {
             currentState()->ctm.preMultiply(PSMatrix::rotation(angle));
+        }
+
+        virtual void transformPoint(double x, double y, double outX, double outY) {
+            currentState()->ctm.transformPoint(x, y, outX, outY);
+		}
+
+        //virtual void itransformPoint(double x, double y, double &outX, double &outY) {
+        //    currentState()->ctm.itransform(x, y, outX, outY);
+		//}
+
+        virtual void dtransformPoint(double x, double y, double &outX, double &outY) {
+            currentState()->ctm.dtransform(x, y, outX, outY);
         }
 
         // Handling paint

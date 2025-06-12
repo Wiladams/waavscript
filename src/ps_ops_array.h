@@ -115,6 +115,7 @@ namespace waavs {
 		return true;
 	}
 
+
 	inline bool op_bind(PSVirtualMachine& vm) {
 		PSObject obj;
 		if (!vm.opStack().pop(obj)) return false;
@@ -124,8 +125,18 @@ namespace waavs {
 		auto arr = obj.asArray();
 		if (!arr || !arr->isProcedure()) return false;
 
-		vm.bindArray(arr);
-		//bindArray(vm, arr);
+		for (auto& obj : arr->elements) {
+			if (obj.isName() && obj.isExecutable()) {
+				PSObject resolved;
+				if (vm.dictionaryStack.load(obj.asName(), resolved)) {
+					if (resolved.isOperator()) {
+						obj.resetFromOperator(resolved.asOperator());
+					}
+				}
+			}
+			// Do NOT recurse into nested procedures
+		}
+
 		vm.opStack().push(obj);
 
 		return true;
