@@ -7,9 +7,9 @@
 
 #include "pscore.h"
 #include "dictionarystack.h"
-#include "ocspan.h"
 #include "psstack.h"
 #include "psgraphicscontext.h"
+#include "ps_scanner.h"
 
 namespace waavs
 {
@@ -106,47 +106,96 @@ namespace waavs
 
         // Start running whatever is currently on the 
         // execution stack
-        bool run() {
+        bool run()
+        {
             while (!execStack().empty()) {
                 PSObject obj = execStack().pop();
 
-                // skip over structural markers
-                if (obj.isMark()) {
-                    // If we've reached a marker, that indicates the end
-                    // of a function frame, so we should return.
-                    return true;
-				}
+                // Treat executable arrays (procedures) specially
+                if (obj.isExecutable() && obj.isArray()) {
+                    auto arr = obj.asArray();
 
-                if (!execute(obj, false))
-                    return false;;
+                    // Push elements of procedure onto the exec stack, back to front
+                    for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+                        execStack().push(*it);
 
-                if (isExitRequested()) 
+                    // Continue loop — next thing to execute is now top element of proc
+                    continue;
+                }
+
+                // Otherwise, just execute the object normally
+                if (!execObject(obj))
+                    return false;
+
+                if (isExitRequested())
                     break;
-                if (isStopRequested()) {
-                    //clearStopRequest();
-                    break; // Stop is not an error, just a pause
-				}
+                if (isStopRequested())
+                    break;
             }
+
             return true;
         }
 
 
-        // runArray()
-        // 
-        // Pus the items of an array onto the execution stack in reverse order
-		// That is, elements[0] ends up on the top of the execution stack.
-        bool runArray(const PSObject& proc)
+        // This is a critical function, as it dictates how procedures are executed,
+        // whether we get tail recursion, etc.
+        bool execProc(PSObject& proc)
         {
-            return pushProcedureToExecStack(proc) && run();
+            if (!proc.isArray())
+                return error("execProc - typecheck, NOT ARRAY");
+
+            // Push the procedure frame (visible to execstack/countexecstack)
+            execStack().push(proc);  // Optionally wrap in a frame marker
+
+            auto arr = proc.asArray();
+            for (const auto& obj : arr->elements) {
+                if (!interpret(obj)) return false;
+
+
+                if (isExitRequested()) break;
+                if (isStopRequested()) break;
+            }
+
+            execStack().pop();  // Remove procedure frame
+            return true;
         }
 
  
+        // This is meant to run executable names
+        bool execName(const PSObject& obj)
+        {
+            // Lookup the thing in the dictionary stack
+            const char* name = obj.asName();
+            PSObject resolved;
 
+            if (!dictionaryStack.load(name, resolved)) {
+                return error("undefined name", name);
+            }
+
+            // 2. If it's an operator?  run it immediately
+            if (resolved.isOperator()) {
+                auto op = resolved.asOperator();
+
+                // Run the operator if it's valid, otherwise return false
+                if (op.isValid()) {
+                    return op.func(*this);
+                } return false;
+            }
+
+            // 3. Name resolves to a procedure?  auto-exec
+            if (resolved.isExecutable() && resolved.isArray()) {
+                return execProc(resolved);
+            }
+
+            // 4. Otherwise, it's a literal value, push to operand stack
+            opStack().push(resolved);
+
+            return true;
+        }
 
         // --- Execute a single PSObject
-        bool execute(const PSObject& obj, bool fromExecStack = false)
+        bool execObject(const PSObject& obj)
         {
-
             switch (obj.type) {
                 // Literal value (number, string, etc.) — push onto operand stack
 
@@ -196,7 +245,7 @@ namespace waavs
 
                 // 3. Name resolves to a procedure?  auto-exec
                 if (resolved.isArray() && resolved.asArray()->isProcedure()) {
-                    return pushProcedureToExecStack(resolved);
+                    return execProc(resolved);
                 }
 
                 // 4. Otherwise, it's a literal value, push to operand stack
@@ -209,13 +258,9 @@ namespace waavs
                 if (!arr)
                     return error("execute::Array null array");
 
-                //if (arr->isProcedure()) {
-                    opStack().push(obj); // treat it as a literal, for later execution
-                    return true;
-                //}
-                //else {
-                //    return resolveLiteralArray(obj);
-                //}
+
+                opStack().push(obj); // treat it as a literal, for later execution
+                return true;
             }
 
             //default:
@@ -227,6 +272,62 @@ namespace waavs
             return true;
         }
  
+        // The interpreter is working at the highest level of input.  
+        // The behavior here is to execute executable names immediately
+        // everything else goes onto the operand stack of the vm, and
+        // that's all it does.  Takes the stream of objects, and executes
+        // them one by one.
+        //
+        // We're not concerned with creating procedure bodies.  That either
+        // happens at the scanner level, or in the case of an array, as
+        // regular operators.
+        //
+        bool interpret(const PSObject& obj)
+        {
+            // The only things we try to execute directly are
+            // executable names.  Everything else is pushed onto the stack.
+            if (obj.isExecutableName())
+            {
+                if (!execName(obj)) return false;
+            }
+            else {
+                opStack().push(obj);
+            }
+
+            return true;
+        }
+
+        bool interpret(PSObjectGenerator& objGen)
+        {
+
+            while (true)
+            {
+                PSObject obj;
+
+                // return the next object from the object generator
+                if (!objGen.next(obj)) return false;
+
+				if (!interpret(obj)) return false;
+
+                if (isExitRequested()) {
+                    break;
+                }
+
+                if (isStopRequested()) {
+                    clearStopRequest();
+                    continue;
+                }
+            }
+
+            return true;
+        }
+
+        bool interpret(const OctetCursor input) {
+            PSObjectGenerator objGen(input);
+
+            return interpret(objGen);
+        }
+
 		//=======================================================================
         // ERROR handling
 		//=======================================================================
@@ -240,32 +341,7 @@ namespace waavs
             return false;
         }
 
-        private:
-            // Unrolls a procedure (array) onto the execution stack.
-            // The arguments are pushed in reverse order, so the first argument is on top of the stack.
-            // Returns false on error (e.g., if the array is not a procedure).
-            bool pushProcedureToExecStack(const PSObject& proc) {
-                if (!proc.isArray())
-                    return error("pushProcedureToExecStack - typecheck, NOT ARRAY");
 
-                auto arr = proc.asArray();
-				auto& elems = arr->elements;
-
-                // An array can be pushed to the exec stack
-                //if (!arr || !arr->isProcedure())
-                //    return error("pushProcedureToExecStack::typecheck, NOT PROC");
-
-                // start by pushing a marker, which is used to properly unwind 
-                // the execution stack when the procedure is done or stopped
-                execStack().push(PSObject::fromMark(PSMark("pushArray")));
-                for (auto it = elems.rbegin(); it !=elems.rend(); ++it)
-                {
-                    if (!execStack().push(*it))
-                        return false;
-                }
-
-                return true;
-            }
     };
 
 }

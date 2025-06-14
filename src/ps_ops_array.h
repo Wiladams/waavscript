@@ -125,12 +125,12 @@ namespace waavs {
 		auto arr = obj.asArray();
 		if (!arr || !arr->isProcedure()) return false;
 
-		for (auto& obj : arr->elements) {
-			if (obj.isName() && obj.isExecutable()) {
+		for (auto& elem : arr->elements) {
+			if (elem.isName() && elem.isExecutable()) {
 				PSObject resolved;
-				if (vm.dictionaryStack.load(obj.asName(), resolved)) {
+				if (vm.dictionaryStack.load(elem.asName(), resolved)) {
 					if (resolved.isOperator()) {
-						obj.resetFromOperator(resolved.asOperator());
+						elem.resetFromOperator(resolved.asOperator());
 					}
 				}
 			}

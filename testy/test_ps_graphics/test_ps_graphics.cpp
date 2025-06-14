@@ -1,9 +1,10 @@
-#include "ps_interpreter.h"
+#include <memory>
+#include <cstdio>
+
 #include "psvmfactory.h"
 #include "b2dcontext.h"
 
-#include <memory>
-#include <cstdio>
+
 
 using namespace waavs;
 
@@ -22,12 +23,10 @@ static void runPostscript(const char* sourceText) {
         return;
     }
 
+    // Setup the VM and run the interpreter
     auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(800,800);
     vm->setGraphicsContext(std::move(ctx));
-
-    // Run the interpreter
-    PSInterpreter interp(*vm);
-    interp.interpret(input);
+    vm->interpret(input);
 
     // If we want, we can save output here
     static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().writeToFile("output.png");
@@ -52,7 +51,6 @@ stroke
 
 static void test_op_arc()
 {
-    // This will crash the interpreter if tail call optimization is not implemented
 	const char* test_s1 = R"||(
 4 setlinewidth
 1 0 0 setrgbcolor
@@ -249,28 +247,64 @@ grid
     runPostscript(test_s1);
 }
 
+static void truchet()
+{
+	const char* test_s1 = R"||(
+%!PS-Adobe-3.0 EPSF-3.0 
+%%BoundingBox: 0 0 595 842 
+2.835 dup scale 
+5 4 translate 
+1 setlinecap 
+0 0 200 290 rectstroke 
+100 145 translate 
+/W 10 def 
+/W2 { W 2 div }  def 
+/DRAWUNIT { 
+gsave  
+translate 
+rotate 
+ W2 neg W2 neg W2   0  90 arc 
+stroke 
+ W2 W2 W2 180 270 arc 
+stroke 
+grestore 
+} def -95 W 95 { 
+  /x exch def 
+  -140 W 140 { 
+    /y 
+exch def 
+    rand 4 mod 90 mul  x y  DRAWUNIT 
+  } for 
+} for 
+showpage 
+)||";
+    runPostscript(test_s1);
+}
+
+
 static void test_core()
 {
     //test_op_curveto();
-    //test_op_arc();
+    test_op_arc();
 
-    test_simple();
+    //test_simple();
 
 }
 
 static void test_idioms()
 {
-    test_flower();
+    //test_flower();
 	//gridOfCircles();
     //radialLines();
     //scaledRectangles();
     //grid();
+    truchet();
 }
 
 int main() {
 
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }

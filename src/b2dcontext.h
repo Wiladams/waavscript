@@ -142,10 +142,15 @@ namespace waavs {
                     double radius = seg.x2;
                     double startRad = seg.x3;
                     double sweepRad = seg.y3;
+					double startX = centerX + radius * std::cos(startRad);
+					double startY = centerY + radius * std::sin(startRad);
 
                     // Subdivide arc into Bézier segments
                     int steps = std::ceil(std::abs(sweepRad) / (B_PI_2)); // At most 90° per cubic
                     double delta = sweepRad / steps;
+
+                    // do a moveTo before the curveTo that will follow
+					out.moveTo(startX, startY);
 
                     for (int i = 0; i < steps; ++i) {
                         double t0 = startRad + i * delta;

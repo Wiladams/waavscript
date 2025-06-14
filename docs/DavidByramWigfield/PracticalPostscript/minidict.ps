@@ -1,0 +1,136 @@
+%!PS
+%%Title: minidict
+%%Author: William A Adams
+%%Creator: Practical Postscript
+% This is meant to be included at the top of any file
+% that uses these shortcuts, after the prolog
+
+%%BeginResource: minidict.PS
+userdict begin                      % Some permanent definitions
+/_Z {/defaults save def} def
+/ZZ { defaults restore } def
+
+% Paper Size: A4            597 x 842
+% Paper Size: US Letter     612 x 792
+/PW {/pw exch def} def 597 PW
+/PH {/ph exch def} def 842 PH
+/1upA4 {_Z minidict begin
+    /p1 {
+        gsave 
+        midpage 
+        /jump {
+            bm tm gt {
+                grestore 
+                showpage 
+                p1
+            } if 
+        } def 
+    } def 
+    p1 
+} def
+
+% print the last page: close the file
+/close {showpage grestore end clear ZZ} def
+end                                 % userdict must be closed
+
+
+% Define the dictionary
+/minidict 40 dict minidict begin
+% simple substitutions
+/ld { load def } def
+/gs /gsave ld
+/gr /grestore ld
+/np /newpath ld
+/cp /closepath ld
+/mt /moveto ld
+/rt /rmoveto ld
+/li /lineto ld
+/rl /rlineto ld
+/ct /curveto ld
+/tr /translate ld 
+/st /stroke ld
+
+
+% Margins
+/FM {/fm exch def} def 72 FM
+/TM {/tm exch def} def 680 TM
+/RM {/rm exch def} def 460 RM
+/BM {/bm exch def} def 0 BM
+/LM {/lm exch def} def 0 LM
+/LG {/lg exch def} def 12 LG
+
+
+% textbox resetter
+/textbox {680 TM 460 RM 0 BM 0 LM 16 LG 12 rom lm tm moveto} def
+/midpage {pw rm sub 2 div fm translate textbox } def
+/find {search {pop 3 -1 roll 1 add 3 1 roll}{pop exit} ifelse} def
+/spacecount { 
+    0 exch ( ) {find } 
+    loop
+} def
+
+% too many words for the line?
+/toofar? {
+    ( ) search
+    pop dup stringwidth
+    pop currentpoint pop add rm gt 
+} def
+
+/a { tm exch sub TM lm tm moveto} bind def
+/b { tm add TM lm tm mt} bind def
+/H { lg 2 div a } bind def
+/B { lg 2 div b } def
+/L { lg a } def
+/R { lg b} def
+/newpage {10 neg TM tm pop jump} def
+/s /show load def
+/n { show L} def
+
+% center text, advance to next line
+/c {dup stringwidth pop 2 div rm 2 div exch sub lm add tm moveto s L} bind def
+
+% place text: linewrap to next line: page jump
+/S {dup sacecount {toofar? {L s s}{jump s s} ifelse} repeat pop } bind def
+/CS {gsave cmyk S currentpoint grestore moveto } def
+
+% linewrap a paragraph: advance to next line; page jump
+/P {S L } bind def
+
+% linewrap paragraph: advance a line: no page jumping; use for footnotes
+/p { dup spacecount {toofar? {L s s}{s s} ifelse} repeat pop L} bind def
+
+/T {lm pop tm moveto} def
+
+/F {findfont exch scalefont setfont } def
+
+%use correct os PostScript font names; e.g. Arial, stone, etc
+/rom {/Times-Roman F } def
+/bol {/Times-Bold F } def
+/it {/Times-Italic F } def
+/ss {/Helvetica F } def
+/si {/Helvetica-Oblique F } def
+/cr {/Courier F } def
+
+% some cymk colors
+/red { 0 1 1 0 } def
+/palered {0 0.3 0.3 0} def
+/blue {1 1 0 0} def
+/paleblue{0.3 0 0 0 } def
+/green { 1 0 1 0 } def
+/palegreen { 0.3 0 0.3 0} def
+/yellow {0 0 1 0} def
+/paleyellow {0 0 0.1 0} def
+/black {0 0 0 1} def
+/cmyk /setcmykcolor load def
+end     % close the minidict
+
+%other useful stuff
+%/set { gs setlinewidth st gr } def      % use # set to set line width
+%/gray {gs setgray fill gr} def          % use # gray, to fill with gray
+%/ro /rotate ld
+%/rp /repeat ld
+%/box {np mt rl rl rl cp set} def        % composite box, no fill
+%/circle {np arc set} def                % composite circle, no fill
+%end
+
+%%EndResource

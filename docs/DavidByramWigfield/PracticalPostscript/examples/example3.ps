@@ -1,0 +1,56 @@
+%!PS
+%%Title: ADigitalGalley
+%%Creator: Practical Postscript
+%%Author: William Adams
+
+/minidict 24 dict def
+minidict begin
+/ld { load def } def
+/gs /gsave ld
+/gr /grestore ld
+/np /newpath ld
+/cp /closepath ld
+/mt /moveto ld
+/rt /rmoveto ld
+/li /lineto ld
+/rl /rlineto ld
+/ct /curveto ld
+/tr /translate ld 
+/st /stroke ld
+/set { gs setlinewidth st gr } def      % use # set to set line width
+/gray {gs setgray fill gr} def          % use # gray, to fill with gray
+/ro /rotate ld
+/rp /repeat ld
+/box {np mt rl rl rl cp set} def        % composite box, no fill
+/circle {np arc set} def                % composite circle, no fill
+end
+
+% Use the dictionary
+minidict begin
+
+/defaults save def
+/textbox {/lm 6 def /bm 0 def /rm 156 def /tm 300 def lm tm mt } def 
+/newline { tm 10 sub /tm exch def lm tm moveto } def 
+/center {dup stringwidth pop 2 div linewidth 2 div exch sub lm add tm moveto } def 
+/n {show newline} def
+/c {center n} def 
+/s {show} def 
+/L {newline} def 
+
+gsave 
+    50 90 translate 
+    textbox 
+    /Times-Roman findfont 8 scalefont setfont
+    (Even spacing is of more importance typo- ) n
+    (graphically than equal length.  Even spacing ) n
+    (is a great assistance to easy reading; hence ) n 
+    (its pleasantness, for the eye is not vexed by ) n
+    (the roughness, jerkiness, restlessness and ) n 
+    (spottiness which uneven spacing entails, ) n 
+    (even if such things are reduced to a mini- ) n 
+    (mum by careful setting. ) n L 
+grestore
+
+showpage
+defaults restore
+

@@ -26,8 +26,9 @@ static void runPostscript(const char* sourceText) {
     vm->setGraphicsContext(std::move(ctx));
     
     // Run the interpreter
-    PSInterpreter interp(*vm);
-    interp.interpret(input);
+	vm->interpret(input);
+    // PSInterpreter interp(*vm);
+    //interp.interpret(input);
 
     // If we want, we can save output here
 }
@@ -75,11 +76,11 @@ static void test_control_flow() {
 void test_forall()
 {
     printf("\n== ForAll Operator ==\n");
-   // runPostscript("[ 10 20 30 ] { = } forall");
-   // runPostscript("(abc) { = } forall");
-    //runPostscript("[ (hello) 123 true ] { dup type = } forall");
+    runPostscript("[ 10 20 30 ] { = } forall");
+    runPostscript("(abc) { = } forall");
+    runPostscript("[ (hello) 123 true [4 5 6] ] { dup type = } forall");
     runPostscript("[ 1 2 3 4 5 ] { dup 3 eq{ exit } if (Value = ) print =} forall");
-    //runPostscript("[ 1 2 3 4 5 ] { dup mul = } forall");
+    runPostscript("[ 1 2 3 4 5 ] { dup mul = } forall");
 }
 
 static void test_debug_ops() {
@@ -456,10 +457,10 @@ static void test_core()
 {
 	printf("== Core Tests ==\n");
     test_arithmetic_ops();
-    //test_stack_ops();
-    //test_control_flow();
+    test_stack_ops();
+    test_control_flow();
     //test_debug_ops();
-    //test_loop_op();
+    test_loop_op();
     //test_forall();
     //test_logic();
     //test_procedure();

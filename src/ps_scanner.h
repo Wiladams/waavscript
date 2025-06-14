@@ -86,6 +86,10 @@ namespace waavs
         {
             double value = 0.0;
             if (readDecimal(lex.span, value)) {
+				// if it's an integer, we can reset it to an integer
+                if (value == static_cast<int64_t>(value)) {
+                    return obj.resetFromInt(static_cast<int64_t>(value));
+				}
                 return obj.resetFromReal(value);
             }
             else {

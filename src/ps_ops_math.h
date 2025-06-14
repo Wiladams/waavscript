@@ -29,15 +29,18 @@ namespace waavs {
     template <typename Func>
     inline bool binaryMathOp(PSVirtualMachine& vm, Func func) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return false;
 
         PSObject b, a;
         s.pop(b); s.pop(a);
 
-        if (!a.isNumber() || !b.isNumber()) return false;
+        if (!a.isNumber() || !b.isNumber()) 
+            return false;
 
         double result = func(a.asReal(), b.asReal());
         s.push(PSObject::fromReal(result));
+
         return true;
     }
 
@@ -46,7 +49,10 @@ namespace waavs {
     inline bool op_add(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a + b; }); }
     inline bool op_sub(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a - b; }); }
     inline bool op_mul(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a * b; }); }
-    inline bool op_div(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return a / b; }); }
+    inline bool op_div(PSVirtualMachine& vm) 
+    { 
+        return binaryMathOp(vm, [](double a, double b) { return a / b; }); 
+    }
     inline bool op_max(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::max(a, b); }); }
     inline bool op_min(PSVirtualMachine& vm) { return binaryMathOp(vm, [](double a, double b) { return std::min(a, b); }); }
 
@@ -65,8 +71,11 @@ namespace waavs {
         if (s.size() < 2) return false;
         PSObject b, a;
         s.pop(b); s.pop(a);
-        if (!a.isInt() || !b.isInt() || b.asInt() == 0) return false;
-        s.push(PSObject::fromInt(a.asInt() % b.asInt()));
+        if (!a.isInt() || !b.isInt() || b.asInt() == 0) 
+            return false;
+        int modValue = a.asInt() % b.asInt();
+        s.push(PSObject::fromInt(modValue));
+
         return true;
     }
 
@@ -102,7 +111,8 @@ namespace waavs {
     // Random
     inline bool op_rand(PSVirtualMachine& vm) {
         vm.randSeed = (1103515245 * vm.randSeed + 12345) & 0x7FFFFFFF;
-        vm.opStack().push(PSObject::fromInt(vm.randSeed));
+        int randomValue = vm.randSeed;
+        vm.opStack().push(PSObject::fromInt(randomValue));
         return true;
     }
 

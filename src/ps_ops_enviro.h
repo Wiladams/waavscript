@@ -28,7 +28,7 @@ namespace waavs {
             return vm.error("setpagedevice: PageSize must be an array");
 
         // Execute the array to resolve any procedure-based values
-        if (!vm.runArray(pageSizeObj))
+        if (!vm.execProc(pageSizeObj))
             return vm.error("setpagedevice: failed to evaluate PageSize array");
 
         // Retrieve evaluated results from operand stack (height on top)

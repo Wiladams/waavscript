@@ -138,10 +138,7 @@ namespace waavs {
         double startAngle = startAngleObj.asReal();
         double endAngle = endAngleObj.asReal();
 
-        //double startRad = startAngle * (3.141592653589793 / 180.0);
-        //double sweepRad = (endAngle - startAngle) * (3.141592653589793 / 180.0);
 
-        //vm.graphics()->arcTo(cx, cy, radius, startRad, sweepRad);
         vm.graphics()->arcTo(cx, cy, radius, startAngle, endAngle);
 
         return true;
@@ -330,6 +327,33 @@ namespace waavs {
         return true;
     }
 
+    // ( x y width height -- )
+    inline bool op_rectstroke(PSVirtualMachine& vm) {
+        PSObject h, w, y, x;
+        if (!vm.opStack().pop(h)) return vm.error("rectfill: missing height");
+        if (!vm.opStack().pop(w)) return vm.error("rectfill: missing width");
+        if (!vm.opStack().pop(y)) return vm.error("rectfill: missing y");
+        if (!vm.opStack().pop(x)) return vm.error("rectfill: missing x");
+
+        if (!h.isNumber() || !w.isNumber() || !y.isNumber() || !x.isNumber())
+            return vm.error("rectfill: all operands must be numbers");
+
+        double dx = x.asReal();
+        double dy = y.asReal();
+        double dw = w.asReal();
+        double dh = h.asReal();
+
+        auto& path = vm.graphics()->currentPath();
+        path.moveto(dx, dy);
+        path.lineto(dx + dw, dy);
+        path.lineto(dx + dw, dy + dh);
+        path.lineto(dx, dy + dh);
+        path.close();
+
+        vm.graphics()->stroke();
+
+        return true;
+    }
 
     inline bool op_curveto(PSVirtualMachine& vm) {
         auto& stack = vm.opStack();
@@ -467,6 +491,7 @@ namespace waavs {
             { "arcn",          op_arcn },
             { "rectpath",      op_rectpath },
             { "rectfill",      op_rectfill },
+			{ "rectstroke",    op_rectstroke },
 
             // Curves
             { "curveto",       op_curveto },

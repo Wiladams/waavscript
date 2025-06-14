@@ -154,7 +154,7 @@ namespace waavs
         auto& s = vm.opStack();
 
         PSObject top;
-        if (!s.peek(top))
+        if (!s.top(top))
             return false;
 
 
@@ -226,64 +226,7 @@ namespace waavs
     }
 
 
-    inline bool op_forall(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 2)
-            return vm.error("forall: stackunderflow");
-
-        PSObject proc, container;
-        s.pop(proc);
-        s.pop(container);
-
-
-        auto apply = [&](const PSObject& val1, const PSObject* val2 = nullptr) -> bool {
-            if (val2) s.push(*val2);
-            s.push(val1);
-            
-            if (!vm.runArray(proc)) {
-                return vm.error("forall: failed to run procedure");
-			}
-            
-            if (vm.isExitRequested()) {
-                vm.clearExitRequest();
-                return false; // exit terminates loop early
-            }
-            return true;
-            };
-
-        switch (container.type) {
-        case PSObjectType::Array: {
-            for (const auto& val : container.asArray()->elements) {
-                if (!apply(val)) break;
-            }
-            return true;
-        }
-
-        case PSObjectType::String: {
-            auto str = container.asString();
-            for (int i = 0; i < str.length(); ++i) {
-                PSObject obj;
-                uint8_t byte;
-				str.get(i, byte);
-                obj = PSObject::fromInt(static_cast<unsigned char>(byte));
-                if (!apply(obj)) break;
-            }
-            return true;
-        }
-
-        case PSObjectType::Dictionary: {
-            for (const auto& kv : container.asDictionary()->entries()) {
-                PSObject key = PSObject::fromName(kv.first);
-                PSObject val = kv.second;
-                if (!apply(key, &val)) break;
-            }
-            return true;
-        }
-
-        default:
-            return vm.error("forall: unsupported container type");
-        }
-    }
+ 
 
 
 
@@ -405,7 +348,6 @@ namespace waavs
             { "put",     op_put },
             { "length",  op_length },
             { "copy",    op_copy },
-            { "forall",  op_forall },
             { "eq",      op_equality },
             { "ne",      op_ne },
             { "type",    op_type },
