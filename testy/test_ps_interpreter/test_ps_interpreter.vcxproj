@@ -212,6 +212,7 @@
     <ClInclude Include="..\..\src\ps_ops_relational.h" />
     <ClInclude Include="..\..\src\ps_ops_stack.h" />
     <ClInclude Include="..\..\src\ps_ops_string.h" />
+    <ClInclude Include="..\..\src\ps_ops_vm.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
   </ItemGroup>
   <ItemGroup>

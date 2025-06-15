@@ -98,6 +98,9 @@
     <ClInclude Include="..\..\src\ps_ops_enviro.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ps_ops_vm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\docs\code_style.md" />

@@ -26,7 +26,7 @@ namespace waavs {
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-			ctx.fillAll(BLRgba32(127, 127, 127, 255)); // Fill with white background
+			ctx.fillAll(BLRgba32(255, 255, 255, 255)); // Fill with white background
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);
@@ -175,7 +175,7 @@ namespace waavs {
         BLRgba32 convertPaint(const PSPaint& p) const {
             switch (p.kind) {
             case PSPaintKind::GRAY:
-                return BLRgba32(uint8_t(p.gray * 255));
+                return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
             case PSPaintKind::RGB:
                 return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255));
             case PSPaintKind::CMYK: {

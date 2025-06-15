@@ -3,7 +3,6 @@
 
 
 #include "psvmfactory.h"
-#include "ps_interpreter.h"
 
 
 using namespace waavs;
@@ -20,10 +19,7 @@ static void runInterpreter(OctetCursor& src)
 		return;
 	}
 
-	PSInterpreter interp(*vm);
-	interp.interpret(src);
-
-
+	vm->interpret(src);
 }
 
 void runPostScript(const char* sourceText) {

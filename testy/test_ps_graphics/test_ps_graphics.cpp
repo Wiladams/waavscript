@@ -71,7 +71,7 @@ static void test_numeric() {
     299 0 rlineto 
     0 -199 rlineto 
     closepath
-    0.1 setlinewidth stroke
+    2 setlinewidth stroke
 } def
 
 /twocircles {
@@ -86,11 +86,12 @@ static void test_numeric() {
     } repeat
 } def
 
+
+
 gsave 
     70 95 translate 
     rbox 
-    0.6 0.6 scale
-    
+    0.6 0.6 scale   
     43 whiteborder
     90 rotate 11 -13 translate 28 whiteborder
     90 rotate 11 -13 translate 43 whiteborder
@@ -98,7 +99,28 @@ gsave
 grestore
 )||";
 
+    const char* numeric_s2 = R"||(
+/bigcircle {12 12 8 0 360 arc 0 setgray 2 setlinewidth stroke} def
+/littlecircle {12 12 3 0 360 arc 0 setgray 2 setlinewidth stroke } def
+/rbox { 
+    -7 0 moveto 
+    0 199 rlineto 
+    299 0 rlineto 
+    0 -199 rlineto 
+    closepath
+    2 setlinewidth stroke
+} def
+
+bigcircle
+littlecircle
+
+1 0 0 setrgbcolor
+rbox
+
+)||";
+
     runPostscript(numeric_s1);
+    //runPostscript(numeric_s2);
 
 }
 
