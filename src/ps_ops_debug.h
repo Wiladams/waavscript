@@ -11,7 +11,13 @@ namespace waavs {
         case PSObjectType::Int:      os << obj.asInt(); break;
         case PSObjectType::Real:     os << obj.asReal(); break;
         case PSObjectType::Bool:     os << (obj.asBool() ? "true" : "false"); break;
-        case PSObjectType::Name:     os << "/" << obj.asName(); break;
+
+        case PSObjectType::Name:     
+            if (obj.isLiteralName())
+                os << "/";
+            os << obj.asName(); 
+            break;
+        
         case PSObjectType::String:     os << "(" << obj.asString().toString() << ")";break;
         case PSObjectType::Null:     os << "NULL"; break;
         case PSObjectType::Mark:     os << "-MARK-"; break;

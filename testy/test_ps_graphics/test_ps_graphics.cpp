@@ -34,6 +34,74 @@ static void runPostscript(const char* sourceText) {
 }
 
 // ------------ Test Cases ------------
+static void test_current_path()
+{
+	// Let's see if the current path is part of the interpreter's state
+    // or not.
+    const char* test_s1 = R"||(
+newpath
+10 10 moveto
+10 200 lineto
+200 200 lineto
+3 setlinewidth
+
+gsave
+  1 0 0 setrgbcolor
+  9 setlinewidth
+  stroke
+grestore
+
+% do another stroke.  The path should have been preserved
+% as well as the default color (black) and linewidth (1)
+% so a skinny black line atop a thicker red line should be visible.
+stroke        
+
+)||";
+    runPostscript(test_s1);
+}
+
+static void test_numeric() {
+    printf("== Numeric parsing ==\n");
+    const char* numeric_s1 = R"||(
+/bigcircle {12 12 8 0 360 arc 0 setgray .1 setlinewidth stroke} def
+/littlecircle {12 12 3 0 360 arc 0 setgray .1 setlinewidth stroke } def
+/rbox { 
+    -7 0 moveto 
+    0 199 rlineto 
+    299 0 rlineto 
+    0 -199 rlineto 
+    closepath
+    0.1 setlinewidth stroke
+} def
+
+/twocircles {
+    bigcircle 
+    littlecircle 
+} def
+
+/whiteborder {
+    {
+        twocircles 
+        11 0 translate
+    } repeat
+} def
+
+gsave 
+    70 95 translate 
+    rbox 
+    0.6 0.6 scale
+    
+    43 whiteborder
+    90 rotate 11 -13 translate 28 whiteborder
+    90 rotate 11 -13 translate 43 whiteborder
+    90 rotate 11 -13 translate 28 whiteborder
+grestore
+)||";
+
+    runPostscript(numeric_s1);
+
+}
+
 static void test_op_curveto()
 {
     // This will crash the interpreter if tail call optimization is not implemented
@@ -258,7 +326,7 @@ static void truchet()
 0 0 200 290 rectstroke 
 100 145 translate 
 /W 10 def 
-/W2 { W 2 div }  def 
+/W2 { W 2 div } bind def 
 /DRAWUNIT { 
 gsave  
 translate 
@@ -285,7 +353,9 @@ showpage
 static void test_core()
 {
     //test_op_curveto();
-    test_op_arc();
+    //test_op_arc();
+    //test_current_path();
+    test_numeric();
 
     //test_simple();
 
@@ -303,8 +373,8 @@ static void test_idioms()
 
 int main() {
 
-    //test_core();
-    test_idioms();
+    test_core();
+    //test_idioms();
 
     return 0;
 }

@@ -41,9 +41,6 @@
     <ClInclude Include="..\..\src\ps_ops_dictionary.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_interpreter.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\pscore.h">
       <Filter>Header Files</Filter>
     </ClInclude>

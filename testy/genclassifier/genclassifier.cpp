@@ -21,7 +21,6 @@ int main() {
                 flags |= PS_WHITESPACE;
 
             // Delimiters
-            //if (c == '/' || c == '[' || c == ']' || c == '(' || c == ')' || c == '<' || c == '>'
             if ( c == '(' || c == ')' || 
 				c == '<' || c == '>' ||
                 c == '[' || c == ']' || 

@@ -198,7 +198,6 @@
     <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />
     <ClInclude Include="..\..\src\psvmfactory.h" />
-    <ClInclude Include="..\..\src\ps_interpreter.h" />
     <ClInclude Include="..\..\src\ps_lexer.h" />
     <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />

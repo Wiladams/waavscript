@@ -2,13 +2,12 @@
 
 #pragma comment(lib, "blend2d.lib")
 
-#include "psgraphicscontext.h"
-#include "pspaint.h"
-#include "psmatrix.h"
-
-
-#include <blend2d/blend2d.h>
 #include <algorithm>
+#include <blend2d/blend2d.h>
+
+#include "psgraphicscontext.h"
+
+
 
 namespace waavs {
 
@@ -27,7 +26,7 @@ namespace waavs {
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-			ctx.fillAll(BLRgba32(255, 255, 255, 255)); // Fill with white background
+			ctx.fillAll(BLRgba32(127, 127, 127, 255)); // Fill with white background
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);

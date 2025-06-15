@@ -6,7 +6,6 @@
 
 #include "psgraphicstate.h"
 #include "psmatrix.h"
-#include "pspath.h"
 
 
 namespace waavs {
@@ -14,7 +13,6 @@ namespace waavs {
     class PSGraphicsContext {
     protected:
         PSGraphicsStack stateStack;
-        PSPath fCurrentPath;
 		double pageWidth = 612; // Default A4 width in points
 		double pageHeight = 792; // Default A4 height in points
 
@@ -29,21 +27,13 @@ namespace waavs {
         PSGraphicsState* currentState() { return stateStack.get(); }
         PSGraphicsStack& states() { return stateStack; }
 
-		PSPath& currentPath()  { return fCurrentPath; }
+		PSPath& currentPath()  { return currentState()->fCurrentPath; }
         bool currentPoint(double& x, double& y)  {
-            if (fCurrentPath.segments.empty()) {
+            if (currentPath().segments.empty()) {
                 return false; // No current point
             }
-			fCurrentPath.getCurrentPoint(x, y);
+			currentPath().getCurrentPoint(x, y);
             return true;
-
-            //const PSPathSegment& lastSegment = fCurrentPath.segments.back();
-            //if (lastSegment.type == PSPathSegmentType::MoveTo || lastSegment.type == PSPathSegmentType::LineTo) {
-            //    x = lastSegment.x;
-            //    y = lastSegment.y;
-            //    return true;
-            //}
-            //return false; // Last segment is not a point
 		}
 
         // Device information
@@ -181,8 +171,7 @@ namespace waavs {
 
         // --- Drawing operations (stubs) ---
         virtual void stroke() {
-            printf("stroke: %zu path segments\n", fCurrentPath.segments.size());
-            fCurrentPath.reset();
+            printf("stroke: %zu path segments\n", currentPath().segments.size());
         }
 
 
@@ -194,30 +183,30 @@ namespace waavs {
 
         // --- Path construction  ---
         virtual void newpath() {
-            fCurrentPath.reset();
+            currentPath().reset();
         }
 
         virtual void moveto(double x, double y) {
-            fCurrentPath.moveto(x, y);
+            currentPath().moveto(x, y);
         }
 
         virtual void lineto(double x, double y) {
-            fCurrentPath.lineto(x, y);
+            currentPath().lineto(x, y);
         }
 
         virtual void curveto(double x1, double y1, double x2, double y2, double x3, double y3) {
-            fCurrentPath.curveto(x1, y1, x2, y2, x3, y3);
+            currentPath().curveto(x1, y1, x2, y2, x3, y3);
         }
 
         virtual void arcTo(double cx, double cy, double radius, double angle1Deg, double angle2Deg) {
             double startRad = angle1Deg * (PSMatrix::PI / 180.0);
             double sweepRad = (angle2Deg - angle1Deg) * (PSMatrix::PI / 180.0);
-            fCurrentPath.arcTo(cx, cy, radius, startRad, sweepRad);
+            currentPath().arcTo(cx, cy, radius, startRad, sweepRad);
         }
 
 
         virtual void closepath() {
-            fCurrentPath.close();
+            currentPath().close();
         }
 
     };

@@ -50,7 +50,7 @@ namespace waavs {
 		static constexpr bool isWhitespace(uint8_t c) noexcept { return is(c, PS_WHITESPACE); }
 		static constexpr bool isNameChar(uint8_t c) noexcept { return is(c, PS_NAME_CHAR); }
 		static constexpr bool isNumeric(uint8_t c) noexcept { return is(c, PS_NUMERIC); }
-		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (isdigit(c) || c == '+' || c == '-'); }
+		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (isdigit(c) || c == '.' ||c == '+' || c == '-'); }
 		static constexpr bool isHexDigit(uint8_t c) noexcept { return is(c, PS_HEX_DIGIT); }
 		static constexpr bool isDelimiter(uint8_t c) noexcept { return is(c, PS_DELIMITER); }
 		static constexpr bool isCommentStart(uint8_t c) noexcept { return is(c, PS_COMMENT_START); }
@@ -210,73 +210,94 @@ namespace waavs {
 		return true;
 	}
 
-	static bool scanNumberLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
+	static bool scanNumberLexeme(OctetCursor& src, PSLexeme& lex) noexcept
 	{
 		const uint8_t* start = src.begin();
 		const uint8_t* p = start;
 		const uint8_t* end = src.end();
 
-		// Optional sign at the start
-		if (*p == '+' || *p == '-') ++p;
+		if (p >= end)
+			return false;
 
-		// Try to detect radix format: digits followed by '#' (e.g., 16#1A)
-		const uint8_t* radixDigitsStart = p;
+		// Optional sign
+		if (*p == '+' || *p == '-')
+			++p;
+
+		if (p >= end)
+			return false;
+
+		// Try to detect radix format (e.g., 16#1A)
+		const uint8_t* radixStart = p;
 		while (p < end && isdigit(*p)) ++p;
 
 		if (p < end && *p == '#') {
 			++p; // skip '#'
 
 			const uint8_t* valueStart = p;
-			while (p < end && PSCharClass::isNameChar(*p)) ++p; // allow base-36 alphanumerics
+			while (p < end && PSCharClass::isNameChar(*p)) ++p; // base-36 alphanumerics
 
 			if (valueStart < p) {
-				// We have something like 16#1A
 				lex.type = PSLexType::Number;
 				lex.span = OctetCursor(start, p - start);
 				src.fStart = p;
 				return true;
 			}
+			else {
+				return false; // no valid digits after '#'
+			}
 		}
 
-		// Not radix format — try regular number with optional '.' and exponent
+		// Reset to handle regular decimal format
 		p = start;
-		if (*p == '+' || *p == '-') ++p;
+		if (*p == '+' || *p == '-')
+			++p;
 
-		bool hasDigits = false;
 		bool hasDot = false;
 		bool hasExp = false;
+		bool hasDigitsBeforeDot = false;
+		bool hasDigitsAfterDot = false;
 
 		while (p < end) {
 			uint8_t c = *p;
 
 			if (isdigit(c)) {
-				hasDigits = true;
+				if (!hasDot)
+					hasDigitsBeforeDot = true;
+				else
+					hasDigitsAfterDot = true;
 				++p;
 			}
 			else if (c == '.' && !hasDot && !hasExp) {
 				hasDot = true;
 				++p;
 			}
-			else if ((c == 'e' || c == 'E') && hasDigits && !hasExp) {
+			else if ((c == 'e' || c == 'E') && (hasDigitsBeforeDot || hasDigitsAfterDot) && !hasExp) {
 				hasExp = true;
 				++p;
-				if (p < end && (*p == '+' || *p == '-')) ++p;
+				if (p < end && (*p == '+' || *p == '-'))
+					++p;
+
+				const uint8_t* expStart = p;
+				while (p < end && isdigit(*p)) ++p;
+
+				if (expStart == p)
+					return false; // exponent with no digits
 			}
 			else {
 				break;
 			}
 		}
 
-		if (p > start && hasDigits) {
+		if ((hasDigitsBeforeDot || hasDigitsAfterDot) && p > start) {
 			lex.type = PSLexType::Number;
 			lex.span = OctetCursor(start, p - start);
 			src.fStart = p;
 			return true;
 		}
 
-		// Fallback — not a number
 		return false;
 	}
+
 
 
 	// nextPSLexeme

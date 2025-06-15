@@ -34,6 +34,52 @@ static void runPostscript(const char* sourceText) {
 }
 
 // ------------ Test Cases ------------
+static void test_meta() {
+    printf("== Meta Operators ==\n");
+    runPostscript("languagelevel ="); // expect: 3, 2, 1
+}
+
+static void test_numeric() {
+    printf("== Numeric parsing ==\n");
+	const char* numeric_s1 = R"||(
+/bigcircle {12 12 8 0 360 arc 0 setgray .1 setlinewidth stroke} def
+/littlecircle {12 12 3 0 360 arc 0 setgray .1 setlinewidth stroke } def
+/rbox { 
+    -7 0 moveto 
+    0 199 rlineto 
+    299 0 rlineto 
+    0 -199 rlineto 
+    closepath
+    0.1 setlinewidth stroke
+} def
+
+/twocircles {
+    bigcircle 
+    littlecircle 
+} def
+
+/whiteborder {
+    {
+        twocircles 
+        11 0 translate
+    } repeat
+} def
+
+gsave 
+    70 95 translate 
+    rbox 
+    0.6 0.6 scale
+    
+    43 whiteborder
+    90 rotate 11 -13 translate 28 whiteborder
+    90 rotate 11 -13 translate 43 whiteborder
+    90 rotate 11 -13 translate 28 whiteborder
+grestore
+)||";
+
+    runPostscript(numeric_s1); 
+
+}
 
 static void test_arithmetic_ops() {
     printf("== Arithmetic Operators ==\n");
@@ -456,11 +502,12 @@ static void test_dictionary_inline()
 static void test_core()
 {
 	printf("== Core Tests ==\n");
-    test_arithmetic_ops();
-    test_stack_ops();
-    test_control_flow();
+    //test_meta();
+    //test_arithmetic_ops();
+    //test_stack_ops();
+    //test_control_flow();
     //test_debug_ops();
-    test_loop_op();
+    //test_loop_op();
     //test_forall();
     //test_logic();
     //test_procedure();
@@ -473,7 +520,7 @@ static void test_core()
 	//test_matrix_ops();
     //test_unimplemented_op();
     //test_dictionary_inline();
-
+    test_numeric();
 }
 
 static void test_idioms()
@@ -486,9 +533,8 @@ static void test_idioms()
 }
 
 int main() {
-
     test_core();
-    test_idioms();
+    //test_idioms();
 
     return 0;
 }

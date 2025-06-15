@@ -5,6 +5,11 @@ namespace waavs {
 
 
     // ps_ops_enviro.h
+    bool op_languagelevel(PSVirtualMachine& vm) {
+        // Push the current language level (1.0) onto the stack
+        vm.opStack().push(PSObject::fromReal(vm.languageLevel()));
+        return true;
+	}
 
     bool op_setpagedevice(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
@@ -78,6 +83,7 @@ namespace waavs {
 
     inline const PSOperatorFuncMap& getEnviroOps() {
         static const PSOperatorFuncMap table = {
+			{ "languagelevel",   op_languagelevel },
             { "setpagedevice",    op_setpagedevice },
             { "currentpagedevice", op_currentpagedevice },
             { "initgraphics",     op_initgraphics },

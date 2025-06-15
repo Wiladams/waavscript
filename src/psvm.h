@@ -25,6 +25,7 @@ namespace waavs
     struct PSVirtualMachine
     {
     private:
+		int fLanguageLevel = 2; // Default language level
         std::unique_ptr<PSGraphicsContext> graphicsContext_;
         PSOperandStack operandStack_;
         PSExecutionStack executionStack_;
@@ -49,6 +50,10 @@ namespace waavs
             dictionaryStack.push(userdict);   // Highest priority
 
         }
+
+        // Meta Information
+        int languageLevel() const { return fLanguageLevel; }
+		void setLanguageLevel(int level) { fLanguageLevel = level; }
 
         // stack access
         inline PSOperandStack& opStack() { return operandStack_; }

@@ -1,15 +1,14 @@
 
 #include <filesystem>
-
-#include "mappedfile.h"
-
-#include "ps_interpreter.h"
-#include "psvmfactory.h"
-#include "b2dcontext.h"
-
 #include <memory>
 #include <cstdio>
 #include <string>
+
+#include "mappedfile.h"
+#include "psvmfactory.h"
+#include "b2dcontext.h"
+
+
 
 
 using namespace waavs;
@@ -64,8 +63,8 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 	vm->setGraphicsContext(std::move(ctx));
 
 	// Run the interpreter
-	PSInterpreter interp(*vm);
-	interp.interpret(input);
+	//PSInterpreter interp(*vm);
+	vm->interpret(input);
 
 	// If we want, we can save output here
 	static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().writeToFile(outfilename);

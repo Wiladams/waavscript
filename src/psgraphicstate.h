@@ -8,6 +8,8 @@
 
 #include "psmatrix.h"
 #include "pspaint.h"
+#include "pspath.h"
+
 
 namespace waavs {
 
@@ -52,6 +54,10 @@ namespace waavs {
         PSPaint strokePaint = PSPaint::fromGray(0.0); // Default: black
         PSPaint fillPaint = PSPaint::fromGray(0.0);   // Default: black
 
+        PSPath fCurrentPath;
+		PSPath fCurrentClipPath; // Current clipping path
+        
+        
         // Constructors
         PSGraphicsState() = default;
 
