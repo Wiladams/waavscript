@@ -188,9 +188,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\b2dcontext.h" />
+    <ClInclude Include="..\..\src\dictionarystack.h" />
+    <ClInclude Include="..\..\src\ocspan.h" />
     <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\psgraphicscontext.h" />
     <ClInclude Include="..\..\src\psgraphicstate.h" />
+    <ClInclude Include="..\..\src\psimage.h" />
     <ClInclude Include="..\..\src\psmatrix.h" />
     <ClInclude Include="..\..\src\pspaint.h" />
     <ClInclude Include="..\..\src\pspath.h" />

@@ -28,7 +28,7 @@ end
 % Use the dictionary
 minidict begin
 
-/defaults save def
+%/defaults save def
 /textbox {/lm 6 def /bm 0 def /rm 156 def /tm 300 def lm tm mt } def 
 /newline { tm 10 sub /tm exch def lm tm moveto } def 
 /center {dup stringwidth pop 2 div linewidth 2 div exch sub lm add tm moveto } def 
@@ -52,5 +52,5 @@ gsave
 grestore
 
 showpage
-defaults restore
+%defaults restore
 

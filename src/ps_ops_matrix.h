@@ -3,34 +3,8 @@
 
 #include "pscore.h"
 #include "psvm.h"
-#include "psmatrix.h"
 
 namespace waavs {
-    
-    inline bool matrixFromArray(PSArrayHandle h, PSMatrix& out) {
-        if (!h || h->size() != 6 || !h->allNumbers())
-            return false;
-
-        for (size_t i = 0; i < 6; ++i) {
-            PSObject o;
-            if (!h->get(i, o)) return false;
-            out.m[i] = o.asReal();
-        }
-
-        return true;
-    }
-
-    // Helper: Extract matrix from object (matrix or numeric array)
-    inline bool extractMatrix(const PSObject& obj, PSMatrix& out) {
-        if (obj.isMatrix()) {
-            out = obj.asMatrix();
-            return true;
-        }
-        if (obj.isArray()) {
-            return matrixFromArray(obj.asArray(), out);
-        }
-        return false;
-    }
 
 
     // (  ? matrix )

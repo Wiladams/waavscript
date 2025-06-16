@@ -115,7 +115,31 @@ namespace waavs {
             return true;
         }
 
-        // Optional helpers
+        // Search 
+        // Adds to PSString class
+        inline bool search(const PSString& target, PSString& pre, PSString& match, PSString& post) const {
+            if (target.length() == 0 || this->length() < target.length())
+                return false;
+
+            const uint8_t* haystack = this->data();
+            const uint8_t* needle = target.data();
+            size_t haystackLen = this->length();
+            size_t needleLen = target.length();
+
+            for (size_t i = 0; i <= haystackLen - needleLen; ++i) {
+                if (std::memcmp(haystack + i, needle, needleLen) == 0) {
+                    pre = this->getInterval(0, static_cast<uint32_t>(i));
+                    match = target;
+                    post = this->getInterval(static_cast<uint32_t>(i + needleLen), this->length() - (i + needleLen));
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
+
+        // Helpful factory constructors
         static PSString fromSpan(const uint8_t* src, size_t len) {
             return len == 0 ? PSString() : PSString(src, len);
 		}

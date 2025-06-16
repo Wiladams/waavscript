@@ -44,7 +44,7 @@ namespace waavs {
             return vm.error("typecheck: expected int");
 
         int val = obj.asInt();
-        if (val < 0 || val > 2)
+        if (val < 0 || val > 4)
             return vm.error("rangecheck: linejoin must be 0, 1, or 2");
 
         vm.graphics()->setLineJoin(static_cast<PSLineJoin>(val));
@@ -460,6 +460,74 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_image(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 5)
+            return vm.error("stackunderflow");
+
+        // Pop operands in reverse order
+        PSObject procObj, matrixObj, bpcObj, heightObj, widthObj;
+        s.pop(procObj);
+        s.pop(matrixObj);
+        s.pop(bpcObj);
+        s.pop(heightObj);
+        s.pop(widthObj);
+
+        // Validate types
+        if (!procObj.isExecutableArray())
+            return vm.error("typecheck: data source must be a procedure");
+        if (!bpcObj.isInt() || !heightObj.isInt() || !widthObj.isInt())
+            return vm.error("typecheck: width, height, and bpc must be integers");
+
+        int width = widthObj.asInt();
+        int height = heightObj.asInt();
+        int bpc = bpcObj.asInt();
+
+        if (width <= 0 || height <= 0)
+            return vm.error("rangecheck: invalid width or height");
+        if (bpc != 8)
+            return vm.error("rangecheck: only 8-bit grayscale images supported");
+
+        // Extract matrix
+        PSMatrix matrix;
+        if (!extractMatrix(matrixObj, matrix))
+            return vm.error("typecheck: expected array or matrix object");
+
+        // Execute the data source procedure
+        if (!vm.execProc(procObj))
+            return vm.error("exec: failed to execute image data procedure");
+
+        if (s.empty())
+            return vm.error("stackunderflow: no result from image procedure");
+
+        PSObject result;
+        s.pop(result);
+
+        if (!result.isString())
+            return vm.error("typecheck: image procedure must return a string");
+
+        const PSString& str = result.asString();
+        size_t expectedBytes = static_cast<size_t>(width) * height;
+
+        if (str.length() < expectedBytes)
+            return vm.error("rangecheck: insufficient image data");
+
+        // Copy only the required bytes
+        std::vector<uint8_t> imageData;
+        imageData.insert(imageData.end(), str.data(), str.data() + expectedBytes);
+
+        // Create PSImage and delegate to graphics backend
+        PSImage img;
+        img.width = width;
+        img.height = height;
+        img.bitsPerComponent = bpc;
+        img.transform = matrix;
+        img.data = std::move(imageData);
+
+        return vm.graphics()->image(img);
+    }
+
+
 
 
     // Add other graphics operators here...
@@ -500,7 +568,10 @@ namespace waavs {
 
             // Path rendering
             { "stroke",        op_stroke },
-            { "fill",          op_fill }
+            { "fill",          op_fill },
+
+            // Images
+            {"image", op_image }
         };
         return table;
     }

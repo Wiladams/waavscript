@@ -371,6 +371,58 @@ showpage
     runPostscript(test_s1);
 }
 
+static void pbourke_example9()
+{
+    const char *test_s1 = R"||(
+%!
+%%Example 9
+100 200 translate
+26 34 scale
+26 34 8 [26 0 0 34 0 34]
+{<
+ffffffffffffffffffffffffffffffffffffffffffffffffffff
+ff000000000000000000000000000000000000ffffffffffffff
+ff00efefefefefefefefefefefefefefefef0000ffffffffffff
+ff00efefefefefefefefefefefefefefefef00ce00ffffffffff
+ff00efefefefefefefefefefefefefefefef00cece00ffffffff
+ff00efefefefefefefefefefefefefefefef00cecece00ffffff
+ff00efefefefefefefefefefefefefefefef00cececece00ffff
+ff00efefefefefefefefefefefefefefefef00000000000000ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efef000000ef000000ef000000ef0000ef0000efefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efef000000ef00000000ef00000000ef000000efefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efef0000ef00000000000000ef000000ef0000efefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff00efefefefefefefefefefefefefefefefefefefefefef00ff
+ff000000000000000000000000000000000000000000000000ff
+ffffffffffffffffffffffffffffffffffffffffffffffffffff
+>}
+image
+
+showpage
+)||";
+
+    runPostscript(test_s1);
+}
+
 
 static void test_core()
 {
@@ -378,7 +430,6 @@ static void test_core()
     //test_op_arc();
     //test_current_path();
     test_numeric();
-
     //test_simple();
 
 }
@@ -390,13 +441,15 @@ static void test_idioms()
     //radialLines();
     //scaledRectangles();
     //grid();
-    truchet();
+    //truchet();
+    pbourke_example9();
+
 }
 
 int main() {
 
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }

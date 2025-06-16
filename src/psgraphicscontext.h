@@ -6,7 +6,7 @@
 
 #include "psgraphicstate.h"
 #include "psmatrix.h"
-
+#include "psimage.h"
 
 namespace waavs {
 
@@ -179,7 +179,11 @@ namespace waavs {
             printf("PSGraphicsContext::fill() called [not implemented]\n");
         }
 
-
+        virtual bool image(PSImage& img)
+        {
+            printf("PSGraphicsContext::image() [not implemented]\n");
+            return false;
+        }
 
         // --- Path construction  ---
         virtual void newpath() {

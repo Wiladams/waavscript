@@ -73,7 +73,7 @@ namespace waavs {
     }
     
     // string: (n -- string)
-// Creates a string of length n, filled with 0 bytes.
+    // Creates a string of length n, filled with 0 bytes.
     inline bool op_string(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
 
@@ -97,13 +97,44 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_search(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.size() < 2)
+            return vm.error("stackunderflow");
+
+        PSObject needleObj, haystackObj;
+        s.pop(needleObj);
+        s.pop(haystackObj);
+
+        if (!needleObj.isString() || !haystackObj.isString())
+            return vm.error("typecheck: expected strings");
+
+        const PSString& needle = needleObj.asString();
+        const PSString& haystack = haystackObj.asString();
+
+        PSString pre, match, post;
+        if (haystack.search(needle, pre, match, post)) {
+            s.push(PSObject::fromString(post));
+            s.push(PSObject::fromString(match));
+            s.push(PSObject::fromString(pre));
+            s.push(PSObject::fromBool(true));
+        }
+        else {
+            s.push(PSObject::fromString(haystack));
+            s.push(PSObject::fromBool(false));
+        }
+
+        return true;
+    }
+
 
     static const PSOperatorFuncMap& getStringOps()
     {
         static const PSOperatorFuncMap table = {
-            { "cvs",    op_cvs },
-            { "cvn",    op_cvn },
-            { "string", op_string }
+            { "cvs",    op_cvs }
+            ,{ "cvn",    op_cvn }
+            ,{ "string", op_string }
+            ,{ "search", op_search }
         };
         return table;
     }

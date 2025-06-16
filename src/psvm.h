@@ -66,6 +66,8 @@ namespace waavs
         PSGraphicsContext* graphics() { return graphicsContext_.get(); }
         inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) { graphicsContext_ = std::move(ctx);}
 
+        PSDictionaryHandle getSystemDict() const { return systemdict; }
+        PSDictionaryHandle getUserDict() const { return userdict; }
 
 		//=====================================================================
 		// REGISTERING OPERATORS

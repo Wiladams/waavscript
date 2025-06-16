@@ -4,12 +4,30 @@
 namespace waavs {
 
 
-    // ps_ops_enviro.h
     bool op_languagelevel(PSVirtualMachine& vm) {
-        // Push the current language level (1.0) onto the stack
-        vm.opStack().push(PSObject::fromReal(vm.languageLevel()));
+        // Push the current language level onto the stack
+        vm.opStack().push(PSObject::fromInt(vm.languageLevel()));
         return true;
 	}
+
+    bool op_save(PSVirtualMachine& vm) {
+        // Ask the VM for the PSSaveState object handle
+        // push it onto the stack
+        vm.opStack().push(PSObject::fromSave());
+
+        return true;
+    }
+
+    bool op_restore(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty())
+            return vm.error("restore: stack underflow");
+
+        // Pop the saved state from the stack
+        // and apply it to the VM
+
+        return true;
+    }
 
     bool op_setpagedevice(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
@@ -83,6 +101,9 @@ namespace waavs {
 
     inline const PSOperatorFuncMap& getEnviroOps() {
         static const PSOperatorFuncMap table = {
+            { "save",            op_save },                 // Save the current state of the VM
+            { "restore",         op_restore },              // Restore the saved state of the VM
+
 			{ "languagelevel",   op_languagelevel },
             { "setpagedevice",    op_setpagedevice },
             { "currentpagedevice", op_currentpagedevice },

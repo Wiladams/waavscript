@@ -261,8 +261,36 @@ pstack
 end
 )||";
 
-    runPostscript(test_s1);
-    runPostscript(test_s2);
+    const char* test_s3 = R"||(
+/minidict 24 dict def
+minidict begin
+/ld { load def } def
+/gs /gsave ld
+/gr /grestore ld
+/np /newpath ld
+/cp /closepath ld
+/mt /moveto ld
+/rt /rmoveto ld
+/li /lineto ld
+/rl /rlineto ld
+/ct /curveto ld
+/tr /translate ld 
+/st /stroke ld
+/set { gs setlinewidth st gr } def      % use # set to set line width
+/gray {gs setgray fill gr} def          % use # gray, to fill with gray
+/ro /rotate ld
+/rp /repeat ld
+/box {np mt rl rl rl cp set} def        % composite box, no fill
+/circle {np arc set} def                % composite circle, no fill
+end
+
+% Use the dictionary
+minidict begin
+)||";
+
+    //runPostscript(test_s1);
+    //runPostscript(test_s2);
+    runPostscript(test_s3);
 
 }
 
@@ -516,11 +544,11 @@ static void test_core()
     //test_exec();
     //test_op_stopped();
     //test_operator_def();
-    //test_op_dict();
+    test_op_dict();
 	//test_matrix_ops();
     //test_unimplemented_op();
     //test_dictionary_inline();
-    test_numeric();
+    //test_numeric();
 }
 
 static void test_idioms()

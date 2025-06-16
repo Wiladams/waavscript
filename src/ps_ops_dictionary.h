@@ -5,6 +5,33 @@
 
 namespace waavs {
 
+    // Dictionary access
+    inline bool op_systemdict(PSVirtualMachine& vm) {
+        // The system dictionary is always the first dictionary in the stack.
+        auto& s = vm.opStack();
+        if (vm.dictionaryStack.stack.empty()) 
+            return false;
+        
+        // Get the systemdict explicitly from the vm
+        auto systemDict = vm.getSystemDict();
+        if (!systemDict) return vm.error("op_systemdict: dictionary null");
+
+        s.push(PSObject::fromDictionary(systemDict));
+        
+        return true;
+    }
+
+    inline bool op_userdict(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+
+        // Get the userdict explicitly from the vm
+        auto userDict = vm.getUserDict();
+        if (!userDict) return vm.error("op_userdict: dictionary null");
+        s.push(PSObject::fromDictionary(userDict));
+        
+        return true;
+    }
+
     // --- Operator Implementations ---
 
     static bool op_def(PSVirtualMachine& vm) {
@@ -46,7 +73,7 @@ namespace waavs {
         s.pop(dictObj);
 
         if (!dictObj.isDictionary())
-            return vm.error("type mismatch");
+            return vm.error("op_begin: typecheck");
 
         vm.dictionaryStack.push(dictObj.asDictionary());
         return true;
@@ -200,6 +227,9 @@ namespace waavs {
 
     inline const PSOperatorFuncMap& getDictionaryOps() {
         static const PSOperatorFuncMap table = {
+            { "userdict",          op_userdict },
+            { "systemdict",        op_systemdict },
+
             { "def",               op_def },
             { "dict",              op_dict },
             { "begin",             op_begin },

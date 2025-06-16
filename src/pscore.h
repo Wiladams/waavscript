@@ -16,7 +16,7 @@
 #include "ocspan.h"
 #include "psstring.h"
 #include "psmatrix.h"
-
+#include "PSImage.h"
 
 
 // global name table for interned strings.  Anything that is to be a name used
@@ -143,6 +143,7 @@ namespace waavs {
         , Matrix = 'x'
         , Invalid = '?'      // Invalid type, used for uninitialized objects
         , Any = '*'          // Any type, used for generic operations
+        , Save = 'S'         // VM Save state
     };
 
 
@@ -175,6 +176,7 @@ public:
         fIsExec = false;
         return true;
     }
+
 
     bool resetFromInt(int32_t v) {
         reset(); type = PSObjectType::Int; fValue = v; return true;
@@ -214,6 +216,8 @@ public:
         reset(); type = PSObjectType::Mark; fValue = m; return true;
     }
 
+    bool resetFromSave() { reset(); type = PSObjectType::Save; return true; }
+
 
     // Static constructors
     static PSObject fromInt(int32_t v) { PSObject o; o.resetFromInt(v); return o; }
@@ -228,7 +232,7 @@ public:
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
     static PSObject fromMark(const PSMark &m) { PSObject o; o.resetFromMark(m); return o; }
-
+    static PSObject fromSave() { PSObject o; o.resetFromSave(); return o; }
 
     // Accessors using std::get
     template<typename T>
@@ -268,19 +272,21 @@ public:
 
     inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
     inline bool isNumber() const { return isInt() || isReal(); }
-    inline bool isInt() const { return type == PSObjectType::Int; }
-    inline bool isReal() const { return type == PSObjectType::Real; }
-    inline bool isBool() const { return type == PSObjectType::Bool; }
-    inline bool isName() const { return type == PSObjectType::Name; }
+    inline bool isInt() const { return is(PSObjectType::Int); }
+    inline bool isReal() const { return is(PSObjectType::Real); }
+    inline bool isBool() const { return is(PSObjectType::Bool); }
+    inline bool isName() const { return is(PSObjectType::Name); }
     inline bool isLiteralName() const { return isName() && !fIsExec; }
 	inline bool isExecutableName() const { return isName() && fIsExec; }
-    inline bool isString() const { return type == PSObjectType::String; }
-    inline bool isArray() const { return type == PSObjectType::Array; }
+    inline bool isString() const { return is(PSObjectType::String); }
+    inline bool isArray() const { return is(PSObjectType::Array); }
+    inline bool isExecutableArray() const { return isArray() && isExecutable(); }
     inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
     inline bool isOperator() const { return is(PSObjectType::Operator); }
-    inline bool isMark() const { return type == PSObjectType::Mark; }
+    inline bool isMark() const { return is(PSObjectType::Mark); }
     inline bool isMatrix() const { return is(PSObjectType::Matrix); }
-    inline bool isNull() const { return type == PSObjectType::Null; }
+    inline bool isNull() const { return is(PSObjectType::Null); }
+    inline bool isSave() const { return is(PSObjectType::Save); }
 
     // Signature helper
     char typeChar() const { return static_cast<char>(type); }
@@ -477,4 +483,32 @@ namespace waavs {
         PSObjectType kinds[8];  // Max 8 arguments
         uint8_t arity;          // how many arguments are there
     };
+}
+
+// Some helper functions
+namespace waavs {
+    inline bool matrixFromArray(const PSArray &h, PSMatrix& out) {
+        if ( h.size() != 6 || !h.allNumbers())
+            return false;
+
+        for (size_t i = 0; i < 6; ++i) {
+            PSObject o;
+            if (!h.get(i, o)) return false;
+            out.m[i] = o.asReal();
+        }
+
+        return true;
+    }
+
+    // Helper: Extract matrix from object (matrix or numeric array)
+    inline bool extractMatrix(const PSObject& obj, PSMatrix& out) {
+        if (obj.isMatrix()) {
+            out = obj.asMatrix();
+            return true;
+        }
+        if (obj.isArray()) {
+            return matrixFromArray(*obj.asArray(), out);
+        }
+        return false;
+    }
 }

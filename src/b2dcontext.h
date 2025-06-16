@@ -11,16 +11,29 @@
 
 namespace waavs {
 
+    static inline BLStrokeJoin convertLineJoin(PSLineJoin join) {
+        switch (join) {
+        case PSLineJoin::Miter:
+            return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP;
+        case PSLineJoin::Round:
+            return BLStrokeJoin::BL_STROKE_JOIN_ROUND;
+        case PSLineJoin::Bevel:
+            return BLStrokeJoin::BL_STROKE_JOIN_BEVEL;
+        default:
+            return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP; // Default to miter
+        }
+    }
+
     class Blend2DGraphicsContext : public PSGraphicsContext {
     private:
-        BLImage image;
+        BLImage fCanvas;
         BLContext ctx;
 
     public:
         Blend2DGraphicsContext(int width, int height)
-            : image(width, height, BL_FORMAT_PRGB32)
+            : fCanvas(width, height, BL_FORMAT_PRGB32)
         {
-            ctx.begin(image);
+            ctx.begin(fCanvas);
             ctx.clearAll();
 			
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
@@ -33,7 +46,7 @@ namespace waavs {
 
 
             // Flip coordinate system: origin to bottom-left, Y+ goes up
-            double h = image.height();
+            double h = fCanvas.height();
             BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
             flipY.translate(0, -h);
 
@@ -46,7 +59,8 @@ namespace waavs {
             ctx.end();
         }
 
-        const BLImage& getImage() const { return image; }
+        const BLImage& getImage() const { return fCanvas; }
+
 
         void fill() override {
             BLPath blPath;
@@ -85,7 +99,8 @@ namespace waavs {
             ctx.setStrokeStyle(convertPaint(currentState()->strokePaint));
             ctx.setStrokeWidth(currentState()->lineWidth);
             ctx.setStrokeCaps(static_cast<BLStrokeCap>(currentState()->lineCap));
-            ctx.setStrokeJoin(static_cast<BLStrokeJoin>(currentState()->lineJoin));
+            BLStrokeJoin join = convertLineJoin(currentState()->lineJoin);
+            ctx.setStrokeJoin(join);
             ctx.setStrokeMiterLimit(currentState()->miterLimit);
 
             ctx.strokePath(blPath);
@@ -95,7 +110,31 @@ namespace waavs {
         }
 
 
+        bool image(PSImage& img) override
+        {
+            // Create a BLImage object
+            BLImage blimg(img.width, img.height, BLFormat::BL_FORMAT_PRGB32);
+            BLImageData imgData;
+            blimg.getData(&imgData);
 
+            // got pixel by pixel setting each value according to the grayscale
+            // values in the PSImage
+            for (int y = 0; y < img.height; ++y) {
+                for (int x = 0; x < img.width; ++x) {
+                    uint8_t grayValue = img.data[y * img.width + x];
+                    uint32_t pixelValue = (255 << 24) | (grayValue << 16) | (grayValue << 8) | grayValue;
+                    ((uint32_t*)(imgData.pixelData))[(img.height-1-y)*img.width+x] = pixelValue;
+                }
+            }
+
+            BLMatrix2D blTrans = blTransform(img.transform);
+            ctx.save();
+            ctx.applyTransform(blTrans);
+            ctx.blitImage(BLPoint(0, 0), blimg);
+            ctx.restore();
+
+            return true;
+        }
 
     private:
         inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1) {
