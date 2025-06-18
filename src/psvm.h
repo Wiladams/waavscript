@@ -253,7 +253,8 @@ namespace waavs
                 // 2. If it's an operator?  put it on the exec stack
                 // to be executed later.
                 if (resolved.isOperator()) {
-                    return execStack().push(resolved);
+                    return execObject(resolved);
+                    //return execStack().push(resolved);
                 }
 
                 // 3. Name resolves to a procedure?  auto-exec

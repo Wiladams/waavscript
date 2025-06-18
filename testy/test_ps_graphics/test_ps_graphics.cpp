@@ -34,6 +34,27 @@ static void runPostscript(const char* sourceText) {
 }
 
 // ------------ Test Cases ------------
+
+static void test_lines()
+{
+    const char* test_s1 = R"||(
+newpath
+0 10 360 {
+  gsave
+    400 400 translate
+    /y exch def
+    /x 10 def
+    y rotate
+    x y moveto
+    200  y lineto
+    stroke
+  grestore
+} for
+)||";
+
+    runPostscript(test_s1);
+}
+
 static void test_current_path()
 {
 	// Let's see if the current path is part of the interpreter's state
@@ -126,7 +147,6 @@ rbox
 
 static void test_op_curveto()
 {
-    // This will crash the interpreter if tail call optimization is not implemented
     const char* test_s1 = R"||(
 4 setlinewidth
 newpath
@@ -135,8 +155,16 @@ newpath
 stroke
 )||";
 
-    runPostscript(test_s1);
+    const char* test_s3 = R"||(
+newpath
+100 100 moveto
+120 130 140 170 160 160 curveto
+currentpoint
+pstack
+)||";
 
+    runPostscript(test_s1);
+    //runPostscript(test_s3);
 }
 
 static void test_op_arc()
@@ -148,10 +176,21 @@ static void test_op_arc()
 newpath
 200 200 50 0 360 arc
 stroke
+showpage
 )||";
     runPostscript(test_s1);
 }
 
+static void test_op_arcto()
+{
+    const char* test_s1 = R"||(
+100 100 moveto
+150 150 200 100 10 arcto
+4 2 roll lineto lineto  % use the tangent points
+stroke
+)||";
+    runPostscript(test_s1);
+}
 
 //============================================================================
 // Idiomatic Tests
@@ -159,7 +198,6 @@ stroke
 
 static void test_simple()
 {
-    // This will crash the interpreter if tail call optimization is not implemented
     const char* test_s1 = R"||(
 % draw a red triangle
 1 0 0 setrgbcolor    % red
@@ -277,7 +315,7 @@ gsave
 
 0 1 59 {
   /i exch def
-  gsave
+gsave
     i 6 mul rotate         % Rotate CTM by i * 6 degrees
     newpath
     0 0 moveto
@@ -348,7 +386,7 @@ static void truchet()
 0 0 200 290 rectstroke 
 100 145 translate 
 /W 10 def 
-/W2 { W 2 div } bind def 
+/W2 { W 2 div }  def 
 /DRAWUNIT { 
 gsave  
 translate 
@@ -426,30 +464,32 @@ showpage
 
 static void test_core()
 {
+    //test_lines();
     //test_op_curveto();
     //test_op_arc();
+    test_op_arcto();
     //test_current_path();
-    test_numeric();
+    //test_numeric();
     //test_simple();
 
 }
 
 static void test_idioms()
 {
-    //test_flower();
+    test_flower();
 	//gridOfCircles();
     //radialLines();
     //scaledRectangles();
     //grid();
     //truchet();
-    pbourke_example9();
+    //pbourke_example9();
 
 }
 
 int main() {
 
-    //test_core();
-    test_idioms();
+    test_core();
+    //test_idioms();
 
     return 0;
 }

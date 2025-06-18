@@ -44,7 +44,13 @@ namespace waavs {
             stateStack.reset();
         }
 
+        // Do whatever is needed to show the page
+        virtual void onShowPage() {
+            //printf("onShowPage: show the current page\n", pageWidth, pageHeight);
+        }
+
         virtual void showPage() {
+            onShowPage();
             printf("showpage: flush and start new page (%gx%g)\n", pageWidth, pageHeight);
             newpath();            // Clear current path
         }
@@ -187,51 +193,29 @@ namespace waavs {
             return currentState()->fCurrentClipPath; // Return by value (copy)
         }
 
-        PSPath& currentPath() { return currentState()->fCurrentPath; }
-        bool currentPoint(double& x, double& y) {
-            if (currentPath().segments.empty()) {
-                return false; // No current point
-            }
-            currentPath().getCurrentPoint(x, y);
-            return true;
-        }
+        PSPath& currentPath() const { return currentState()->fCurrentPath; }
 
-        virtual void newpath() {
-            currentPath().reset();
-        }
 
-        virtual void moveto(double x, double y) {
-            currentPath().moveto(x, y);
-        }
-
-        virtual void lineto(double x, double y) {
-            currentPath().lineto(x, y);
-        }
-
-        virtual void curveto(double x1, double y1, double x2, double y2, double x3, double y3) {
-            currentPath().curveto(x1, y1, x2, y2, x3, y3);
-        }
-
-        virtual void arcTo(double cx, double cy, double radius, double angle1Deg, double angle2Deg) {
-            double startRad = angle1Deg * (PSMatrix::PI / 180.0);
-            double sweepRad = (angle2Deg - angle1Deg) * (PSMatrix::PI / 180.0);
-            currentPath().arcTo(cx, cy, radius, startRad, sweepRad);
+        virtual bool newpath() {
+            return currentPath().reset();
         }
 
 
-        virtual void closepath() {
-            currentPath().close();
+        virtual bool closepath() {
+            return currentPath().close();
         }
 
 
         // --- Drawing operations (stubs) ---
-        virtual void stroke() {
+        virtual bool stroke() {
             printf("stroke: %zu path segments\n", currentPath().segments.size());
+            return false;
         }
 
 
-        virtual void fill() {
+        virtual bool fill() {
             printf("PSGraphicsContext::fill() called [not implemented]\n");
+            return false;
         }
 
         virtual bool image(PSImage& img)

@@ -44,7 +44,7 @@ namespace waavs {
             return vm.error("typecheck: expected int");
 
         int val = obj.asInt();
-        if (val < 0 || val > 4)
+        if (val < 0 || val > 2)
             return vm.error("rangecheck: linejoin must be 0, 1, or 2");
 
         vm.graphics()->setLineJoin(static_cast<PSLineJoin>(val));
@@ -148,78 +148,116 @@ namespace waavs {
     }
 
     inline bool op_currentpoint(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
+        
         double x = 0.0, y = 0.0;
-
-        if (!vm.graphics()->currentPoint(x, y))
-            return vm.error("nocurrentpoint");
+        if (!path.getCurrentPoint(x, y))
+            return vm.error("currentpoint:nocurrentpoint");
 
         return vm.opStack().push(PSObject::fromReal(x)) && vm.opStack().push(PSObject::fromReal(y));
     }
 
     inline bool op_moveto(PSVirtualMachine& vm) {
-        PSObject y, x;
-        if (!vm.opStack().pop(y) || !vm.opStack().pop(x) || !x.isNumber() || !y.isNumber())
-            return vm.error("typecheck: expected two numbers");
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
 
-        vm.graphics()->moveto(x.asReal(), y.asReal());
+
+        PSObject y, x;
+        if (!s.pop(y) || !s.pop(x) || !x.isNumber() || !y.isNumber())
+            return vm.error("op_moveto:typecheck; expected two numbers");
+
+        if (!path.moveto(x.asReal(), y.asReal()))
+            return vm.error("op_moveto:currentpatherror");
+
         return true;
     }
 
     inline bool op_rmoveto(PSVirtualMachine& vm) {
-        auto& stack = vm.opStack();
-        if (stack.size() < 2) return vm.error("rmoveto: stack underflow");
-
+        auto& s = vm.opStack();
         PSObject dy, dx;
-        stack.pop(dy);
-        stack.pop(dx);
-        if (!dx.isNumber() || !dy.isNumber()) return vm.error("rmoveto: expected two numbers");
 
-        auto* g = vm.graphics();
+        if (!s.pop(dy) || !s.pop(dx) || !dx.isNumber() || !dy.isNumber())
+            return vm.error("op_moveto:typecheck; expected two numbers");
+
+        auto& path = vm.graphics()->currentPath();
+
         double x0{ 0 }, y0{ 0 };
-        g->currentPoint(x0, y0);
-        g->moveto(x0 + dx.asReal(), y0 + dy.asReal());
-        return true;
+        if (!path.getCurrentPoint(x0, y0))
+            return vm.error("op_rmoveto:nocurrentpoint");
+
+        return path.moveto(x0 + dx.asReal(), y0 + dy.asReal());
     }
 
     inline bool op_lineto(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
+
         PSObject y, x;
-        if (!vm.opStack().pop(y) || !vm.opStack().pop(x) || !x.isNumber() || !y.isNumber())
+        if (!s.pop(y) || !s.pop(x) || !x.isNumber() || !y.isNumber())
             return vm.error("typecheck: expected two numbers");
 
-        vm.graphics()->lineto(x.asReal(), y.asReal());
-        return true;
+        return path.lineto(x.asReal(), y.asReal());
     }
 
     inline bool op_rlineto(PSVirtualMachine& vm) {
-        auto& stack = vm.opStack();
-        if (stack.size() < 2) return vm.error("rlineto: stack underflow");
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
 
         PSObject dy, dx;
-        stack.pop(dy);
-        stack.pop(dx);
-        if (!dx.isNumber() || !dy.isNumber()) return vm.error("rlineto: expected two numbers");
+        if (!s.pop(dy) || !s.pop(dx) || !dx.isNumber() || !dy.isNumber())
+            return vm.error("op_rlineto:typecheck; expected two numbers");
 
-        auto* g = vm.graphics();
         double x0, y0;
-        g->currentPoint(x0, y0);
-        g->lineto(x0 + dx.asReal(), y0 + dy.asReal());
-        return true;
+        if (!path.getCurrentPoint(x0, y0)) return vm.error("op_rlineto:nocurrentpoint");
+
+
+        return path.lineto(x0 + dx.asReal(), y0 + dy.asReal());
     }
 
-    inline bool op_arc(PSVirtualMachine& vm) {
+    inline bool op_rectpath(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 5) return vm.error("arc: stackunderflow");
+        auto& path = vm.graphics()->currentPath();
 
-        PSObject endAngleObj, startAngleObj, radiusObj, yObj, xObj;
-        s.pop(endAngleObj);
-        s.pop(startAngleObj);
-        s.pop(radiusObj);
+        if (s.size() < 4)
+            return vm.error("rectpath: stackunderflow");
+
+        PSObject heightObj, widthObj, yObj, xObj;
+        s.pop(heightObj);
+        s.pop(widthObj);
         s.pop(yObj);
         s.pop(xObj);
 
         if (!xObj.isNumber() || !yObj.isNumber() ||
+            !widthObj.isNumber() || !heightObj.isNumber())
+            return vm.error("rectpath: typecheck");
+
+        double x = xObj.asReal();
+        double y = yObj.asReal();
+        double w = widthObj.asReal();
+        double h = heightObj.asReal();
+
+        // Rectangles can have negative width/height, which should still work
+        return path.moveto(x, y)
+            && path.lineto(x + w, y)
+            && path.lineto(x + w, y + h)
+            && path.lineto(x, y + h)
+            && path.lineto(x, y); // Optional final lineto to starting point (not closepath)
+    }
+    
+    // arc - draws an arc from startAngle to endAngle in degrees
+    inline bool op_arc(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
+
+        PSObject endAngleObj, startAngleObj, radiusObj, yObj, xObj;
+        if (!s.pop(endAngleObj) || !s.pop(startAngleObj) ||
+            !s.pop(radiusObj) || !s.pop(yObj) || !s.pop(xObj))
+            return vm.error("stackunderflow");
+
+        if (!xObj.isNumber() || !yObj.isNumber() ||
             !radiusObj.isNumber() || !startAngleObj.isNumber() || !endAngleObj.isNumber())
-            return vm.error("arc: typecheck");
+            return vm.error("typecheck: expected 5 numbers");
 
         double cx = xObj.asReal();
         double cy = yObj.asReal();
@@ -227,23 +265,51 @@ namespace waavs {
         double startAngle = startAngleObj.asReal();
         double endAngle = endAngleObj.asReal();
 
-
-        vm.graphics()->arcTo(cx, cy, radius, startAngle, endAngle);
-
-        return true;
+        return path.arc(cx, cy, radius, startAngle, endAngle);
     }
 
+    // arcn - arc counter-clockwise
+    inline bool op_arcn(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
+
+        if (s.size() < 5)
+            return vm.error("arcn: stackunderflow");
+
+        PSObject endAngleObj, startAngleObj, radiusObj, yObj, xObj;
+        if (!s.pop(endAngleObj) || !s.pop(startAngleObj) || !s.pop(radiusObj) ||
+            !s.pop(yObj) || !s.pop(xObj))
+            return vm.error("arcn: stackunderflow");
+
+        if (!xObj.isNumber() || !yObj.isNumber() || !radiusObj.isNumber() || 
+            !startAngleObj.isNumber() || !endAngleObj.isNumber())
+            return vm.error("arcn: typecheck");
+
+        double cx = xObj.asReal();
+        double cy = yObj.asReal();
+        double radius = radiusObj.asReal();
+        double startDeg = startAngleObj.asReal();
+        double endDeg = endAngleObj.asReal();
+
+        return path.arcCCW(cx, cy, radius, startDeg, endDeg);
+    }
+
+    // arcto - draws an arc to a point (x1, y1) with a radius r, and then to (x2, y2)
     inline bool op_arcto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 5) return vm.error("arcto: stack underflow");
+        auto& path = vm.graphics()->currentPath();
 
-        PSObject rObj, y2Obj, x2Obj, y1Obj, x1Obj;
-        s.pop(rObj); s.pop(y2Obj); s.pop(x2Obj); s.pop(y1Obj); s.pop(x1Obj);
+        if (s.size() < 5)
+            return vm.error("arcto: stackunderflow");
+
+        PSObject y2Obj, x2Obj, y1Obj, x1Obj, rObj;
+        s.pop(y2Obj); s.pop(x2Obj);
+        s.pop(y1Obj); s.pop(x1Obj);
+        s.pop(rObj);
 
         if (!x1Obj.isNumber() || !y1Obj.isNumber() ||
-            !x2Obj.isNumber() || !y2Obj.isNumber() || !rObj.isNumber()) {
-            return vm.error("arcto: expected five numbers");
-        }
+            !x2Obj.isNumber() || !y2Obj.isNumber() || !rObj.isNumber())
+            return vm.error("arcto: typecheck");
 
         double x1 = x1Obj.asReal();
         double y1 = y1Obj.asReal();
@@ -251,139 +317,103 @@ namespace waavs {
         double y2 = y2Obj.asReal();
         double r = rObj.asReal();
 
-        double x0, y0;
-        if (!vm.graphics()->currentPoint(x0, y0))
-            return vm.error("arcto: no current point");
+        double cx, cy;
+        if (!path.getCurrentPoint(cx, cy))
+            return vm.error("arcto: no currentpoint");
 
-        // Vectors
-        double dx1 = x1 - x0, dy1 = y1 - y0;
-        double dx2 = x2 - x1, dy2 = y2 - y1;
+        // Use a helper function that returns the tangent points
+        double xt1, yt1, xt2, yt2;
+        if (!path.arcto(cx, cy, x1, y1, x2, y2, r, xt1, yt1, xt2, yt2))
+            return vm.error("arcto: unable to compute arc");
 
-        double len1 = std::hypot(dx1, dy1);
-        double len2 = std::hypot(dx2, dy2);
-
-        if (len1 == 0.0 || len2 == 0.0 || r <= 0.0)
-            return vm.error("arcto: degenerate input");
-
-        dx1 /= len1; dy1 /= len1;
-        dx2 /= len2; dy2 /= len2;
-
-        double cosA = dx1 * dx2 + dy1 * dy2;
-        double sinA = dx1 * dy2 - dy1 * dx2;
-
-        double angle = std::atan2(sinA, cosA) / 2.0;
-        double tanHalf = std::tan(angle);
-
-        if (std::abs(tanHalf) < 1e-8)
-            return vm.error("arcto: lines nearly collinear");
-
-        double dist = r / tanHalf;
-
-        if (dist > len1 || dist > len2)
-            return vm.error("arcto: radius too large");
-
-        // Points A and B on the lines before and after the corner
-        double ax = x1 - dx1 * dist;
-        double ay = y1 - dy1 * dist;
-        double bx = x1 - dx2 * dist;
-        double by = y1 - dy2 * dist;
-
-        // Add line to arc start
-        vm.graphics()->lineto(ax, ay);
-
-        // Compute arc center
-        double ux = dx1 + dx2;
-        double uy = dy1 + dy2;
-        double ulen = std::hypot(ux, uy);
-        if (ulen == 0.0)
-            return vm.error("arcto: undefined arc center");
-
-        ux /= ulen; uy /= ulen;
-        double cx = x1 - ux * r / std::sin(angle);
-        double cy = y1 - uy * r / std::sin(angle);
-
-        // Convert arc A -> B into cubic Bezier approximation
-        double theta = angle * 2.0;
-        double alpha = std::sin(theta) * (std::sqrt(4 + 3 * std::pow(std::tan(theta / 2), 2)) - 1) / 3;
-
-        // Tangents at A and B
-        double tx1 = ay - cy;
-        double ty1 = cx - ax;
-        double tlen1 = std::hypot(tx1, ty1);
-        tx1 = tx1 / tlen1;
-        ty1 = ty1 / tlen1;
-
-        double tx2 = by - cy;
-        double ty2 = cx - bx;
-        double tlen2 = std::hypot(tx2, ty2);
-        tx2 = tx2 / tlen2;
-        ty2 = ty2 / tlen2;
-
-        // Control points
-        double cp1x = ax + alpha * tx1 * r;
-        double cp1y = ay + alpha * ty1 * r;
-
-        double cp2x = bx + alpha * tx2 * r;
-        double cp2y = by + alpha * ty2 * r;
-
-        // Emit curve
-        vm.graphics()->curveto(cp1x, cp1y, cp2x, cp2y, bx, by);
-
-        // Return the arc tangents
-        return s.push(PSObject::fromReal(ax)) &&
-            s.push(PSObject::fromReal(ay)) &&
-            s.push(PSObject::fromReal(bx)) &&
-            s.push(PSObject::fromReal(by));
-    }
-
-
-    inline bool op_arcn(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 5) return vm.error("arcn: stackunderflow");
-
-        PSObject endAngleObj, startAngleObj, radiusObj, yObj, xObj;
-        s.pop(endAngleObj); s.pop(startAngleObj);
-        s.pop(radiusObj); s.pop(yObj); s.pop(xObj);
-
-        if (!xObj.isNumber() || !yObj.isNumber() ||
-            !radiusObj.isNumber() || !startAngleObj.isNumber() || !endAngleObj.isNumber())
-            return vm.error("arcn: typecheck");
-
-        double cx = xObj.asReal();
-        double cy = yObj.asReal();
-        double radius = radiusObj.asReal();
-        double startAngle = startAngleObj.asReal();
-        double endAngle = endAngleObj.asReal();
-
-        // Note: arcTo uses clockwise sweep, so invert the angle direction
-        double startRad = startAngle * (G_PI / 180.0);
-        double sweepRad = (endAngle - startAngle) * (G_PI / 180.0); // sweep is negative for counter-clockwise
-
-        vm.graphics()->arcTo(cx, cy, radius, startRad, sweepRad);
+        // Push output values (start and end of arc)
+        s.push(PSObject::fromReal(xt1));
+        s.push(PSObject::fromReal(yt1));
+        s.push(PSObject::fromReal(xt2));
+        s.push(PSObject::fromReal(yt2));
 
         return true;
     }
 
-    inline bool op_rectpath(PSVirtualMachine& vm) {
+
+
+ 
+
+    inline bool op_curveto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 4) return vm.error("rectpath: stack underflow");
+        auto& path = vm.graphics()->currentPath();
 
-        PSObject hObj, wObj, yObj, xObj;
-        s.pop(hObj); s.pop(wObj); s.pop(yObj); s.pop(xObj);
+        // Ensure 6 items are available
+        if (s.size() < 6)
+            return vm.error("curveto: stackunderflow");
 
-        if (!xObj.isNumber() || !yObj.isNumber() || !wObj.isNumber() || !hObj.isNumber())
-            return vm.error("rectpath: expected four numbers");
+        PSObject y3, x3, y2, x2, y1, x1;
+        s.pop(y3); s.pop(x3);
+        s.pop(y2); s.pop(x2);
+        s.pop(y1); s.pop(x1);
 
-        double x = xObj.asReal();
-        double y = yObj.asReal();
-        double w = wObj.asReal();
-        double h = hObj.asReal();
+        if (!x1.isNumber() || !y1.isNumber() ||
+            !x2.isNumber() || !y2.isNumber() ||
+            !x3.isNumber() || !y3.isNumber()) {
+            return vm.error("curveto: typecheck");
+        }
 
-        vm.graphics()->moveto(x, y);
-        vm.graphics()->lineto(x + w, y);
-        vm.graphics()->lineto(x + w, y + h);
-        vm.graphics()->lineto(x, y + h);
+        // Validate there's a currentpoint
+        if (!path.hasCurrentPoint())
+            return vm.error("curveto: no currentpoint");
+
+        return path.curveto(
+            x1.asReal(), y1.asReal(),
+            x2.asReal(), y2.asReal(),
+            x3.asReal(), y3.asReal());
+    }
+
+
+    inline bool op_rcurveto(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        auto& path = vm.graphics()->currentPath();
+
+        if (s.size() < 6)
+            return vm.error("rcurveto: stackunderflow");
+
+        PSObject dy3, dx3, dy2, dx2, dy1, dx1;
+        s.pop(dy3); s.pop(dx3);
+        s.pop(dy2); s.pop(dx2);
+        s.pop(dy1); s.pop(dx1);
+
+        if (!dx1.isNumber() || !dy1.isNumber() ||
+            !dx2.isNumber() || !dy2.isNumber() ||
+            !dx3.isNumber() || !dy3.isNumber()) {
+            return vm.error("rcurveto: typecheck");
+        }
+
+        double cx, cy;
+        if (!path.getCurrentPoint(cx, cy))
+            return vm.error("rcurveto: no currentpoint");
+
+        double x1 = cx + dx1.asReal();
+        double y1 = cy + dy1.asReal();
+        double x2 = x1 + dx2.asReal();
+        double y2 = y1 + dy2.asReal();
+        double x3 = x2 + dx3.asReal();
+        double y3 = y2 + dy3.asReal();
+
+        return path.curveto(x1, y1, x2, y2, x3, y3);
+    }
+
+
+    inline bool op_closepath(PSVirtualMachine& vm) {
         vm.graphics()->closepath();
+        return true;
+    }
+
+    inline bool op_stroke(PSVirtualMachine& vm) {
+        vm.graphics()->stroke();
+        return true;
+    }
+
+    inline bool op_fill(PSVirtualMachine& vm) {
+        vm.graphics()->fill();
 
         return true;
     }
@@ -440,77 +470,6 @@ namespace waavs {
         path.close();
 
         vm.graphics()->stroke();
-
-        return true;
-    }
-
-    inline bool op_curveto(PSVirtualMachine& vm) {
-        auto& stack = vm.opStack();
-        if (stack.size() < 6)
-            return vm.error("curveto: stack underflow");
-
-        PSObject y3, x3, y2, x2, y1, x1;
-        stack.pop(y3); stack.pop(x3);
-        stack.pop(y2); stack.pop(x2);
-        stack.pop(y1); stack.pop(x1);
-
-        if (!x1.isNumber() || !y1.isNumber() ||
-            !x2.isNumber() || !y2.isNumber() ||
-            !x3.isNumber() || !y3.isNumber()) {
-            return vm.error("curveto: expected six numbers");
-        }
-
-        vm.graphics()->curveto(
-            x1.asReal(), y1.asReal(),
-            x2.asReal(), y2.asReal(),
-            x3.asReal(), y3.asReal()
-        );
-
-        return true;
-    }
-
-    inline bool op_rcurveto(PSVirtualMachine& vm) {
-        auto& stack = vm.opStack();
-        if (stack.size() < 6) return vm.error("rcurveto: stack underflow");
-
-        PSObject dy3, dx3, dy2, dx2, dy1, dx1;
-        stack.pop(dy3); stack.pop(dx3);
-        stack.pop(dy2); stack.pop(dx2);
-        stack.pop(dy1); stack.pop(dx1);
-
-        if (!dx1.isNumber() || !dy1.isNumber() ||
-            !dx2.isNumber() || !dy2.isNumber() ||
-            !dx3.isNumber() || !dy3.isNumber()) {
-            return vm.error("rcurveto: expected six numbers");
-        }
-
-        auto* g = vm.graphics();
-        double x0, y0;
-        g->currentPoint(x0, y0);
-
-        double x1 = x0 + dx1.asReal();
-        double y1 = y0 + dy1.asReal();
-        double x2 = x1 + dx2.asReal();
-        double y2 = y1 + dy2.asReal();
-        double x3 = x2 + dx3.asReal();
-        double y3 = y2 + dy3.asReal();
-
-        g->curveto(x1, y1, x2, y2, x3, y3);
-        return true;
-    }
-
-    inline bool op_closepath(PSVirtualMachine& vm) {
-        vm.graphics()->closepath();
-        return true;
-    }
-
-    inline bool op_stroke(PSVirtualMachine& vm) {
-        vm.graphics()->stroke();
-        return true;
-    }
-
-    inline bool op_fill(PSVirtualMachine& vm) {
-        vm.graphics()->fill();
 
         return true;
     }

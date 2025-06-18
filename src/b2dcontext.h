@@ -10,6 +10,9 @@
 
 
 namespace waavs {
+    static inline BLMatrix2D blTransform(const PSMatrix& m) {
+        return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+    }
 
     static inline BLStrokeJoin convertLineJoin(PSLineJoin join) {
         switch (join) {
@@ -24,6 +27,96 @@ namespace waavs {
         }
     }
 
+    static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1) {
+        double cos0 = std::cos(t0), sin0 = std::sin(t0);
+        double cos1 = std::cos(t1), sin1 = std::sin(t1);
+
+        double alpha = std::tan((t1 - t0) / 4) * 4.0 / 3.0;
+
+        double x0 = cx + r * cos0;
+        double y0 = cy + r * sin0;
+
+        double x1 = x0 - r * alpha * sin0;
+        double y1 = y0 + r * alpha * cos0;
+
+        double x3 = cx + r * cos1;
+        double y3 = cy + r * sin1;
+
+        double x2 = x3 + r * alpha * sin1;
+        double y2 = y3 - r * alpha * cos1;
+
+        out.cubicTo(x1, y1, x2, y2, x3, y3);
+    }
+
+    bool convertPSPathToBLPath(const PSPath &path, BLPath& out) {
+        static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
+        static constexpr double QUARTER_ARC = 3.14159265358979323846 / 2.0;
+
+        for (const auto& seg : path.segments) {
+            switch (seg.command) {
+            case PSPathCommand::MoveTo:
+                out.moveTo(seg.x1, seg.y1);
+                break;
+
+            case PSPathCommand::LineTo:
+                out.lineTo(seg.x1, seg.y1);
+                break;
+
+            case PSPathCommand::CurveTo:
+                out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
+                break;
+
+            case PSPathCommand::Arc: {
+                double cx = seg.x1;
+                double cy = seg.y1;
+                double radius = seg.x2;
+                double startDeg = seg.x3;
+                double endDeg = seg.y3;
+
+                // Convert angles to radians
+                double startRad = startDeg * DEG_TO_RAD;
+                double endRad = endDeg * DEG_TO_RAD;
+                double sweep = endRad - startRad;
+
+                // Determine number of segments (max 90 degrees per segment)
+                int steps = std::ceil(std::abs(sweep) / QUARTER_ARC);
+                if (steps < 1) steps = 1;
+                double delta = sweep / steps;
+
+                // Add moveTo for start point
+                double startX = cx + radius * std::cos(startRad);
+                double startY = cy + radius * std::sin(startRad);
+                out.moveTo(startX, startY);
+
+                for (int i = 0; i < steps; ++i) {
+                    double t0 = startRad + i * delta;
+                    double t1 = t0 + delta;
+                    emitArcSegmentAsBezier(out, cx, cy, radius, t0, t1);
+                }
+                break;
+            }
+
+            case PSPathCommand::ArcTo: {
+                // This is just a stub placeholder.
+                // If your ArcTo segments remain as raw control parameters,
+                // you will need to store the corner geometry and compute it here.
+
+                // You could optionally call a helper:
+                // emitCornerArcAsBezier(out, ...);
+
+                break; // handled elsewhere or as a placeholder
+            }
+
+            case PSPathCommand::ClosePath:
+                out.close();
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    // Use blend2d library to do actual rendering
     class Blend2DGraphicsContext : public PSGraphicsContext {
     private:
         BLImage fCanvas;
@@ -61,13 +154,18 @@ namespace waavs {
 
         const BLImage& getImage() const { return fCanvas; }
 
+        void onShowPage() override {
+            //printf("onShowPage: show the current page\n", pageWidth, pageHeight);
+            ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
+        }
 
-        void fill() override {
+        bool fill() override {
             BLPath blPath;
             BLMatrix2D blTrans;
 
             blTrans = blTransform(currentState()->ctm);
-            buildBLPath(blPath);
+            if (!convertPSPathToBLPath(currentPath(), blPath))
+                return false;
 
 
             ctx.save(); // Save current state
@@ -82,24 +180,29 @@ namespace waavs {
 
             ctx.restore(); // Restore to previous state
 
+            return true;
         }
 
 
-        void stroke() override {
+        bool stroke() override {
             BLPath blPath;
             BLMatrix2D blTrans;
 
             blTrans = blTransform(currentState()->ctm);
-            buildBLPath(blPath);
+            if (!convertPSPathToBLPath(currentPath(), blPath))
+                return false;
 
 			ctx.save(); // Save current state
 
             ctx.setTransform(blTrans);
 
-            ctx.setStrokeStyle(convertPaint(currentState()->strokePaint));
-            ctx.setStrokeWidth(currentState()->lineWidth);
-            ctx.setStrokeCaps(static_cast<BLStrokeCap>(currentState()->lineCap));
+            BLRgba32 strokeColor = convertPaint(currentState()->strokePaint);
+            double strokeWidth = currentState()->lineWidth;
             BLStrokeJoin join = convertLineJoin(currentState()->lineJoin);
+
+            ctx.setStrokeStyle(strokeColor);
+            ctx.setStrokeWidth(strokeWidth);
+            ctx.setStrokeCaps(static_cast<BLStrokeCap>(currentState()->lineCap));
             ctx.setStrokeJoin(join);
             ctx.setStrokeMiterLimit(currentState()->miterLimit);
 
@@ -107,6 +210,8 @@ namespace waavs {
             currentPath().reset();
 
 			ctx.restore(); // Restore to previous state
+
+            return true;
         }
 
 
@@ -137,79 +242,12 @@ namespace waavs {
         }
 
     private:
-        inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1) {
-            double cos0 = std::cos(t0), sin0 = std::sin(t0);
-            double cos1 = std::cos(t1), sin1 = std::sin(t1);
 
-            double alpha = std::tan((t1 - t0) / 4) * 4.0 / 3.0;
 
-            double x0 = cx + r * cos0;
-            double y0 = cy + r * sin0;
 
-            double x1 = x0 - r * alpha * sin0;
-            double y1 = y0 + r * alpha * cos0;
 
-            double x3 = cx + r * cos1;
-            double y3 = cy + r * sin1;
 
-            double x2 = x3 + r * alpha * sin1;
-            double y2 = y3 - r * alpha * cos1;
 
-            out.cubicTo(x1, y1, x2, y2, x3, y3);
-        }
-
-        void buildBLPath(BLPath& out) {
-            static constexpr double B_PI = 3.14159265358979323846;
-            static constexpr double B_PI_2 = B_PI / 2.0;
-
-            for (const auto& seg : currentPath().segments) {
-                switch (seg.command) {
-                case PSPathCommand::MoveTo:
-                    out.moveTo(seg.x1, seg.y1);
-                    break;
-                case PSPathCommand::LineTo:
-                    out.lineTo(seg.x1, seg.y1);
-                    break;
-                case PSPathCommand::CurveTo:
-                    out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
-                    break;
-
-                case PSPathCommand::ArcTo: {
-                    double centerX = seg.x1;
-                    double centerY = seg.y1;
-                    double radius = seg.x2;
-                    double startRad = seg.x3;
-                    double sweepRad = seg.y3;
-					double startX = centerX + radius * std::cos(startRad);
-					double startY = centerY + radius * std::sin(startRad);
-
-                    // Subdivide arc into Bézier segments
-                    int steps = std::ceil(std::abs(sweepRad) / (B_PI_2)); // At most 90° per cubic
-                    double delta = sweepRad / steps;
-
-                    // do a moveTo before the curveTo that will follow
-					out.moveTo(startX, startY);
-
-                    for (int i = 0; i < steps; ++i) {
-                        double t0 = startRad + i * delta;
-                        double t1 = t0 + delta;
-                        emitArcSegmentAsBezier(out, centerX, centerY, radius, t0, t1);
-                        //cx = centerX + radius * std::cos(t1);
-                        //cy = centerY + radius * std::sin(t1);
-                    }
-                    break;
-                }
-
-                case PSPathCommand::ClosePath:
-                    out.close();
-                    break;
-                }
-            }
-        }
-
-        BLMatrix2D blTransform(const PSMatrix& m) const {
-            return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
-        }
 
         BLRgba32 convertPaint(const PSPaint& p) const {
             switch (p.kind) {
