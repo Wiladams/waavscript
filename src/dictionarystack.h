@@ -11,7 +11,7 @@ namespace waavs {
 
         PSDictionaryStack() {
             // Push global dictionary
-            stack.push_back(PSDictionary::create());
+            //stack.push_back(PSDictionary::create());
         }
 
         void push(PSDictionaryHandle dict) {

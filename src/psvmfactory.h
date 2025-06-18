@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "psvm.h"  
+#include "ps_ops_dictstack.h"
 #include "ps_ops_polymorph.h"
 #include "ps_ops_dictionary.h"
 #include "ps_ops_array.h"
@@ -32,6 +33,7 @@ namespace waavs
 		static inline void registerCoreOps(PSVirtualMachine *vm) 
 		{
 			vm->registerOps(getArrayOps());
+			vm->registerOps(getDictionaryStackOps());
 			vm->registerOps(getControlOps());
 			vm->registerOps(getDebugOps());
 			vm->registerOps(getDictionaryOps());

@@ -39,21 +39,23 @@ namespace waavs {
         PSLineCap lineCap = PSLineCap::Butt;   // 0 = butt, 1 = round, 2 = square
         PSLineJoin lineJoin = PSLineJoin::Miter;  // 0 = miter, 1 = round, 2 = bevel
 
-        // Flatness and dash pattern (future use)
+        // Flatness 
         double flatness = 1.0;
+
+        // Dash pattern for stroking paths
         double dashOffset = 0.0;
         std::vector<double> dashArray;
 
         // Clipping path (not implemented yet — placeholder)
         // May need a region or path representation later
         bool hasClip = false;
+        PSPath fCurrentClipPath; // Current clipping path
+        PSPath fCurrentPath;
 
         // Paint
         PSPaint strokePaint = PSPaint::fromGray(0.0); // Default: black
         PSPaint fillPaint = PSPaint::fromGray(0.0);   // Default: black
 
-        PSPath fCurrentPath;
-		PSPath fCurrentClipPath; // Current clipping path
         
         
         // Constructors
@@ -61,6 +63,14 @@ namespace waavs {
 
         PSGraphicsState(const PSGraphicsState& other) = default;
         PSGraphicsState& operator=(const PSGraphicsState& other) = default;
+
+        double getLineWidth() const { return lineWidth; }
+        double getMiterLimit() const { return miterLimit; }
+        double getFlatness() const { return flatness; }
+        PSLineCap getLineCap() const { return lineCap; }
+        PSLineJoin getLineJoin() const { return lineJoin; }
+        const std::vector<double>& getDashArray() const { return dashArray; }
+        double getDashOffset() const { return dashOffset; }
     };
 
 

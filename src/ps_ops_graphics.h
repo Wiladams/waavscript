@@ -51,7 +51,96 @@ namespace waavs {
         return true;
     }
 
+    // setmiterlimit
+    inline bool op_setmiterlimit(PSVirtualMachine& vm) {
+        PSObject limit;
+        if (!vm.opStack().pop(limit))
+            return vm.error("op_setmiterlimit: stackunderflow");
 
+        if (!limit.isNumber())
+            return vm.error("typecheck");
+
+        double value = limit.asReal(); // works for int or real
+
+        if (value < 1.0)
+            return vm.error("rangecheck");
+
+        vm.graphics()->setMiterLimit(value);
+        return true;
+    }
+
+    // setflat
+    // 
+    inline bool op_setflat(PSVirtualMachine& vm) {
+        PSObject obj;
+        if (!vm.opStack().pop(obj))
+            return vm.error("stackunderflow");
+
+        if (!obj.isNumber())
+            return vm.error("typecheck");
+
+        double flatness = obj.asReal();
+        if (flatness < 0.0)
+            return vm.error("rangecheck");
+
+        vm.graphics()->setFlatness(flatness);
+        return true;
+    }
+
+    // currentflat
+    // Returns the current flatness setting
+    inline bool op_currentflat(PSVirtualMachine& vm) {
+        double flatness = vm.graphics()->getFlatness();
+        vm.opStack().push(PSObject::fromReal(flatness));
+        return true;
+    }
+
+    inline bool op_setdash(PSVirtualMachine& vm) {
+        PSObject offsetObj, patternObj;
+
+        if (!vm.opStack().pop(offsetObj) || !vm.opStack().pop(patternObj))
+            return vm.error("stackunderflow");
+
+        if (!patternObj.isArray() || !offsetObj.isNumber())
+            return vm.error("typecheck");
+
+        const auto arr = patternObj.asArray();
+        std::vector<double> dashPattern;
+        for (const PSObject& elem : arr->elements) {
+            if (!elem.isNumber())
+                return vm.error("typecheck");
+
+            double v = elem.asReal();
+            if (v < 0.0)
+                return vm.error("rangecheck");
+            dashPattern.push_back(v);
+        }
+
+        double offset = offsetObj.asReal();
+        if (offset < 0.0)
+            return vm.error("rangecheck");
+
+        vm.graphics()->setDashPattern(std::move(dashPattern), offset);
+
+        return true;
+    }
+
+
+    // Path building
+    inline bool op_clippath(PSVirtualMachine& vm) {
+        PSPath clipPath = vm.graphics()->getClipPath();  // Retrieves a copy
+        vm.opStack().push(PSObject::fromPath(std::move(clipPath)));
+        return true;
+    }
+
+    //inline bool op_setclippath(PSVirtualMachine& vm) {
+    //    PSObject pathObj;
+    //    if (!vm.opStack().pop(pathObj) || !pathObj.isPath())
+    //        return vm.error("typecheck: expected path object");
+    //    const PSPath& path = pathObj.asPath();
+    //    vm.graphics()->setClipPath(path);
+    //    return true;
+    //}
 
     inline bool op_newpath(PSVirtualMachine& vm) {
         vm.graphics()->newpath();
@@ -546,8 +635,13 @@ namespace waavs {
             { "setlinewidth",  op_setlinewidth },
             { "setlinecap",    op_setlinecap },
             { "setlinejoin",   op_setlinejoin },
+            { "setmiterlimit", op_setmiterlimit },
+            { "setflat",       op_setflat },
+            { "currentflat",   op_currentflat },
+            { "setdash",       op_setdash },
 
             // Path operations
+            { "clippath",      op_clippath },
             { "newpath",       op_newpath },
             { "currentpoint",  op_currentpoint },
             { "moveto",        op_moveto },

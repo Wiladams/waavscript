@@ -24,17 +24,10 @@ namespace waavs {
         }
 
         // --- State access ---
-        PSGraphicsState* currentState() { return stateStack.get(); }
+        PSGraphicsState* currentState() const { return stateStack.get(); }
         PSGraphicsStack& states() { return stateStack; }
 
-		PSPath& currentPath()  { return currentState()->fCurrentPath; }
-        bool currentPoint(double& x, double& y)  {
-            if (currentPath().segments.empty()) {
-                return false; // No current point
-            }
-			currentPath().getCurrentPoint(x, y);
-            return true;
-		}
+
 
         // Device information
         virtual void setPageSize(double w, double h) {
@@ -70,6 +63,15 @@ namespace waavs {
             stateStack.grestore();
         }
 
+        virtual void initClipPath() {
+            PSPath& clip = currentState()->fCurrentClipPath;
+            clip.reset();
+            clip.moveto(0, 0);
+            clip.lineto(pageWidth, 0);
+            clip.lineto(pageWidth, pageHeight);
+            clip.lineto(0, pageHeight);
+            clip.close();
+        }
 
         virtual void initGraphics() {
             reset();              // Clear state stack
@@ -77,6 +79,7 @@ namespace waavs {
             newpath();            // Clear current path
             setRGB(0, 0, 0);      // Default black color
             setLineWidth(1);      // Default line width
+            initClipPath();      // Default clip path
         }
 
 
@@ -152,12 +155,20 @@ namespace waavs {
             currentState()->lineJoin = join;
         }
 
-        virtual void setMiterLimit(double limit) {
-            currentState()->miterLimit = limit;
+        double getMiterLimit() { return currentState()->getMiterLimit(); }
+        virtual void setMiterLimit(double limit) {currentState()->miterLimit = limit;}
+
+        double getFlatness() { return currentState()->getFlatness(); }
+        virtual void setFlatness(double f) {currentState()->flatness = f;}
+
+        virtual void setDashPattern(const std::vector<double>& pattern, double offset) {
+            currentState()->dashArray = pattern;
+            currentState()->dashOffset = offset;
         }
 
-        virtual void setFlatness(double f) {
-            currentState()->flatness = f;
+        virtual void setDashPattern(std::vector<double>&& pattern, double offset) {
+            currentState()->dashArray = std::move(pattern);
+            currentState()->dashOffset = offset;
         }
 
         // --- Paint (color) ---
@@ -169,23 +180,22 @@ namespace waavs {
             currentState()->fillPaint = paint;
         }
 
-        // --- Drawing operations (stubs) ---
-        virtual void stroke() {
-            printf("stroke: %zu path segments\n", currentPath().segments.size());
-        }
 
-
-        virtual void fill() {
-            printf("PSGraphicsContext::fill() called [not implemented]\n");
-        }
-
-        virtual bool image(PSImage& img)
-        {
-            printf("PSGraphicsContext::image() [not implemented]\n");
-            return false;
-        }
 
         // --- Path construction  ---
+        virtual PSPath getClipPath() const {
+            return currentState()->fCurrentClipPath; // Return by value (copy)
+        }
+
+        PSPath& currentPath() { return currentState()->fCurrentPath; }
+        bool currentPoint(double& x, double& y) {
+            if (currentPath().segments.empty()) {
+                return false; // No current point
+            }
+            currentPath().getCurrentPoint(x, y);
+            return true;
+        }
+
         virtual void newpath() {
             currentPath().reset();
         }
@@ -213,6 +223,22 @@ namespace waavs {
             currentPath().close();
         }
 
+
+        // --- Drawing operations (stubs) ---
+        virtual void stroke() {
+            printf("stroke: %zu path segments\n", currentPath().segments.size());
+        }
+
+
+        virtual void fill() {
+            printf("PSGraphicsContext::fill() called [not implemented]\n");
+        }
+
+        virtual bool image(PSImage& img)
+        {
+            printf("PSGraphicsContext::image() [not implemented]\n");
+            return false;
+        }
     };
 
 } // namespace waavs

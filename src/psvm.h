@@ -68,6 +68,12 @@ namespace waavs
 
         PSDictionaryHandle getSystemDict() const { return systemdict; }
         PSDictionaryHandle getUserDict() const { return userdict; }
+        PSDictionaryHandle setUserDict(PSDictionaryHandle dict)
+        {
+            userdict = dict;
+           // dictionaryStack.setTop(dict);
+            return userdict;
+        }
 
 		//=====================================================================
 		// REGISTERING OPERATORS
@@ -156,8 +162,8 @@ namespace waavs
 
             auto arr = proc.asArray();
             for (const auto& obj : arr->elements) {
-                if (!interpret(obj)) return false;
-
+                //if (!interpret(obj)) return false;
+                if (!execObject(obj)) return false;
 
                 if (isExitRequested()) break;
                 if (isStopRequested()) break;

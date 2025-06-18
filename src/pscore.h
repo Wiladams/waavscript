@@ -16,8 +16,8 @@
 #include "ocspan.h"
 #include "psstring.h"
 #include "psmatrix.h"
-#include "PSImage.h"
-
+#include "psimage.h"
+#include "pspath.h"
 
 // global name table for interned strings.  Anything that is to be a name used
 // in a table as a key, should be interned here.
@@ -126,24 +126,25 @@ namespace waavs {
     };
 
 
-    // --------------------
+// --------------------
 // PSObject Type Enum
 // --------------------
     enum struct PSObjectType : char {
-        Null = 'z'      // Null type, represents a null object
-        , Int = 'i'      // Integer type, represents a 32-bit signed integer
-        , Real = 'f'      // Real type, represents a double-precision floating-point number
-        , Bool = 'b'      // Boolean type, represents a true or false value
-        , Name = 'n'      // Name type, represents an interned name (string)
-        , String = 's'      // String type, represents a PSString object
-        , Array = 'a'
-        , Dictionary = 'd'
-        , Operator = 'O'
-        , Mark = 'm'
-        , Matrix = 'x'
-        , Invalid = '?'      // Invalid type, used for uninitialized objects
-        , Any = '*'          // Any type, used for generic operations
-        , Save = 'S'         // VM Save state
+        Null            = 'z'       // Null type, represents a null object
+        , Int           = 'i'       // Integer type, represents a 32-bit signed integer
+        , Real          = 'f'       // Real type, represents a double-precision floating-point number
+        , Bool          = 'b'       // Boolean type, represents a true or false value
+        , Name          = 'n'       // Name type, represents an interned name (string)
+        , String        = 's'       // String type, represents a PSString object
+        , Array         = 'a'
+        , Dictionary    = 'd'
+        , Operator      = 'O'
+        , Path          = 'p'       // Path type, represents a drawing path
+        , Mark          = 'm'
+        , Matrix        = 'x'
+        , Invalid       = '?'       // Invalid type, used for uninitialized objects
+        , Any           = '*'       // Any type, used for generic operations
+        , Save          = 'S'       // VM Save state
     };
 
 
@@ -157,6 +158,7 @@ private:
         const char*,                         // Name (interned)
         PSOperator,                          // Operator
 		PSMatrix,                            // Matrix
+        PSPath,                              // Path
         PSString,                            // String
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
@@ -212,6 +214,12 @@ public:
     bool resetFromMatrix(const PSMatrix& m) {
         reset(); type = PSObjectType::Matrix; fValue = m; return true;
 	}
+    bool resetFromPath(const PSPath& p) {
+        reset(); type = PSObjectType::Path; fValue = p; return true;
+    }
+    bool resetFromPath(PSPath&& p) {
+        reset(); type = PSObjectType::Path; fValue = std::move(p); return true;
+    }
     bool resetFromMark(const PSMark& m) {
         reset(); type = PSObjectType::Mark; fValue = m; return true;
     }
@@ -231,6 +239,8 @@ public:
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
+    static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
+    static PSObject fromPath(PSPath&& p) { PSObject o; o.resetFromPath(p); return o; }
     static PSObject fromMark(const PSMark &m) { PSObject o; o.resetFromMark(m); return o; }
     static PSObject fromSave() { PSObject o; o.resetFromSave(); return o; }
 
@@ -264,6 +274,7 @@ public:
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
     PSOperator asOperator() const { return as<PSOperator>(); }
 	PSMatrix asMatrix() const { return as<PSMatrix>(); }
+    PSPath asPath() const { return as<PSPath>(); }
 	PSMark asMark() const { return as<PSMark>(); }
 
     // Type checks
@@ -285,6 +296,7 @@ public:
     inline bool isOperator() const { return is(PSObjectType::Operator); }
     inline bool isMark() const { return is(PSObjectType::Mark); }
     inline bool isMatrix() const { return is(PSObjectType::Matrix); }
+    inline bool isPath() const { return is(PSObjectType::Path); }
     inline bool isNull() const { return is(PSObjectType::Null); }
     inline bool isSave() const { return is(PSObjectType::Save); }
 

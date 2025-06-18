@@ -45,16 +45,26 @@ namespace waavs {
 
     static void writeObjectDeep(std::ostream& os, const PSObject& obj);  // Forward declaration
 
-    static void writeArrayDeep(std::ostream& os, const PSArrayHandle arr)
+    static void writeArrayDeep(std::ostream& os, const PSObject & obj)
     {
-        std::cout << "[";
+        PSArrayHandle arr = obj.asArray();
+
+        if (obj.isExecutable())
+            os << '{';
+        else
+            os << "[";
+
         for (size_t i = 0; i < arr->size(); ++i) {
             const PSObject& element = arr->elements[i];
             writeObjectDeep(os, element);
             if (i + 1 < arr->size())
                 std::cout << " ";
         }
-        std::cout << "]";
+
+        if (obj.isExecutable())
+            os << '}';
+        else
+            os << ']';
     }
 
     static void writeDictDeep(std::ostream& os, const PSDictionaryHandle dict)
@@ -102,7 +112,7 @@ namespace waavs {
 
         case PSObjectType::Array:
             if (obj.asArray())
-                writeArrayDeep(os, obj.asArray());
+                writeArrayDeep(os, obj);
             else
                 os << "[]";
             break;
