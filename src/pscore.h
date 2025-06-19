@@ -18,6 +18,8 @@
 #include "psmatrix.h"
 #include "psimage.h"
 #include "pspath.h"
+#include "psfile.h"
+
 
 // global name table for interned strings.  Anything that is to be a name used
 // in a table as a key, should be interned here.
@@ -73,6 +75,7 @@ namespace waavs {
     // Handle aliases for clarity
     using PSArrayHandle = std::shared_ptr<PSArray>;
     using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
+    using PSFileHandle = std::shared_ptr<PSFile>;
 
 	// --------------------
 	// PSMark
@@ -132,7 +135,7 @@ namespace waavs {
     enum struct PSObjectType : char {
         Null            = 'z'       // Null type, represents a null object
         , Int           = 'i'       // Integer type, represents a 32-bit signed integer
-        , Real          = 'f'       // Real type, represents a double-precision floating-point number
+        , Real          = 'r'       // Real type, represents a double-precision floating-point number
         , Bool          = 'b'       // Boolean type, represents a true or false value
         , Name          = 'n'       // Name type, represents an interned name (string)
         , String        = 's'       // String type, represents a PSString object
@@ -140,6 +143,7 @@ namespace waavs {
         , Dictionary    = 'd'
         , Operator      = 'O'
         , Path          = 'p'       // Path type, represents a drawing path
+        , File          = 'F'       // File type, represents a file object
         , Mark          = 'm'
         , Matrix        = 'x'
         , Invalid       = '?'       // Invalid type, used for uninitialized objects
@@ -162,6 +166,7 @@ private:
         PSString,                            // String
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
+        PSFileHandle,                        // File
         PSMark                               // Mark
     >;
 
@@ -208,6 +213,11 @@ public:
     bool resetFromDictionary(PSDictionaryHandle d) {
         reset(); type = PSObjectType::Dictionary; fValue = d; return true;
     }
+
+    bool resetFromFile(PSFileHandle f) {
+        reset(); type = PSObjectType::File; fValue = f; return true;
+    }
+
     bool resetFromOperator(const PSOperator& f) {
         reset(); type = PSObjectType::Operator; fValue = f; fIsExec = true; return true;
     }
@@ -237,6 +247,7 @@ public:
     static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
+    static PSObject fromFile(PSFileHandle f) { PSObject o; o.resetFromFile(f); return o; }
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
     static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
@@ -272,6 +283,7 @@ public:
     PSString asString() const { return as<PSString>(); }
     PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
+    PSFileHandle asFile() const { return as<PSFileHandle>(); }
     PSOperator asOperator() const { return as<PSOperator>(); }
 	PSMatrix asMatrix() const { return as<PSMatrix>(); }
     PSPath asPath() const { return as<PSPath>(); }
@@ -293,6 +305,7 @@ public:
     inline bool isArray() const { return is(PSObjectType::Array); }
     inline bool isExecutableArray() const { return isArray() && isExecutable(); }
     inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
+    inline bool isFile() const { return is(PSObjectType::File); }
     inline bool isOperator() const { return is(PSObjectType::Operator); }
     inline bool isMark() const { return is(PSObjectType::Mark); }
     inline bool isMatrix() const { return is(PSObjectType::Matrix); }

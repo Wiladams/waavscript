@@ -170,10 +170,7 @@ namespace waavs {
         return true;
     }
 
-    static bool op_flush(PSVirtualMachine&) {
-        std::cout.flush();
-        return true;
-    }
+
 
     static bool op_stack(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
@@ -216,7 +213,6 @@ namespace waavs {
             { "==",         op_eqeq },
             { "=",          op_eq },
             { "print",      op_print },
-            { "flush",      op_flush },
             { "stack",      op_stack },
             { "pstack",     op_pstack },
             { "errordict",  op_errordict },

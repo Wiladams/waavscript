@@ -17,6 +17,7 @@
 #include "ps_ops_matrix.h"
 #include "ps_ops_graphics.h"
 #include "ps_ops_enviro.h"
+#include "ps_ops_file.h"
 
 namespace waavs
 {
@@ -46,6 +47,7 @@ namespace waavs
 			vm->registerOps(getMatrixOps());
 			vm->registerOps(getGraphicsOps());
 			vm->registerOps(getEnviroOps());
+            vm->registerOps(getFileOps());
 		}
 
 		// Create a new PSVM instance

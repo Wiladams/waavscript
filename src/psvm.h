@@ -10,6 +10,8 @@
 #include "psstack.h"
 #include "psgraphicscontext.h"
 #include "ps_scanner.h"
+#include "psfile.h"
+
 
 namespace waavs
 {
@@ -32,10 +34,14 @@ namespace waavs
 		bool stopRequested = false;
         bool exitRequested = false;
 
-    public:
-        PSDictionaryStack dictionaryStack;
         PSDictionaryHandle systemdict;
         PSDictionaryHandle userdict;
+
+        std::shared_ptr<PSFile> fCurrentFile; // Current file being processed, if any
+
+    public:
+        PSDictionaryStack dictionaryStack;
+
 
         int32_t randSeed = 1;
 
@@ -54,6 +60,10 @@ namespace waavs
         // Meta Information
         int languageLevel() const { return fLanguageLevel; }
 		void setLanguageLevel(int level) { fLanguageLevel = level; }
+
+        // File Handling
+        std::shared_ptr<PSFile> getCurrentFile() const { return fCurrentFile; }
+        void setCurrentFile(std::shared_ptr<PSFile> file) { fCurrentFile = file; }
 
         // stack access
         inline PSOperandStack& opStack() { return operandStack_; }
