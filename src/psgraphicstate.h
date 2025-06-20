@@ -7,7 +7,7 @@
 #include "psmatrix.h"
 #include "pspaint.h"
 #include "pspath.h"
-
+#include "psfont.h"
 
 namespace waavs {
 
@@ -45,6 +45,9 @@ namespace waavs {
         // Dash pattern for stroking paths
         double dashOffset = 0.0;
         std::vector<double> dashArray;
+
+        // Current font
+        PSObject fCurrentFont; // Handle to the current font
 
         // Clipping path (not implemented yet — placeholder)
         // May need a region or path representation later

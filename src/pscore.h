@@ -56,6 +56,7 @@ namespace waavs {
         // but for the most part, sting interning should be an internal thing
         static const char* INTERN(const OctetCursor& span) { return getTable()->intern(span); }
         static const char* INTERN(const char* cstr) { return getTable()->intern(cstr?cstr:""); }
+        static const char* INTERN(const char *ptr, size_t len) { return getTable()->intern(OctetCursor(ptr, len)); }
     };
 }
 
@@ -69,13 +70,17 @@ namespace waavs {
     struct PSOperator;
     struct PSDictionary;
     struct PSVirtualMachine;
-
+    struct PSFile;
+    struct PSFont;
+    struct PSFontFace;
 
 
     // Handle aliases for clarity
     using PSArrayHandle = std::shared_ptr<PSArray>;
     using PSDictionaryHandle = std::shared_ptr<PSDictionary>;
     using PSFileHandle = std::shared_ptr<PSFile>;
+    using PSFontFaceHandle = std::shared_ptr<PSFontFace>;
+    using PSFontHandle = std::shared_ptr<PSFont>;
 
 	// --------------------
 	// PSMark
@@ -143,7 +148,9 @@ namespace waavs {
         , Dictionary    = 'd'
         , Operator      = 'O'
         , Path          = 'p'       // Path type, represents a drawing path
-        , File          = 'F'       // File type, represents a file object
+        , File          = 'L'       // File type, represents a file object
+        , Font          = 'f'       // Font type, represents a font object
+        , FontFace      = 'F'       // FontFace type, represents a font face object
         , Mark          = 'm'
         , Matrix        = 'x'
         , Invalid       = '?'       // Invalid type, used for uninitialized objects
@@ -167,6 +174,8 @@ private:
         PSArrayHandle,                       // Array
         PSDictionaryHandle,                  // Dictionary
         PSFileHandle,                        // File
+        PSFontFaceHandle,                    // FontFace
+        PSFontHandle,                        // Font
         PSMark                               // Mark
     >;
 
@@ -218,8 +227,16 @@ public:
         reset(); type = PSObjectType::File; fValue = f; return true;
     }
 
+    bool resetFromFontFace(PSFontFaceHandle v) {
+        reset(); type = PSObjectType::FontFace; fValue = v; return true;
+    }
+
+    bool resetFromFont(PSFontHandle v) {
+        reset(); type = PSObjectType::Font; fValue = v; return true;
+    }
+
     bool resetFromOperator(const PSOperator& f) {
-        reset(); type = PSObjectType::Operator; fValue = f; fIsExec = true; return true;
+        reset(); type = PSObjectType::Operator; fIsExec = true; fValue = f; fIsExec = true; return true;
     }
     bool resetFromMatrix(const PSMatrix& m) {
         reset(); type = PSObjectType::Matrix; fValue = m; return true;
@@ -248,6 +265,8 @@ public:
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
     static PSObject fromFile(PSFileHandle f) { PSObject o; o.resetFromFile(f); return o; }
+    static PSObject fromFontFace(PSFontFaceHandle v) { PSObject o; o.resetFromFontFace(v); return o; }
+    static PSObject fromFont(PSFontHandle v) { PSObject o; o.resetFromFont(v); return o; }
     static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
 	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
     static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
@@ -284,6 +303,8 @@ public:
     PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
     PSFileHandle asFile() const { return as<PSFileHandle>(); }
+    PSFontFaceHandle asFontFace() const { return as<PSFontFaceHandle>(); }
+    PSFontHandle asFont() const { return as<PSFontHandle>(); }
     PSOperator asOperator() const { return as<PSOperator>(); }
 	PSMatrix asMatrix() const { return as<PSMatrix>(); }
     PSPath asPath() const { return as<PSPath>(); }
@@ -306,6 +327,8 @@ public:
     inline bool isExecutableArray() const { return isArray() && isExecutable(); }
     inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
     inline bool isFile() const { return is(PSObjectType::File); }
+    inline bool isFontFace() const { return is(PSObjectType::FontFace); }
+    inline bool isFont() const { return is(PSObjectType::Font); }
     inline bool isOperator() const { return is(PSObjectType::Operator); }
     inline bool isMark() const { return is(PSObjectType::Mark); }
     inline bool isMatrix() const { return is(PSObjectType::Matrix); }

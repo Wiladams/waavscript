@@ -120,6 +120,7 @@ namespace waavs
 		LLANGLE,		// for <<
 		RRANGLE,		// for >>
 		Comment,
+        DSCComment,		// %%DSCKeyword value
 		Delimiter,
 		Eof
 	};
@@ -133,28 +134,47 @@ namespace waavs
 }
 
 namespace waavs {
-	static bool scanCommentLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
-	{
-		const uint8_t* start = src.begin();
-		const uint8_t* p = start + 1; // skip '%'
-		const uint8_t* end = src.end();
-		while (p < end && *p != '\n' && *p != '\r') {
+
+    // scanCommentLexeme
+    // Scans a comment lexeme from the input stream.
+    // Comments start with '%' and can be either a single-line comment or a DSC (Document Structuring Convention) comment.
+
+	inline bool scanCommentLexeme(OctetCursor& src, PSLexeme& tok) {
+		const uint8_t* begin = src.fStart;
+		const uint8_t* end = src.fEnd;
+		if (begin >= end || *begin != '%')
+			return false;
+
+		const uint8_t* p = begin + 1;
+
+		// Optional second %
+		bool isDSC = (p < end && *p == '%');
+		if (isDSC) ++p;
+
+		const uint8_t* commentStart = p;
+
+		// Scan to end of line, allowing \n, \r, or \r\n
+		while (p < end && *p != '\n' && *p != '\r')
 			++p;
-		}
-		// Handle line endings
+
+		const uint8_t* commentEnd = p;
+
+		// Consume line ending
 		if (p < end && *p == '\r') {
-			if (p + 1 < end && *(p + 1) == '\n') ++p; // consume \r\n
-			else ++p; // just consume \r
+			++p;
+			if (p < end && *p == '\n') ++p;  // handle \r\n
 		}
 		else if (p < end && *p == '\n') {
-			++p; // consume \n
+			++p;
 		}
-		src.fStart = p; // Update cursor position
-		lex.type = PSLexType::Comment;
-		lex.span = OctetCursor(start, p - start); // span includes '%'
-		
+
+		src.fStart = p;
+
+		tok.type = isDSC ? PSLexType::DSCComment : PSLexType::Comment;
+		tok.span = OctetCursor(begin, commentEnd - begin);  // includes leading %, %% etc.
 		return true;
 	}
+
 
 	// scanStringLexeme
 	//

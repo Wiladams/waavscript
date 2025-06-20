@@ -1,6 +1,7 @@
 
 #include <memory>
 #include <cstdio>
+#include <filesystem>
 
 #include "psvmfactory.h"
 #include "b2dcontext.h"
@@ -11,7 +12,23 @@ using namespace waavs;
 
 std::unique_ptr<PSVirtualMachine> vm;
 
+// Scan all the fonts in the specified directory, making them
+// known to the FontMonger.
+//
+size_t scanFontsInDirectory(const char* dirpath) {
+    namespace fs = std::filesystem;
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(dirpath)) {
+        if (!entry.is_regular_file()) continue;
 
+        auto ext = entry.path().extension().string();
+        if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
+            if (FontMonger::instance().scanFontFile(entry.path().string().c_str()))
+                ++count;
+        }
+    }
+    return count;
+}
 
 static void interactiveLoop()
 {
@@ -26,12 +43,9 @@ static void interactiveLoop()
         if (line == "exit" || line == "quit") {
             break; // exit the loop
         }
-        //try {
-            OctetCursor oc(line.data(), line.size());
-            vm->interpret(oc);
-        //} catch (const std::exception& e) {
-        //    std::fprintf(stderr, "Error: %s\n", e.what());
-        //}
+
+        OctetCursor oc(line.data(), line.size());
+        vm->interpret(oc);
     }
 
 }
@@ -42,6 +56,8 @@ int main() {
     auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(800, 800);
     ctx->initGraphics();
     vm->setGraphicsContext(std::move(ctx));
+
+    scanFontsInDirectory("c:/windows/fonts");
 
     interactiveLoop();
 

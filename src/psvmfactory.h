@@ -18,6 +18,7 @@
 #include "ps_ops_graphics.h"
 #include "ps_ops_enviro.h"
 #include "ps_ops_file.h"
+#include "ps_ops_font.h"
 
 namespace waavs
 {
@@ -48,6 +49,7 @@ namespace waavs
 			vm->registerOps(getGraphicsOps());
 			vm->registerOps(getEnviroOps());
             vm->registerOps(getFileOps());
+            vm->registerOps(getFontOps());
 		}
 
 		// Create a new PSVM instance

@@ -229,6 +229,11 @@ namespace waavs
                 case PSObjectType::Matrix:
                 case PSObjectType::Mark:
                 case PSObjectType::Null:
+                case PSObjectType::Save:
+                case PSObjectType::File:
+                case PSObjectType::Font:
+                case PSObjectType::FontFace:
+                default:
                     opStack().push(obj);
                     return true;
 
@@ -242,55 +247,51 @@ namespace waavs
                     }
                 }
 
-            case PSObjectType::Name: {
+                case PSObjectType::Name: {
 
-                // 1. If It's a literal name= ("/foo"), push to opStack as literal
-                if (obj.isLiteralName())
-                    return opStack().push(obj);
+                    // 1. If It's a literal name= ("/foo"), push to opStack as literal
+                    if (obj.isLiteralName())
+                        return opStack().push(obj);
 
-                // If it's not a literal name, then it's something we should lookup
-                // It should resolve to either an executable thing (operator,procedure)
-                // or it will be another literal, which can just be put on the opStack
-                const char* name = obj.asName();
-                PSObject resolved;
-
-
-                if (!dictionaryStack.load(name, resolved)) {
-                    return error("undefined name", name);
-                }
+                    // If it's not a literal name, then it's something we should lookup
+                    // It should resolve to either an executable thing (operator,procedure)
+                    // or it will be another literal, which can just be put on the opStack
+                    const char* name = obj.asName();
+                    PSObject resolved;
 
 
-                // 2. If it's an operator?  put it on the exec stack
-                // to be executed later.
-                if (resolved.isOperator()) {
-                    return execObject(resolved);
+                    if (!dictionaryStack.load(name, resolved)) {
+                        return error("undefined name", name);
+                    }
+
+
+                    // 2. If it's an operator?  put it on the exec stack
+                    // to be executed later.
+                    if (resolved.isOperator()) {
+                        return execObject(resolved);
                     //return execStack().push(resolved);
+                    }
+
+                    // 3. Name resolves to a procedure?  auto-exec
+                    if (resolved.isArray() && resolved.asArray()->isProcedure()) {
+                        return execProc(resolved);
+                    }
+
+                    // 4. Otherwise, it's a literal value, push to operand stack
+                    opStack().push(resolved);
+                    return true;
                 }
 
-                // 3. Name resolves to a procedure?  auto-exec
-                if (resolved.isArray() && resolved.asArray()->isProcedure()) {
-                    return execProc(resolved);
+                case PSObjectType::Array: {
+                    auto arr = obj.asArray();
+                    if (!arr)
+                        return error("execute::Array null array");
+
+
+                    opStack().push(obj); // treat it as a literal, for later execution
+                        return true;
                 }
 
-                // 4. Otherwise, it's a literal value, push to operand stack
-                opStack().push(resolved);
-                return true;
-            }
-
-            case PSObjectType::Array: {
-                auto arr = obj.asArray();
-                if (!arr)
-                    return error("execute::Array null array");
-
-
-                opStack().push(obj); // treat it as a literal, for later execution
-                return true;
-            }
-
-            //default:
-                // Literal value (number, string, etc.) — push onto operand stack
-                //opStack().push(obj);
-                //return true;
             }
 
             return true;

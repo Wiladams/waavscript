@@ -7,6 +7,8 @@
 #include "psgraphicstate.h"
 #include "psmatrix.h"
 #include "psimage.h"
+#include "psfont.h"
+#include "fontmonger.h"
 
 namespace waavs {
 
@@ -119,7 +121,7 @@ namespace waavs {
             currentState()->ctm.preMultiply(PSMatrix::rotation(angle));
         }
 
-        virtual void transformPoint(double x, double y, double outX, double outY) {
+        virtual void transformPoint(double x, double y, double &outX, double &outY) {
             currentState()->ctm.transformPoint(x, y, outX, outY);
 		}
 
@@ -205,6 +207,33 @@ namespace waavs {
             return currentPath().close();
         }
 
+        // Font handling
+        virtual PSFontFaceHandle findFont(const char * name)
+        {
+            PSFontFaceHandle outHandle;
+            if (!FontMonger::instance().findFontFaceByName(name, outHandle))
+                return nullptr;
+
+            return outHandle;
+        }
+
+        virtual bool setFont(PSFontHandle fh)
+        {
+            if (!fh) {
+                printf("setFont: null font handle\n");
+                return false;
+            }
+            currentState()->fCurrentFont.resetFromFont(fh);
+        }
+
+        virtual PSFontHandle currentFont()
+        {
+            return currentState()->fCurrentFont.asFont();
+        }
+
+        virtual const PSObject& fontObject() const {
+            return currentState()->fCurrentFont;
+        }
 
         // --- Drawing operations (stubs) ---
         virtual bool stroke() {
