@@ -23,25 +23,29 @@ namespace waavs {
             return vm.error("typecheck: expected name for findfont");
 
         // Query FontMonger for the fonthandle associated with the name
-        auto fontName = param.asName();
-        auto handle = g->findFont(param.asName());
-        if (!handle)
+        PSObject fontFace;
+        if (!g->findFont(param.asName(), fontFace))
             return vm.error("failed to find font");
 
         // Push the font object onto the stack
-        return s.push(PSObject::fromFontFace(handle));
+        return s.push(fontFace);
     }
 
     inline bool op_scalefont(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        PSObject size, font;
+        PSObject size, fontFace;
         if (!s.pop(size) || !size.isNumber())
             return vm.error("typecheck: expected number");
-        if (!s.pop(font) || !font.isFont())
-            return vm.error("typecheck: expected font");
+        if (!s.pop(fontFace) || !fontFace.isFontFace())
+            return vm.error("typecheck: expected font face");
 
-        // Stub: Return a scaled font object
-        return vm.error("invalidfont: scalefont not implemented");
+        auto fontHandle = PSFont::createFromSize(fontFace.asFontFace(), size.asReal());
+
+        if (!fontHandle) {
+            return vm.error("invalidfont: failed to create font from size");
+        }
+
+        return s.push(PSObject::fromFont(fontHandle));
     }
 
     inline bool op_makefont(PSVirtualMachine& vm) {

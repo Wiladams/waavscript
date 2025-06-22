@@ -65,10 +65,7 @@ namespace waavs {
         size_t len = psStr.length();
         OctetCursor oc(data, len);
 
-        const char* interned = PSNameTable::INTERN(oc);
-        if (!interned) return vm.error("invalidaccess");
-
-        s.push(PSObject::fromName(interned));
+        s.push(PSObject::fromName(oc));
         return true;
     }
     

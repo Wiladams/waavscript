@@ -14,6 +14,7 @@
 #include <variant>
 
 #include "ocspan.h"
+#include "psname.h"
 #include "psstring.h"
 #include "psmatrix.h"
 #include "psimage.h"
@@ -21,44 +22,7 @@
 #include "psfile.h"
 
 
-// global name table for interned strings.  Anything that is to be a name used
-// in a table as a key, should be interned here.
-namespace waavs {
 
-    struct PSNameTable {
-    private:
-        std::map<std::string, const char*> pool;
-
-        const char* intern(std::string_view sv) {
-            // Attempt to insert a new entry; try_emplace does nothing if key already exists
-            auto [it, inserted] = pool.try_emplace(std::string(sv), nullptr);
-
-            if (inserted) {
-                // Assign the stable c_str() from the key (std::string stored in the map)
-                it->second = it->first.c_str();
-            }
-
-            return it->second;
-        }
-
-        const char* intern(const OctetCursor& span) { return intern(std::string_view(reinterpret_cast<const char*>(span.data()), span.size())); }
-        const char* intern(const char* cstr) { return intern(std::string_view(cstr)); }
-
-        static PSNameTable* getTable() {
-            static std::unique_ptr<PSNameTable> gTable = std::make_unique<PSNameTable>();
-            return gTable.get();
-        }
-
-    public:
-        // NOTE::
-        // These should only be used by things inside pscore.h
-        // there might ba couple of exceptions, like the cvn operator
-        // but for the most part, sting interning should be an internal thing
-        static const char* INTERN(const OctetCursor& span) { return getTable()->intern(span); }
-        static const char* INTERN(const char* cstr) { return getTable()->intern(cstr?cstr:""); }
-        static const char* INTERN(const char *ptr, size_t len) { return getTable()->intern(OctetCursor(ptr, len)); }
-    };
-}
 
 namespace waavs {
     // --------------------
@@ -81,21 +45,34 @@ namespace waavs {
     using PSFileHandle = std::shared_ptr<PSFile>;
     using PSFontFaceHandle = std::shared_ptr<PSFontFace>;
     using PSFontHandle = std::shared_ptr<PSFont>;
+}
 
+// Define this custom hash function here, because we need it
+// to easily use PSName as a key in unordered_map, like PSDictionary
+namespace std {
+    template<> struct hash<waavs::PSName> {
+        size_t operator()(const waavs::PSName& name) const noexcept {
+            return std::hash<const char*>()(name.c_str());
+        }
+    };
+}
+
+namespace waavs
+{
 	// --------------------
 	// PSMark
 	// Used to mark positions on a stack or in a procedure
 	// --------------------
     struct PSMark {
     private:
-		const char* fName = nullptr; // Name of the marker, always interned
+		PSName fName = nullptr; // Name of the marker, always interned
         
     public:
         PSMark(const char* name=nullptr) noexcept
 			: fName(PSNameTable::INTERN(name)) {
 		}
 
-        const char * name() const noexcept { 
+        PSName name() const noexcept { 
             return fName; 
 		}
     };
@@ -107,14 +84,13 @@ namespace waavs {
     using PSOperatorFuncMap = std::unordered_map<const char*, PSOperatorFunc>;
 
     struct PSOperator {
-        const char* name = nullptr;       // Always interned and stable
+        PSName name;       // Always interned and stable
         PSOperatorFunc func = nullptr;
 
         PSOperator() = default;
 
-        PSOperator(const char* opName, PSOperatorFunc f) noexcept
-            : name(nullptr), func(f) {
-			name = PSNameTable::INTERN(opName);
+        PSOperator(const PSName & opName, PSOperatorFunc f) noexcept
+            : name(opName), func(f) {
         }
 
 		// an operator() overload to call the function
@@ -127,7 +103,7 @@ namespace waavs {
 
         // Check if the operator is valid
 		bool isValid() const noexcept { 
-            return (name != nullptr) && (func != nullptr); 
+            return func != nullptr; 
         }
 
 
@@ -166,7 +142,7 @@ private:
         int32_t,                             // Int
         double,                              // Real
         bool,                                // Bool
-        const char*,                         // Name (interned)
+        PSName,                         // Name (interned)
         PSOperator,                          // Operator
 		PSMatrix,                            // Matrix
         PSPath,                              // Path
@@ -204,12 +180,16 @@ public:
         reset(); type = PSObjectType::Bool; fValue = v; return true;
     }
 
-    bool resetFromInternedName(const char* interned) {
-        reset(); type = PSObjectType::Name; fValue =interned; return true;
-	}
-    bool resetFromName(const char* cstr) {
-		return resetFromInternedName(PSNameTable::INTERN(cstr));
+    bool resetFromName(const PSName & n) {
+        reset(); type = PSObjectType::Name; fValue = n; return true;
     }
+
+    bool resetFromInternedName(const char* interned) {
+        reset(); type = PSObjectType::Name; fValue =PSName(interned); return true;
+	}
+    //bool resetFromName(const char* cstr) {
+	//	return resetFromInternedName(PSNameTable::INTERN(cstr));
+    //}
     bool resetFromName(const OctetCursor& oc) {
         return resetFromInternedName(PSNameTable::INTERN(oc));
     }
@@ -258,9 +238,9 @@ public:
     static PSObject fromInt(int32_t v) { PSObject o; o.resetFromInt(v); return o; }
     static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
     static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
-    static PSObject fromName(const char* n) { PSObject o; o.resetFromName(n); return o; }
+    static PSObject fromName(const PSName & n) { PSObject o; o.resetFromName(n); return o; }
 	static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
-	static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
+	//static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
     static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
     static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
     static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
@@ -298,7 +278,8 @@ public:
     int asInt() const { return as<int32_t>(); }
     double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(as<int32_t>()) : as<double>(); }
     bool asBool() const { return as<bool>(); }
-    const char* asName() const { return as<const char*>(); }
+    PSName asName() const { return as<PSName>(); }
+    const char* asNameCStr() const { return as<PSName>().c_str(); } 
     PSString asString() const { return as<PSString>(); }
     PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
     PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
@@ -373,7 +354,7 @@ public:
         PSObjectType operandType(size_t i) const { return (i < count) ? signature.kinds[i] : PSObjectType::Invalid; }
     };
 
-
+    /*
     // --------------------
     // PSDictionary
     // --------------------
@@ -382,7 +363,7 @@ public:
 		// Actual storage for the dictionary entries
 		// the key is an interned string (const char*),
 		// this is reinfoced upon insertion
-        std::unordered_map<const char*, PSObject> fEntries;
+        std::unordered_map<PSName, PSObject> fEntries;
 
         PSDictionary() = default;
 
@@ -399,35 +380,41 @@ public:
             return ptr;
         }
 
-        const std::unordered_map<const char*, PSObject>& entries() const {return fEntries;}
+        const std::unordered_map<PSName, PSObject>& entries() const {return fEntries;}
 
         size_t size() const {return fEntries.size();}
 
-        bool put(const char* key, const PSObject& value) {
-			const char* internedKey = PSNameTable::INTERN(key);
-            fEntries[internedKey] = value;
+        bool put(const PSName &key, const PSObject& value) {
+            fEntries[key] = value;
             return true;
         }
 
-        bool get(const char* key, PSObject& out) const {
-            const char* internedKey = PSNameTable::INTERN(key);
-
-            auto it = fEntries.find(internedKey);
+        bool get(const PSName &key, PSObject& out) const {
+            auto it = fEntries.find(key);
             if (it == fEntries.end()) return false;
             out = it->second;
             return true;
         }
 
-        bool contains(const char* key) const {
-            const char* internedKey = PSNameTable::INTERN(key);
+        bool copyEntryFrom(const PSDictionary& other, const PSName &key) {
+            PSObject value;
+            if (!other.get(key, value)) return false;
+            
+            fEntries[key] = value;
+            return true;
+        }
 
-            return fEntries.find(internedKey) != fEntries.end();
+        bool contains(const PSName &key) const {
+            return fEntries.find(key) != fEntries.end();
         }
 
         void clear() {
             fEntries.clear();
         }
+
+
     };
+    */
 
     // --------------------
     // PSArray
@@ -560,3 +547,4 @@ namespace waavs {
         return false;
     }
 }
+

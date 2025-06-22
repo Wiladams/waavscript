@@ -4,6 +4,8 @@
 #include <memory>
 
 #include "pscore.h"
+#include "psdictionary.h"
+
 
 namespace waavs {
     struct PSDictionaryStack {
@@ -27,13 +29,13 @@ namespace waavs {
             return stack.back();
         }
 
-        bool def(const char * key, const PSObject& value) 
+        bool def(const PSName &key, const PSObject& value) 
         {
 			auto dict = currentdict();
             return dict->put(key, value);
         }
 
-        bool load(const char * key, PSObject& out) const {
+        bool load(const PSName &key, PSObject& out) const {
             for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
                 if ((*it)->get(key, out))
                     return true;
@@ -41,7 +43,7 @@ namespace waavs {
             return false;
         }
 
-        bool store(const char * key, const PSObject& value) {
+        bool store(const PSName &key, const PSObject& value) {
             for (auto it = stack.rbegin(); it != stack.rend(); ++it) 
             {
                 if ((*it)->contains(key)) {

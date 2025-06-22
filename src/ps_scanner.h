@@ -119,9 +119,8 @@ namespace waavs
             obj.setExecutable(true);
             return true;
 
-            // These need to have operators named after them to be dealt with
+            // These have operators named after them to be dealt with
             // op_arraybegin, op_arrayend, op_dictbegin, op_dictend
-            // Their registration must be the token span
             //case PSLexType::LBRACKET:   // [
             //case PSLexType::RBRACKET:   // ]
             //case PSLexType::LLANGLE:    // <<

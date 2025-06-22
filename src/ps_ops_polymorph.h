@@ -283,7 +283,7 @@ namespace waavs
 
         s.pop(obj);
 
-        const char* typeName = "unknown";
+        PSName typeName("unknown");
 
         switch (obj.type) {
         case PSObjectType::Int: typeName = "integertype"; break;

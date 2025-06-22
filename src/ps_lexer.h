@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ocspan.h"
+#include "psname.h"
 
 
 namespace waavs {

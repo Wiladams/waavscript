@@ -96,7 +96,7 @@ namespace waavs {
 
         if (!nameObj.isName()) return false;
 
-        const char* name = nameObj.asName();
+        auto name = nameObj.asName();
         for (const auto& dict : vm.dictionaryStack.stack) {
             if (dict->contains(name)) {
                 s.push(PSObject::fromDictionary(dict));

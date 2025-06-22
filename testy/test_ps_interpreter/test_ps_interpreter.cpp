@@ -530,17 +530,17 @@ static void test_dictionary_inline()
 static void test_core()
 {
 	printf("== Core Tests ==\n");
-    //test_meta();
+    test_meta();
     test_arithmetic_ops();
     test_stack_ops();
     test_control_flow();
-    //test_debug_ops();
-    //test_loop_op();
-    //test_forall();
+    test_debug_ops();
+    test_loop_op();
+    test_forall();
     //test_logic();
-    test_procedure();
-    //test_repeat();
-    //test_nested();
+    //test_procedure();
+    test_repeat();
+    test_nested();
     //test_exec();
     //test_op_stopped();
     //test_operator_def();

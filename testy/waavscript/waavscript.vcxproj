@@ -191,10 +191,12 @@
     <ClInclude Include="..\..\src\mappedfile.h" />
     <ClInclude Include="..\..\src\ocspan.h" />
     <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\psdictionary.h" />
     <ClInclude Include="..\..\src\psfile.h" />
     <ClInclude Include="..\..\src\psfont.h" />
     <ClInclude Include="..\..\src\psgraphicscontext.h" />
     <ClInclude Include="..\..\src\psmatrix.h" />
+    <ClInclude Include="..\..\src\psname.h" />
     <ClInclude Include="..\..\src\pspath.h" />
     <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />

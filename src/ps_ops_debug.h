@@ -15,7 +15,7 @@ namespace waavs {
         case PSObjectType::Name:     
             if (obj.isLiteralName())
                 os << "/";
-            os << obj.asName(); 
+            os << obj.asName().c_str(); 
             break;
         
         case PSObjectType::String:     os << "(" << obj.asString().toString() << ")";break;
@@ -34,7 +34,12 @@ namespace waavs {
             os << "[" << m.m[0] << " " << m.m[1] << " " << m.m[2] << " " << m.m[3] << " " << m.m[4] << " " << m.m[5] << "]";
         }
             break;
-
+        case PSObjectType::FontFace:
+            os << "--FONTFACE--"; break;
+        case PSObjectType::Font:
+            os << "--FONT--"; break;
+        case PSObjectType::File:
+            os << "--FILE--"; break;
         default:
             os << "--UNKNOWN--";
             break;
@@ -76,16 +81,42 @@ namespace waavs {
 
         os << "<<";
         bool first = true;
+
+        dict->forEach([&](PSName key, const PSObject& val) {
+            if (!first)
+                os << " ";
+            first = false;
+
+            os << "/" << key.c_str() << " ";
+            writeObjectDeep(os, val);
+            return true; // continue iteration
+            });
+
+        os << ">>";
+    }
+
+
+    /*
+    static void writeDictDeep(std::ostream& os, const PSDictionaryHandle dict)
+    {
+        if (!dict) {
+            os << "<<NULLDICT>>";
+            return;
+        }
+
+        os << "<<";
+        bool first = true;
         for (const auto& pair : dict->entries()) {
             if (!first) 
                 os << " ";
             
             first = false;
-            os << "/" << pair.first << " ";
+            os << "/" << pair.first.c_str() << " ";
             writeObjectDeep(os, pair.second);
         }
         os << ">>";
     }
+    */
 
     static void writeMatrix(std::ostream& os, const PSMatrix& m) {
         os << "[[" << m.m[0] << " " << m.m[1] << "] ["
@@ -126,7 +157,7 @@ namespace waavs {
 
         case PSObjectType::Operator: {
                 auto op = obj.asOperator();
-                os << "--OP:" << (op.name ? op.name : "UNKNOWN") << "--";
+                os << "--OP:" << (op.name.isValid() ? op.name.c_str() : "UNKNOWN") << "--";
             }
             break;
 
@@ -135,9 +166,11 @@ namespace waavs {
 		    writeMatrix(os, obj.asMatrix());
 
 			break;
-
+        case PSObjectType::FontFace:
+            os << "--FONTFACE:" << std::endl;
+            writeObjectDeep(os, PSObject::fromDictionary(obj.asFontFace()->fDict));
         default:
-            os << "--UNKNOWN--";
+            writeObjectShallow(os, obj);
             break;
         }
     }

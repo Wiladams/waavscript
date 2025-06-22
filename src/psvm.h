@@ -90,7 +90,7 @@ namespace waavs
 		//======================================================================
         // Mass registration of builtin operators.  This is NOT how user
         // defined operators are registered.
-        bool registerBuiltin(const char* name, PSOperatorFunc fn)
+        bool registerBuiltin(const PSName & name, PSOperatorFunc fn)
         {
             PSOperator op(name, fn);
 
@@ -188,11 +188,11 @@ namespace waavs
         bool execName(const PSObject& obj)
         {
             // Lookup the thing in the dictionary stack
-            const char* name = obj.asName();
+            auto name = obj.asName();
             PSObject resolved;
 
             if (!dictionaryStack.load(name, resolved)) {
-                return error("undefined name", name);
+                return error("undefined name", name.c_str());
             }
 
             // 2. If it's an operator?  run it immediately
@@ -243,7 +243,7 @@ namespace waavs
                         return op.func(*this);
                     }
                     else {
-                        return error("PSVirtualMachine::ececute - invalid operator", op.name);
+                        return error("PSVirtualMachine::ececute - invalid operator", op.name.c_str());
                     }
                 }
 
@@ -256,12 +256,12 @@ namespace waavs
                     // If it's not a literal name, then it's something we should lookup
                     // It should resolve to either an executable thing (operator,procedure)
                     // or it will be another literal, which can just be put on the opStack
-                    const char* name = obj.asName();
+                    auto name = obj.asName();
                     PSObject resolved;
 
 
                     if (!dictionaryStack.load(name, resolved)) {
-                        return error("undefined name", name);
+                        return error("undefined name", name.c_str());
                     }
 
 

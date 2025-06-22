@@ -208,13 +208,9 @@ namespace waavs {
         }
 
         // Font handling
-        virtual PSFontFaceHandle findFont(const char * name)
+        virtual bool findFont(const PSName & name, PSObject &outObj)
         {
-            PSFontFaceHandle outHandle;
-            if (!FontMonger::instance().findFontFaceByName(name, outHandle))
-                return nullptr;
-
-            return outHandle;
+            return FontMonger::instance().findFontFaceByName(name, outObj);
         }
 
         virtual bool setFont(PSFontHandle fh)

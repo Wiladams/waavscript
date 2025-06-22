@@ -196,11 +196,22 @@ namespace waavs {
         }
 
         case PSObjectType::Dictionary: {
-            for (const auto& kv : container.asDictionary()->entries()) {
-                PSObject key = PSObject::fromName(kv.first);
-                PSObject val = kv.second;
-                if (!apply(key, &val)) break;
-            }
+            auto applyToDict = [&](const PSName& keyName, const PSObject& val2) -> bool {
+                s.push(val2);
+                s.push(PSObject::fromName(keyName));
+
+                if (!vm.execProc(proc)) {
+                    return vm.error("forall: failed to run procedure");
+                }
+
+                if (vm.isExitRequested()) {
+                    vm.clearExitRequest();
+                    return false; // exit terminates loop early
+                }
+                return true;
+                };
+
+                container.asDictionary()->forEach(applyToDict);
             return true;
         }
 
