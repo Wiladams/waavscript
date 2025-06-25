@@ -202,13 +202,17 @@
     <ClInclude Include="..\..\src\psvm.h" />
     <ClInclude Include="..\..\src\psvmfactory.h" />
     <ClInclude Include="..\..\src\ps_lexer.h" />
+    <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />
     <ClInclude Include="..\..\src\ps_ops_debug.h" />
+    <ClInclude Include="..\..\src\ps_ops_dictionary.h" />
     <ClInclude Include="..\..\src\ps_ops_dictstack.h" />
     <ClInclude Include="..\..\src\ps_ops_file.h" />
     <ClInclude Include="..\..\src\ps_ops_font.h" />
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
+    <ClInclude Include="..\..\src\ps_ops_math.h" />
     <ClInclude Include="..\..\src\ps_ops_matrix.h" />
+    <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

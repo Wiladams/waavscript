@@ -101,24 +101,24 @@ namespace waavs {
         }
 
 
-        virtual PSMatrix getCTM()  {
+        virtual PSMatrix & getCTM()  {
             return currentState()->ctm;
         }
 
         virtual void resetCTM() {
-            currentState()->ctm = PSMatrix::identity();
+            currentState()->ctm.reset();
         }
 
         virtual void translate(double tx, double ty) {
-            currentState()->ctm.preMultiply(PSMatrix::translation(tx, ty));
+            currentState()->ctm.translate(tx, ty);
         }
 
         virtual void scale(double sx, double sy) {
-            currentState()->ctm.preMultiply(PSMatrix::scaling(sx, sy));
+            currentState()->ctm.scale(sx, sy);
         }
 
         virtual void rotate(double angle) {
-            currentState()->ctm.preMultiply(PSMatrix::rotation(angle));
+            currentState()->ctm.rotate(angle, 0, 0);
         }
 
         virtual void transformPoint(double x, double y, double &outX, double &outY) {
@@ -139,6 +139,16 @@ namespace waavs {
             currentState()->fillPaint = PSPaint::fromGray(gray);
         }
 
+        virtual bool getCurrentRgb(double &r, double &g, double &b) const {
+            PSPaint& paint = currentState()->strokePaint;
+            if (paint.isRGB()) {
+                r = paint.r;
+                g = paint.g;
+                b = paint.b;
+                return true;
+            }
+            return false;
+        }
         virtual void setRGB(double r, double g, double b) {
             currentState()->strokePaint = PSPaint::fromRGB(r, g, b);
             currentState()->fillPaint = PSPaint::fromRGB(r, g, b);
@@ -210,7 +220,8 @@ namespace waavs {
         // Font handling
         virtual bool findFont(const PSName & name, PSObject &outObj)
         {
-            return FontMonger::instance().findFontFaceByName(name, outObj);
+            printf("PSGraphicsContext::findFont: Not implemented\n");
+            return false;
         }
 
         virtual bool setFont(PSFontHandle fh)
@@ -240,6 +251,11 @@ namespace waavs {
 
         virtual bool fill() {
             printf("PSGraphicsContext::fill() called [not implemented]\n");
+            return false;
+        }
+
+        virtual bool eofill() {
+            printf("PSGraphicsContext::eofill() called [not implemented]\n");
             return false;
         }
 

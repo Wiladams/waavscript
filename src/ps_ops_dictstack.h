@@ -6,18 +6,13 @@
 namespace waavs {
     // Dictionary access
     inline bool op_systemdict(PSVirtualMachine& vm) {
-        // The system dictionary is always the first dictionary in the stack.
         auto& s = vm.opStack();
-        if (vm.dictionaryStack.stack.empty())
-            return false;
 
         // Get the systemdict explicitly from the vm
         auto systemDict = vm.getSystemDict();
         if (!systemDict) return vm.error("op_systemdict: dictionary null");
 
-        s.push(PSObject::fromDictionary(systemDict));
-
-        return true;
+        return s.push(PSObject::fromDictionary(systemDict));
     }
 
     inline bool op_userdict(PSVirtualMachine& vm) {
@@ -26,9 +21,8 @@ namespace waavs {
         // Get the userdict explicitly from the vm
         auto userDict = vm.getUserDict();
         if (!userDict) return vm.error("op_userdict: dictionary null");
-        s.push(PSObject::fromDictionary(userDict));
-
-        return true;
+        
+        return s.push(PSObject::fromDictionary(userDict));
     }
 
     static bool op_currentdict(PSVirtualMachine& vm) {
@@ -43,20 +37,17 @@ namespace waavs {
     // countdictstack
     // Count the number of dictionaries in the dictionary stack, including the userdict and systemdict.
     static bool op_countdictstack(PSVirtualMachine& vm) {
-        int count = static_cast<int>(vm.dictionaryStack.stack.size());
-        vm.opStack().push(PSObject::fromInt(count));
+        size_t count = 0;
+        vm.dictionaryStack.getCount(count);
+        vm.opStack().push(PSObject::fromInt(static_cast<int>(count)));
+
         return true;
     }
 
     // Create an array from all the items in the dictionary stack
     // and push that array onto the operand stack
     inline bool op_dictstack(PSVirtualMachine& vm) {
-        const auto& stack = vm.dictionaryStack.stack;
-        auto arr = PSArray::create();
-        
-        for (auto& dict : stack) {
-            arr->append(PSObject::fromDictionary(dict));
-        }
+        auto arr = vm.dictionaryStack.getStack();
         
         vm.opStack().push(PSObject::fromArray(arr));
 
@@ -69,12 +60,8 @@ namespace waavs {
     // dictionary on the stack.
     inline bool op_cleardictstack(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (vm.dictionaryStack.stack.empty()) return false;
 
-        // Clear all dictionaries except the userdict and systemdict
-        while (vm.dictionaryStack.stack.size() > 1) {
-            vm.dictionaryStack.pop();
-        }
+        vm.dictionaryStack.clear();
 
         // Reset the userdict to an empty dictionary
         auto userDict = PSDictionary::create();
@@ -97,15 +84,15 @@ namespace waavs {
         if (!nameObj.isName()) return false;
 
         auto name = nameObj.asName();
-        for (const auto& dict : vm.dictionaryStack.stack) {
-            if (dict->contains(name)) {
-                s.push(PSObject::fromDictionary(dict));
-                s.push(PSObject::fromBool(true));
-                return true;
-            }
+        PSDictionaryHandle dict;
+        if (vm.dictionaryStack.where(name, dict))
+        {
+            s.push(PSObject::fromDictionary(dict));
+            s.push(PSObject::fromBool(true));
+        } else {
+            s.push(PSObject::fromBool(false));
         }
 
-        s.push(PSObject::fromBool(false));
         return true;
     }
 

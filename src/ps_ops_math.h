@@ -131,6 +131,23 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_cvi(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        if (s.empty())
+            return vm.error("stackunderflow");
+
+        PSObject top = s.pop();
+
+        if (!top.isNumber())
+            return vm.error("typecheck: cvi requires a numeric operand");
+
+        double val = top.asReal();
+        int32_t ival = static_cast<int32_t>(val); // truncate toward zero
+
+        s.push(PSObject::fromInt(ival));
+        return true;
+    }
+
     // ----- Operator Map -----
 
     inline const PSOperatorFuncMap& getMathOps() {
@@ -158,7 +175,9 @@ namespace waavs {
             { "log",      op_log },
             { "rand",     op_rand },
             { "srand",    op_srand },
-            { "rrand",    op_rrand }
+            { "rrand",    op_rrand },
+
+            { "cvi",      op_cvi },
         };
         return table;
     }

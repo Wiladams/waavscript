@@ -31,12 +31,12 @@ namespace waavs {
             
         }
 
-        void set(const char* key, const PSObject& value) 
+        void set(const PSName & key, const PSObject& value) 
         {
             fDict->put(key, value);
         }
 
-        bool get(const char* key, PSObject& out) const {
+        bool get(const PSName & key, PSObject& out) const {
             return fDict->get(key, out);
         }
 
@@ -89,6 +89,24 @@ namespace waavs {
         PSDictionaryHandle fDict;       // Dictionary exposed as /currentfont
 
         PSFont() : fDict(PSDictionary::create()) {}
+        PSFont(const PSFontFaceHandle& face, const PSMatrix &fontMatrix) : fDict(PSDictionary::create())
+        {
+            if (!face) return; // Ensure face is valid
+
+            fDict->put("FontFace", PSObject::fromFontFace(face)); // Store the face reference
+            fDict->copyEntryFrom(*face->fDict.get(), "FontName"); // Copy the font name from the face
+
+            // scale face matrix by size
+            PSObject faceMatrixObj;
+
+            if (face->get("FontMatrix", faceMatrixObj)) {
+                PSMatrix faceMatrix = faceMatrixObj.asMatrix();
+                //fontMatrix. = faceMatrixObj.asMatrix();
+            }
+
+            fDict->put("FontMatrix", PSObject::fromMatrix(fontMatrix));
+        }
+
         PSFont(const PSFontFaceHandle&face, double size) : fDict(PSDictionary::create())
         {
             if (!face) return; // Ensure face is valid
@@ -109,12 +127,12 @@ namespace waavs {
             fDict->put("FontMatrix", PSObject::fromMatrix(fontMatrix));
         }
 
-        void set(const char* key, const PSObject& value) 
+        void set(const PSName & key, const PSObject& value) 
         {
             fDict->put(key, value);
         }
 
-        bool get(const char* key, PSObject& out) const {
+        bool get(const PSName & key, PSObject& out) const {
             return fDict->get(key, out);
         }
 
@@ -126,21 +144,15 @@ namespace waavs {
             return font;
         }
 
-        /*
+        
         static PSFontHandle createFromMatrix(const PSFontFaceHandle& face, const PSMatrix& m) {
             if (!face) return nullptr;
 
-            auto font = std::make_shared<PSFont>();
-            font->set("FontFace", PSObject::fromFontFace(face)); // Store the face reference
-
-            font->transform = m;
-
-            font->set("FontName", PSObject::fromString(face->fName));
-            font->set("FontMatrix", PSObject::fromMatrix(m));
+            auto font = std::make_shared<PSFont>(face, m);
 
             return font;
         }
-        */
+        
     };
 
 } // namespace waavs

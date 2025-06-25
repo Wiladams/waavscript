@@ -22,7 +22,7 @@ namespace waavs {
         if (!key.isLiteralName())
             return vm.error("op_def:typecheck: def expects a literal name");
 
-        vm.dictionaryStack.def(key.asName(), value);
+        vm.dictionaryStack.define(key.asName(), value);
         return true;
     }
 

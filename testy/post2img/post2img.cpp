@@ -17,31 +17,6 @@ using namespace waavs;
 #define CAN_HEIGHT 600
 
 
-/*
-
-static void loadFontDirectory(const char* dir)
-{
-	const std::filesystem::path fontPath(dir);
-
-	for (const auto& dir_entry : std::filesystem::directory_iterator(fontPath))
-	{
-		if (dir_entry.is_regular_file())
-		{
-			if ((dir_entry.path().extension() == ".ttf") ||
-				(dir_entry.path().extension() == ".otf") ||
-				(dir_entry.path().extension() == ".TTF"))
-			{
-				BLFontFace ff{};
-				if (!FontHandler::getFontHandler()->loadFontFace(dir_entry.path().generic_string().c_str(), ff))
-				{
-					printf("FontHandler::loadFontFace() failed: %s\n", dir_entry.path().generic_string().c_str());
-					return;
-				}
-			}
-		}
-	}
-}
-*/
 
 static void setupFonts()
 {

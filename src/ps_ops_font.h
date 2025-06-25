@@ -33,20 +33,36 @@ namespace waavs {
 
     inline bool op_scalefont(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        PSObject size, fontFace;
-        if (!s.pop(size) || !size.isNumber())
+        PSObject sizeObj, faceObj;
+
+        if (!s.pop(sizeObj) || !sizeObj.isNumber())
             return vm.error("typecheck: expected number");
-        if (!s.pop(fontFace) || !fontFace.isFontFace())
+
+        if (!s.pop(faceObj) || !faceObj.isFontFace())
             return vm.error("typecheck: expected font face");
 
-        auto fontHandle = PSFont::createFromSize(fontFace.asFontFace(), size.asReal());
+        double size = sizeObj.asReal();
+        auto face = faceObj.asFontFace();
 
-        if (!fontHandle) {
-            return vm.error("invalidfont: failed to create font from size");
-        }
+        // 1. Get the base matrix
+        //PSObject baseMatrixObj;
+        //PSMatrix baseMatrix;
+        //face->get("FontMatrix", baseMatrixObj);
 
-        return s.push(PSObject::fromFont(fontHandle));
+        // 2. Scale it (equivalent to [size 0 0 size 0 0] * baseMatrix)
+        //PSMatrix scaledMatrix = baseMatrix;
+        //scaledMatrix.scale(size, size);
+
+        // 3. Construct a font (PSFont) from face and scaledMatrix
+        auto font = PSFont::createFromSize(face, size);
+
+
+        if (!font)
+            return vm.error("invalidfont: failed to scale font");
+
+        return s.push(PSObject::fromFont(font));
     }
+
 
     inline bool op_makefont(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
@@ -108,12 +124,19 @@ namespace waavs {
         if (!s.pop(name) || !name.isName())
             return vm.error("typecheck: expected name");
 
-        // Equivalent to:
-        //   name findfont size scalefont setfont
+        auto* g = vm.graphics();
+        PSObject fontFace;
+        if (!g->findFont(name.asName(), fontFace))
+            return vm.error("invalidfont: failed to find font");
 
-        // Stub:
-        return vm.error("selectfont not implemented");
+        auto fontHandle = PSFont::createFromSize(fontFace.asFontFace(), size.asReal());
+        if (!fontHandle)
+            return vm.error("invalidfont: failed to scale font");
+
+        g->setFont(fontHandle);
+        return true;
     }
+
 
 
     // --- Font Operator Registration ---

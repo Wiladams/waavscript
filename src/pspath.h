@@ -4,13 +4,14 @@
 #include <cmath>
 
 namespace waavs {
+#define CLAMP(x, low, high) std::min(std::max(x, low), high)
 
     enum class PSPathCommand : uint8_t {
         MoveTo,
         LineTo,
         Arc,        // clockwise arc from start to end angle
         ArcCCW, // counter-clockwise arc from start to end angle
-        ArcTo,
+        EllipticArc,
         CurveTo,
         ClosePath
     };
@@ -129,6 +130,26 @@ namespace waavs {
             return true;
         }
 
+        bool ellipticArcTo(double radius,bool sweepFlag,double x2, double y2) {
+
+            if (!fHasCurrentPoint) return false;
+            // Store the elliptic arc segment
+            PSPathSegment seg;
+            seg.command = PSPathCommand::EllipticArc;
+            seg.x1 = radius;        // radius
+            seg.y1 = sweepFlag;     // sweep flag (0 or 1)
+            seg.x2 = x2;            // endpoint x
+            seg.y2 = y2;            // endpoint y
+
+            segments.push_back( seg);
+
+            fCurrentX = x2; // Update current point to end point
+            fCurrentY = y2;
+            fHasCurrentPoint = true;
+            
+            return true;
+        }
+
         bool arcto(double x0, double y0,
             double x1, double y1,
             double x2, double y2,
@@ -136,73 +157,82 @@ namespace waavs {
             double& xt1, double& yt1,
             double& xt2, double& yt2)
         {
-            // Compute vectors
-            double v1x = x0 - x1;
-            double v1y = y0 - y1;
-            double v2x = x2 - x1;
-            double v2y = y2 - y1;
+            // 1. Compute direction vectors away from the corner towards the tangent points
+            // From start point (x0, y0) to corner (x1, y1)
+            double dx1 = x0 - x1;
+            double dy1 = y0 - y1;
+            double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+            double vx1 = dx1 / len1; // Normalize
+            double vy1 = dy1 / len1;
 
-            double len1 = std::sqrt(v1x * v1x + v1y * v1y);
-            double len2 = std::sqrt(v2x * v2x + v2y * v2y);
+            // From end point (x2, y2) to corner (x1, y1)
+            double dx2 = x2 - x1;
+            double dy2 = y2 - y1;
+            double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+            double vx2 = dx2 / len2; // Normalize
+            double vy2 = dy2 / len2;
+        
+            // 2. Compute the angle between the two vectors
+            // This gives us the interior angle at the corner
+            double dot = vx1 * vx2 + vy1 * vy2; // Dot product
+            double theta = std::acos(CLAMP(dot,-1.0,1.0)); // Angle in radians
 
-            if (len1 < 1e-6 || len2 < 1e-6)
-                return false; // Degenerate input
+            // 3. Calculate the distance from the corner to the tangent points
+            // We want to back up along the vectors from the corner point along the normals
+            // This comes from from geometry of circle segments tangent to both lines
+            // Note:  if the angle is too small, we can't draw an arc, so we should exit, or
+            // just draw the two lines instead
+            double d = r / std::tan(theta / 2.0);
 
-            // Normalize
-            v1x /= len1; v1y /= len1;
-            v2x /= len2; v2y /= len2;
 
-            // Compute bisector
-            double bisectX = v1x + v2x;
-            double bisectY = v1y + v2y;
-            double bisectLen = std::sqrt(bisectX * bisectX + bisectY * bisectY);
-            if (bisectLen < 1e-6)
-                return false; // 180 deg corner, cannot round
+            // 4.0 Compute tangent points
+            xt1 = x1 + vx1 * d; // Tangent point 1
+            yt1 = y1 + vy1 * d; // Tangent point 1
+            xt2 = x1 + vx2 * d; // Tangent point 2
+            yt2 = y1 + vy2 * d; // Tangent point 2
 
-            bisectX /= bisectLen;
-            bisectY /= bisectLen;
+            
+            // 5.0 Compute Arc Center
+            // 5a - We need vectors that point towards the corner from the tangent points,
+            // which are the opposite of what was previously calculated
+            double dux1 = x1 - xt1; // Inverse direction of vx1
+            double duy1 = y1 - yt1; // Inverse direction of vy1
+            double u1len = std::sqrt(dux1 * dux1 + duy1 * duy1);
+            double ux1 = dux1 / u1len;
+            double uy1 = duy1 / u1len;
 
-            // sin(theta / 2) = sqrt((1 - cos(theta))/2)
-            double dot = v1x * v2x + v1y * v2y;
-            double sinHalfTheta = std::sqrt((1 - dot) / 2);
-            if (sinHalfTheta < 1e-6)
-                return false;
+            double dux2 = x1 - xt2; // Inverse direction of vx2
+            double duy2 = y1 - yt2; // Inverse direction of vy2
+            double u2len = std::sqrt(dux2 * dux2 + duy2 * duy2);
+            double ux2 = dux2 / u2len;
+            double uy2 = duy2 / u2len;
 
-            // Distance from corner to arc start/end
-            double dist = r / sinHalfTheta;
+            // 5b - Compute the angle bisector vector
+            double bx = ux1 + ux2; // Bisector X
+            double by = uy1 + uy2; // Bisector Y
+            double blen = std::sqrt(bx * bx + by * by); // Length of bisector
+            bx /= -blen; // Normalize
+            by /= -blen; // Normalize
 
-            // Tangent points
-            xt1 = x1 + v1x * (dist - r);
-            yt1 = y1 + v1y * (dist - r);
-            xt2 = x1 + v2x * (dist - r);
-            yt2 = y1 + v2y * (dist - r);
+            // 5c Compute the center of offset distance
+            // Now 'b' is a unit vector pointing from the corner towards the center of the arc
+            double h = r / std::sin(theta / 2.0); // Distance from corner to center
 
-            // Line to arc start
-            if (!lineto(xt1, yt1)) return false;
+            double cx = x1 + bx * h; // Center X
+            double cy = y1 + by * h; // Center Y
 
-            // Approximate the arc from (xt1, yt1) to (xt2, yt2) around center (x1, y1)
-            // You can either:
-            //   - Insert an ArcTo segment here with center (x1, y1), radius r, and angles
-            //   - Or approximate using one or more bezier segments (if ArcTo isn't supported downstream)
-            // For now, we’ll use an ArcTo
+            // 6.0 Determine sweep flag
+            // Take the signed area of the triangle
+            double cross = (xt1 - cx) * (yt2 - cy) - (xt2 - cx) * (yt1 - cy);
+            double sweepFlag = (cross > 0);
+            
 
-            double a1 = std::atan2(yt1 - y1, xt1 - x1);
-            double a2 = std::atan2(yt2 - y1, xt2 - x1);
-            double sweep = a2 - a1;
+            // Build the actual path segments
+            lineto(xt1, yt1);
+            ellipticArcTo(r, sweepFlag, xt2, yt2);
+            //moveto(xt2, yt2);
+            lineto(x2, y2);
 
-            // Normalize sweep to positive CW arc
-            if (sweep <= 0)
-                sweep += 2 * P_PI;
-
-            segments.push_back({
-                PSPathCommand::ArcTo,
-                x1, y1,         // center
-                r, 0,           // radius
-                a1, sweep       // angles
-                });
-
-            // Line to endpoint of arc (p2)
-            if (!lineto(x2, y2)) return false;
 
             fCurrentX = x2;
             fCurrentY = y2;
@@ -210,6 +240,13 @@ namespace waavs {
 
             return true;
         }
+
+
+
+
+
+
+
 
         bool curveto(double x1, double y1,
             double x2, double y2,
@@ -231,6 +268,177 @@ namespace waavs {
 			fCurrentY = fStartY;
 
             return true;
+        }
+
+        bool getBoundingBox(double& minX, double& minY, double& maxX, double& maxY) const {
+            bool found = false;
+
+            for (const auto& seg : segments) {
+                switch (seg.command) {
+                case PSPathCommand::MoveTo:
+                case PSPathCommand::LineTo:
+                case PSPathCommand::ClosePath:
+                {
+                    double x = seg.x1;
+                    double y = seg.y1;
+                    if (!found) {
+                        minX = maxX = x;
+                        minY = maxY = y;
+                        found = true;
+                    }
+                    else {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+                break;
+
+                case PSPathCommand::CurveTo:
+                    for (int i = 0; i < 3; ++i) {
+                        double x = (&seg.x1)[i * 2];
+                        double y = (&seg.y1)[i * 2];
+                        if (!found) {
+                            minX = maxX = x;
+                            minY = maxY = y;
+                            found = true;
+                        }
+                        else {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                        }
+                    }
+                    break;
+
+                case PSPathCommand::Arc:
+                case PSPathCommand::ArcCCW:
+                {
+                    double cx = seg.x1;
+                    double cy = seg.y1;
+                    double r = seg.x2;
+                    double startDeg = seg.x3;
+                    double endDeg = seg.y3;
+
+                    // Normalize angles to [0, 360)
+                    auto norm = [](double deg) {
+                        deg = std::fmod(deg, 360.0);
+                        return deg < 0 ? deg + 360.0 : deg;
+                        };
+                    startDeg = norm(startDeg);
+                    endDeg = norm(endDeg);
+
+                    bool ccw = (seg.command == PSPathCommand::ArcCCW);
+                    double sweep = ccw ? endDeg - startDeg : endDeg - startDeg;
+                    if (!ccw && sweep < 0) sweep += 360.0;
+                    if (ccw && sweep < 0) sweep += 360.0;
+
+                    // Always include start and end points
+                    auto include = [&](double angleDeg) {
+                        double rad = angleDeg * (P_PI / 180.0);
+                        double x = cx + r * std::cos(rad);
+                        double y = cy + r * std::sin(rad);
+                        if (!found) {
+                            minX = maxX = x;
+                            minY = maxY = y;
+                            found = true;
+                        }
+                        else {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                        }
+                        };
+
+                    include(startDeg);
+                    include(endDeg);
+
+                    // Also check the 0, 90, 180, 270 degree axis points if they lie within the sweep
+                    for (int axis = 0; axis < 4; ++axis) {
+                        double a = axis * 90.0;
+                        double rel = a - startDeg;
+                        if (ccw) {
+                            if (rel < 0) rel += 360.0;
+                            if (rel <= sweep)
+                                include(a);
+                        }
+                        else {
+                            if (rel < 0) rel += 360.0;
+                            if (rel <= sweep)
+                                include(a);
+                        }
+                    }
+                }
+                break;
+
+                case PSPathCommand::EllipticArc:
+                {
+                    // Get stored data (in degrees)
+                    double cx = seg.x1;
+                    double cy = seg.y1;
+                    double r = seg.x2;
+                    double startDeg = seg.x3;
+                    double sweepDeg = seg.y3;
+
+                    double endDeg = startDeg + sweepDeg;
+
+                    // Normalize angle to [0, 360)
+                    auto normDeg = [](double deg) -> double {
+                        deg = std::fmod(deg, 360.0);
+                        return deg < 0 ? deg + 360.0 : deg;
+                        };
+
+                    startDeg = normDeg(startDeg);
+                    endDeg = normDeg(endDeg);
+
+                    auto isAngleBetween = [&](double angle, double start, double end) -> bool {
+                        if (end < start)
+                            end += 360.0;
+                        if (angle < start)
+                            angle += 360.0;
+                        return angle >= start && angle <= end;
+                        };
+
+                    auto include = [&](double deg) {
+                        double rad = deg * (P_PI / 180.0);
+                        double x = cx + r * std::cos(rad);
+                        double y = cy + r * std::sin(rad);
+                        if (!found) {
+                            minX = maxX = x;
+                            minY = maxY = y;
+                            found = true;
+                        }
+                        else {
+                            if (x < minX) minX = x;
+                            if (x > maxX) maxX = x;
+                            if (y < minY) minY = y;
+                            if (y > maxY) maxY = y;
+                        }
+                        };
+
+                    // Include start and end points
+                    include(startDeg);
+                    include(endDeg);
+
+                    // Check axis angles: 0, 90, 180, 270
+                    for (int i = 0; i < 4; ++i) {
+                        double axisDeg = i * 90.0;
+                        if (isAngleBetween(axisDeg, startDeg, endDeg))
+                            include(axisDeg);
+                    }
+                }
+                break;
+
+
+                default:
+                    break;
+                }
+            }
+
+            return found;
         }
 
     };

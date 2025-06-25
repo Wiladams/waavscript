@@ -109,7 +109,7 @@ Legend:
 | `type`   | Return type name           | ✅     |
 | `cvlit`  | Convert to literal form    | ✅     |
 | `cvx`    | Convert to executable form | ✅     |
-| `cvi`    | Convert to integer         | ⬜     |
+| `cvi`    | Convert to integer         | ✅     |
 | `cvr`    | Convert to real            | ⬜     |
 | `cvs`    | Convert to string          | ✅     |
 | `cvrs`   | Convert number w/ radix    | ⬜     |
@@ -144,7 +144,7 @@ Legend:
 | `loop`    | Infinite loop              | ✅     |
 | `exit`    | Exit from loop             | ✅     |
 | `stop`    | Stop execution             | ✅     |
-| `stopped` | Catch `stop`              | ✅     |
+| `stopped` | Catch `stop`               | ✅     |
 
 ---
 
@@ -157,14 +157,14 @@ Legend:
 | `begin`          | Push dictionary onto stack         | ✅     |
 | `end`            | Pop dictionary stack               | ✅     |
 | `load`           | Lookup value                       | ✅     |
-| `store`          | Store into dictionary              | ⬜     |
+| `store`          | Store into dictionary              | ✅     |
 | `known`          | Is key present?                    | ✅     |
 | `where`          | Find containing dictionary         | ✅     |
 | `currentdict`    | Current dictionary                 | ✅     |
 | `countdictstack` | Number of dictionaries             | ✅     |
 | `maxlength`      | Maximum size of dictionary         | ✅     |
-| `systemdict`     | System dictionary                  | ⬜     |
-| `userdict`       | User dictionary                    | ⬜     |
+| `systemdict`     | System dictionary                  | ✅     |
+| `userdict`       | User dictionary                    | ✅     |
 
 ---
 
@@ -202,11 +202,11 @@ Legend:
 
 | Operator     | Description            | Status |
 | ------------ | ---------------------- | ------ |
-| `file`       | Open file              | ⬜     |
+| `file`       | Open file              | ✅     |
 | `closefile`  | Close file             | ⬜     |
 | `read`       | Read one byte          | ⬜     |
 | `write`      | Write one byte         | ⬜     |
-| `readline`   | Read a line            | ⬜     |
+| `readline`   | Read a line            | ✅     |
 | `flush`      | Flush stdout           | ✅     |
 | `flushfile`  | Flush file buffer      | ⬜     |
 | `resetfile`  | Reset to beginning     | ⬜     |
@@ -242,7 +242,7 @@ Legend:
 | `closepath`    | Close current subpath    | ✅     |
 | `stroke`       | Stroke path              | ✅     |
 | `fill`         | Fill path                | ✅     |
-| `eofill`       | Even-odd fill            | ⬜     |
+| `eofill`       | Even-odd fill            | ✅     |
 | `clip`         | Set clip path            | ⬜     |
 | `eoclip`       | Even-odd clip            | ⬜     |
 | `initclip`     | Reset clip path          | ⬜     |
@@ -283,7 +283,7 @@ Legend:
 | ------------- | ----------------------- | ------ |
 | `flattenpath` | Flatten Béziers         | ⬜     |
 | `reversepath` | Reverse path segments   | ⬜     |
-| `pathbbox`    | Get bounding box        | ⬜     |
+| `pathbbox`    | Get bounding box        | ✅     |
 | `pathforall`  | Iterate over segments   | ⬜     |
 
 ---

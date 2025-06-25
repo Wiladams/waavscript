@@ -189,7 +189,30 @@ static void test_op_arcto()
 4 2 roll lineto lineto  % use the tangent points
 stroke
 )||";
-    runPostscript(test_s1);
+
+    const char* test_s2 = R"||(
+%!PS
+/R 20 def
+1 0 0 setrgbcolor
+4 setlinewidth
+
+newpath
+0 200 moveto
+0 400 200 400 R 2 mul arcto
+400 400 400 200 R 2 mul arcto
+300 50 150 50 R 2 div arcto
+100 50 100 100 R 2 div arcto
+
+gsave
+  0 0 1 setrgbcolor
+  fill
+grestore
+
+stroke
+)||";
+
+    //runPostscript(test_s1);
+    runPostscript(test_s2);
 }
 
 //============================================================================
@@ -476,8 +499,8 @@ static void test_core()
 
 static void test_idioms()
 {
-    test_flower();
-	//gridOfCircles();
+    //test_flower();
+	gridOfCircles();
     //radialLines();
     //scaledRectangles();
     //grid();

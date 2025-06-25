@@ -10,57 +10,41 @@ namespace waavs {
     struct PSMatrix {
         // Where is the system level PI we can rely on?
         static constexpr double PI = 3.14159265358979323846;
+        static constexpr double RADIANS_PER_DEGREE = PI / 180.0;
 
         double m[6]; // m00 m01 m10 m11 m20 m21
 
 		//===========================================
 		// Constructors
 		//===========================================
-        PSMatrix()
+        // default constructor makes an Identity matrix
+        constexpr PSMatrix()
             : m{ 1, 0, 0, 1, 0, 0 } {
-        } // Identity
+        } 
 
-        PSMatrix(double m00, double m01, double m10,
+        constexpr PSMatrix(double m00, double m01, double m10,
             double m11, double m20, double m21)
             : m{ m00, m01, m10, m11, m20, m21 } {
         }
 
-        void reset() {
+        // Reset the matrix to Identity
+        constexpr void reset() {
             m[0] = 1; m[1] = 0; 
             m[2] = 0; m[3] = 1; 
             m[4] = 0; m[5] = 0;
         }
-		//============================================
-        // Factory constructors
-		//============================================
-        static PSMatrix identity() {
-            return PSMatrix(1, 0, 0, 1, 0, 0);
-        }
 
-        static PSMatrix translation(double tx, double ty) {
-            return PSMatrix(1, 0, 0, 1, tx, ty);
-        }
 
-        static PSMatrix scaling(double sx, double sy) {
-            return PSMatrix(sx, 0, 0, sy, 0, 0);
-        }
-
-        static PSMatrix rotation(double angleDegrees, double cx = 0, double cy = 0) {
-            double rad = angleDegrees * (PI / 180.0);
-            double cosA = std::cos(rad);
-            double sinA = std::sin(rad);
-            return PSMatrix(cosA, sinA, -sinA, cosA, cx, cy);
-        }
 
 		//============================================
         // Instance methods
 		//============================================
-
+        // copy constructor
         PSMatrix clone() const {
             return PSMatrix(m[0], m[1], m[2], m[3], m[4], m[5]);
         }
 
-        double determinant() const {
+        constexpr double determinant() const {
             return m[0] * m[3] - m[1] * m[2];
         }
 
@@ -80,7 +64,7 @@ namespace waavs {
             return true;
         }
 
-        PSMatrix& preMultiply(const PSMatrix& other) {
+        constexpr PSMatrix& preMultiply(const PSMatrix& other) {
             double a = other.m[0] * m[0] + other.m[1] * m[2];
             double b = other.m[0] * m[1] + other.m[1] * m[3];
             double c = other.m[2] * m[0] + other.m[3] * m[2];
@@ -102,26 +86,26 @@ namespace waavs {
             return preMultiply(r);
         }
 
-        PSMatrix& scale(double sx, double sy) {
+        constexpr PSMatrix& scale(double sx, double sy) {
             m[0] *= sx; m[1] *= sx;
             m[2] *= sy; m[3] *= sy;
             return *this;
         }
 
-        PSMatrix& translate(double tx, double ty) {
-            double x, y;
+        constexpr PSMatrix& translate(double tx, double ty) {
+            double x{ 0 }, y{ 0 };
             transformPoint(tx, ty, x, y);
             m[4] += x;
             m[5] += y;
             return *this;
         }
 
-        void transformPoint(double x, double y, double& outX, double& outY) const {
+        constexpr void transformPoint(double x, double y, double& outX, double& outY) const {
             outX = m[0] * x + m[2] * y + m[4];
             outY = m[1] * x + m[3] * y + m[5];
         }
 
-        void dtransform(double x, double y, double& outX, double& outY) const {
+        constexpr void dtransform(double x, double y, double& outX, double& outY) const {
             outX = m[0] * x + m[2] * y;
             outY = m[1] * x + m[3] * y;
         }
@@ -129,6 +113,28 @@ namespace waavs {
         void print() const {
             printf("%3.2f %3.2f\n%3.2f %3.2f\n%3.2f %3.2f\n",
                 m[0], m[1], m[2], m[3], m[4], m[5]);
+        }
+
+        //============================================
+        // Factory constructors
+        //============================================
+        static constexpr PSMatrix identity() {
+            return PSMatrix(1, 0, 0, 1, 0, 0);
+        }
+
+        static constexpr PSMatrix translation(double tx, double ty) {
+            return PSMatrix(1, 0, 0, 1, tx, ty);
+        }
+
+        static constexpr PSMatrix scaling(double sx, double sy) {
+            return PSMatrix(sx, 0, 0, sy, 0, 0);
+        }
+
+        static constexpr PSMatrix rotation(double angleDegrees, double cx = 0, double cy = 0) {
+            double rad = angleDegrees * RADIANS_PER_DEGREE;
+            double cosA = std::cos(rad);
+            double sinA = std::sin(rad);
+            return PSMatrix(cosA, sinA, -sinA, cosA, cx, cy);
         }
     };
 

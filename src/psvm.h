@@ -172,7 +172,6 @@ namespace waavs
 
             auto arr = proc.asArray();
             for (const auto& obj : arr->elements) {
-                //if (!interpret(obj)) return false;
                 if (!execObject(obj)) return false;
 
                 if (isExitRequested()) break;
@@ -265,11 +264,9 @@ namespace waavs
                     }
 
 
-                    // 2. If it's an operator?  put it on the exec stack
-                    // to be executed later.
+                    // 2. If it's an operator?  Execute it
                     if (resolved.isOperator()) {
                         return execObject(resolved);
-                    //return execStack().push(resolved);
                     }
 
                     // 3. Name resolves to a procedure?  auto-exec
@@ -330,9 +327,11 @@ namespace waavs
                 PSObject obj;
 
                 // return the next object from the object generator
-                if (!objGen.next(obj)) return false;
+                if (!objGen.next(obj)) 
+                    return false;
 
-				if (!interpret(obj)) return false;
+				if (!interpret(obj)) 
+                    return false;
 
                 if (isExitRequested()) {
                     break;

@@ -56,7 +56,12 @@ namespace waavs
             // In the case of whitespace, we'll return a null object
         case PSLexType::Whitespace:
         case PSLexType::Comment:
+        case PSLexType::DSCComment:
+            obj.reset();
+            return true;
+
 		case PSLexType::RBRACE: // } - end of procedure
+            printf("Seeing RBRACE in objectFromLex\n");
             obj.reset();
             return true;
 
@@ -174,6 +179,7 @@ namespace waavs
                 // Just consume whitespace
                 case PSLexType::Whitespace:
                 case PSLexType::Comment:
+                case PSLexType::DSCComment:
                     continue; // Skip
 
                 case PSLexType::Eof:

@@ -16,6 +16,10 @@ namespace waavs {
             struct { double c, m, y, k; };
         };
 
+        bool isRGB() const { return kind == PSPaintKind::RGB; }
+        bool isGray() const { return kind == PSPaintKind::GRAY; }
+        bool isCMYK() const { return kind == PSPaintKind::CMYK; }
+
         static PSPaint fromRGB(double r, double g, double b) {
             PSPaint p;
             p.kind = PSPaintKind::RGB;

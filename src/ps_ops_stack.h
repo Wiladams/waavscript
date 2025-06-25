@@ -63,6 +63,7 @@ namespace waavs {
         return vm.opStack().push(PSObject::fromInt(count));
     }
 
+    // [ - beging array, and others
     inline bool op_mark(PSVirtualMachine& vm) {
         return vm.opStack().mark();
     }
@@ -77,7 +78,7 @@ namespace waavs {
         return vm.opStack().push(PSObject::fromInt(count));
     }
 
-
+    // ] - array ending
     inline bool op_rightbracket(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         int count{ 0 };

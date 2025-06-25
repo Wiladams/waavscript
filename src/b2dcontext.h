@@ -6,13 +6,13 @@
 #include <blend2d/blend2d.h>
 
 #include "psgraphicscontext.h"
-
+#include "fontmonger.h"
 
 
 namespace waavs {
-    static inline BLMatrix2D blTransform(const PSMatrix& m) {
-        return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
-    }
+    //static inline BLMatrix2D blTransform(const PSMatrix& m) {
+    //    return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+    //}
 
     static inline BLStrokeJoin convertLineJoin(PSLineJoin join) {
         switch (join) {
@@ -26,6 +26,37 @@ namespace waavs {
             return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP; // Default to miter
         }
     }
+
+    // From current point to: angleStart + sweep
+// With radius = BLPoint(r, r), rotation = 0
+// largeArcFlag = sweepDeg > 180
+// sweepFlag = true  // clockwise
+
+    bool emitArcToBlend2D(BLPath& path, double cx, double cy, double r, double a1Deg, double sweepDeg)
+    {
+        double a2Deg = a1Deg + sweepDeg;
+
+        // Start and end point in radians
+        double a1Rad = a1Deg * (3.14159265358979323846 / 180.0);
+        double a2Rad = a2Deg * (3.14159265358979323846 / 180.0);
+
+        double x0 = cx + r * std::cos(a1Rad);
+        double y0 = cy + r * std::sin(a1Rad);
+        double x1 = cx + r * std::cos(a2Rad);
+        double y1 = cy + r * std::sin(a2Rad);
+
+        // Inject moveTo if needed (depends on current path state)
+        BLPoint lastPos;
+        path.getLastVertex(&lastPos);
+        if (std::abs(lastPos.x - x0) > 1e-6 || std::abs(lastPos.y - y0) > 1e-6)
+            path.lineTo(x0, y0);
+
+        bool largeArc = sweepDeg > 180.0;
+        bool sweep = true; // clockwise
+
+        return path.ellipticArcTo(BLPoint(r, r), 0.0, largeArc, sweep, BLPoint(x1, y1)) == BL_SUCCESS;
+    }
+
 
     static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1) {
         double cos0 = std::cos(t0), sin0 = std::sin(t0);
@@ -96,16 +127,23 @@ namespace waavs {
                 break;
             }
 
-            case PSPathCommand::ArcTo: {
-                // This is just a stub placeholder.
-                // If your ArcTo segments remain as raw control parameters,
-                // you will need to store the corner geometry and compute it here.
-
-                // You could optionally call a helper:
-                // emitCornerArcAsBezier(out, ...);
-
-                break; // handled elsewhere or as a placeholder
+                                   /*
+            seg.x1 = radius;        // radius
+            seg.y1 = sweepFlag;     // sweep flag (0 or 1)
+            seg.x2 = x2;            // endpoint x
+            seg.y2 = y2;            // endpoint y
+                                   */
+            case PSPathCommand::EllipticArc: {
+                double x1 = seg.x2;
+                double y1 = seg.y2;
+                double r = seg.x1; // Radius
+                bool sweepFlag = seg.y1>0.0 ? true : false;
+               
+                out.ellipticArcTo(r, r, 0.0, false, sweepFlag, x1, y1);
+                break;
             }
+
+
 
             case PSPathCommand::ClosePath:
                 out.close();
@@ -132,7 +170,7 @@ namespace waavs {
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-			ctx.fillAll(BLRgba32(255, 255, 255, 255)); // Fill with white background
+			ctx.fillAll(BLRgba32(0xc0, 0xc0, 0xc0, 255)); // Fill with white background
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);
@@ -159,11 +197,18 @@ namespace waavs {
             ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
         }
 
+        // Font related methods
+        bool findFont(const PSName& name, PSObject& outObj) override
+        {
+            return FontMonger::instance().findFontFaceByName(name, outObj);
+        }
+
+        // Painting - filling and stroking paths
         bool fill() override {
             BLPath blPath;
-            BLMatrix2D blTrans;
+            //BLMatrix2D blTrans;
 
-            blTrans = blTransform(currentState()->ctm);
+            //blTrans = blTransform(currentState()->ctm);
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
@@ -171,7 +216,7 @@ namespace waavs {
             ctx.save(); // Save current state
 
 
-            ctx.setTransform(blTrans);
+            //ctx.setTransform(blTrans);
             ctx.setFillStyle(convertPaint(currentState()->fillPaint));
 
             ctx.fillPath(blPath);
@@ -183,18 +228,42 @@ namespace waavs {
             return true;
         }
 
+        bool eofill() override {
+            BLPath blPath;
+            //BLMatrix2D blTrans;
+
+            //blTrans = blTransform(currentState()->ctm);
+            if (!convertPSPathToBLPath(currentPath(), blPath))
+                return false;
+
+
+            ctx.save(); // Save current state
+
+            ctx.setFillRule(BL_FILL_RULE_EVEN_ODD); // Set even-odd fill rule
+            //ctx.setTransform(blTrans);
+            ctx.setFillStyle(convertPaint(currentState()->fillPaint));
+
+            ctx.fillPath(blPath);
+
+            currentPath().reset();
+
+            ctx.restore(); // Restore to previous state
+
+            return true;
+
+        }
 
         bool stroke() override {
             BLPath blPath;
-            BLMatrix2D blTrans;
+            //BLMatrix2D blTrans;
 
-            blTrans = blTransform(currentState()->ctm);
+            //blTrans = blTransform(currentState()->ctm);
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
 			ctx.save(); // Save current state
 
-            ctx.setTransform(blTrans);
+            //ctx.setTransform(blTrans);
 
             BLRgba32 strokeColor = convertPaint(currentState()->strokePaint);
             double strokeWidth = currentState()->lineWidth;
@@ -232,9 +301,9 @@ namespace waavs {
                 }
             }
 
-            BLMatrix2D blTrans = blTransform(img.transform);
+            //BLMatrix2D blTrans = blTransform(img.transform);
             ctx.save();
-            ctx.applyTransform(blTrans);
+            //ctx.applyTransform(blTrans);
             ctx.blitImage(BLPoint(0, 0), blimg);
             ctx.restore();
 

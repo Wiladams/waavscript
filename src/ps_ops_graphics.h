@@ -133,6 +133,34 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_pathbbox(PSVirtualMachine& vm) {
+        auto& s = vm.opStack();
+        PSPath path;
+
+        PSObject topper;
+        if (s.top(topper) && topper.isPath())
+        {
+            path = topper.asPath();
+            //s.pop();
+        }
+        else {
+            path = vm.graphics()->currentPath();
+        }
+
+        double minX, minY, maxX, maxY;
+        if (!path.getBoundingBox(minX, minY, maxX, maxY)) {
+            // Empty path — spec is vague here; use 0s or raise an error
+            minX = minY = maxX = maxY = 0.0;
+        }
+
+        vm.opStack().push(PSObject::fromReal(minX));
+        vm.opStack().push(PSObject::fromReal(minY));
+        vm.opStack().push(PSObject::fromReal(maxX));
+        vm.opStack().push(PSObject::fromReal(maxY));
+        return true;
+    }
+
+
     //inline bool op_setclippath(PSVirtualMachine& vm) {
     //    PSObject pathObj;
     //    if (!vm.opStack().pop(pathObj) || !pathObj.isPath())
@@ -161,13 +189,17 @@ namespace waavs {
     inline bool op_moveto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
 
-        PSObject y, x;
-        if (!s.pop(y) || !s.pop(x) || !x.isNumber() || !y.isNumber())
+        PSObject objy, objx;
+        if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("op_moveto:typecheck; expected two numbers");
 
-        if (!path.moveto(x.asReal(), y.asReal()))
+        double x{ 0 };
+        double y{ 0 };
+        ctm.transformPoint(objx.asReal(), objy.asReal(), x, y);
+        if (!path.moveto(x, y))
             return vm.error("op_moveto:currentpatherror");
 
         return true;
@@ -175,49 +207,59 @@ namespace waavs {
 
     inline bool op_rmoveto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        PSObject dy, dx;
+        auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
-        if (!s.pop(dy) || !s.pop(dx) || !dx.isNumber() || !dy.isNumber())
+        PSObject objdy, objdx;
+
+        if (!s.pop(objdy) || !s.pop(objdx) || !objdx.isNumber() || !objdy.isNumber())
             return vm.error("op_moveto:typecheck; expected two numbers");
 
-        auto& path = vm.graphics()->currentPath();
 
         double x0{ 0 }, y0{ 0 };
         if (!path.getCurrentPoint(x0, y0))
             return vm.error("op_rmoveto:nocurrentpoint");
 
-        return path.moveto(x0 + dx.asReal(), y0 + dy.asReal());
+        double dx{ 0 }, dy{ 0 };
+        ctm.dtransform(objdx.asReal(), objdy.asReal(), dx, dy);
+        return path.moveto(x0 + dx, y0 + dy);
     }
 
     inline bool op_lineto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
-        PSObject y, x;
-        if (!s.pop(y) || !s.pop(x) || !x.isNumber() || !y.isNumber())
+        PSObject objy, objx;
+        if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("typecheck: expected two numbers");
 
-        return path.lineto(x.asReal(), y.asReal());
+        double x{ 0 }, y{ 0 };
+        ctm.transformPoint(objx.asReal(), objy.asReal(), x, y);
+        return path.lineto(x, y);
     }
 
     inline bool op_rlineto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
-        PSObject dy, dx;
-        if (!s.pop(dy) || !s.pop(dx) || !dx.isNumber() || !dy.isNumber())
+        PSObject objdy, objdx;
+        if (!s.pop(objdy) || !s.pop(objdx) || !objdx.isNumber() || !objdy.isNumber())
             return vm.error("op_rlineto:typecheck; expected two numbers");
 
         double x0, y0;
         if (!path.getCurrentPoint(x0, y0)) return vm.error("op_rlineto:nocurrentpoint");
 
-
-        return path.lineto(x0 + dx.asReal(), y0 + dy.asReal());
+        double dx{ 0 }, dy{ 0 };
+        ctm.dtransform(objdx.asReal(), objdy.asReal(), dx, dy);
+        return path.lineto(x0 + dx, y0 + dy);
     }
 
     inline bool op_rectpath(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         if (s.size() < 4)
             return vm.error("rectpath: stackunderflow");
@@ -232,11 +274,13 @@ namespace waavs {
             !widthObj.isNumber() || !heightObj.isNumber())
             return vm.error("rectpath: typecheck");
 
-        double x = xObj.asReal();
-        double y = yObj.asReal();
-        double w = widthObj.asReal();
-        double h = heightObj.asReal();
+        double x{ 0 };
+        double y{ 0 };
+        double w{ 0 };
+        double h{ 0 };
 
+        ctm.transformPoint(xObj.asReal(), yObj.asReal(), x, y);
+        ctm.dtransform(widthObj.asReal(), heightObj.asReal(), w, h);
         // Rectangles can have negative width/height, which should still work
         return path.moveto(x, y)
             && path.lineto(x + w, y)
@@ -249,6 +293,7 @@ namespace waavs {
     inline bool op_arc(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         PSObject endAngleObj, startAngleObj, radiusObj, yObj, xObj;
         if (!s.pop(endAngleObj) || !s.pop(startAngleObj) ||
@@ -259,11 +304,15 @@ namespace waavs {
             !radiusObj.isNumber() || !startAngleObj.isNumber() || !endAngleObj.isNumber())
             return vm.error("typecheck: expected 5 numbers");
 
-        double cx = xObj.asReal();
-        double cy = yObj.asReal();
-        double radius = radiusObj.asReal();
+        double cx{ 0 };
+        double cy{ 0 };
+        double radius{ 0 };
+        double rdummy{ 0 }; // Dummy variable for transform
         double startAngle = startAngleObj.asReal();
         double endAngle = endAngleObj.asReal();
+
+        ctm.transformPoint(xObj.asReal(), yObj.asReal(), cx, cy);
+        ctm.dtransform(radiusObj.asReal(), 0.0, radius, rdummy);
 
         return path.arc(cx, cy, radius, startAngle, endAngle);
     }
@@ -272,6 +321,7 @@ namespace waavs {
     inline bool op_arcn(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         if (s.size() < 5)
             return vm.error("arcn: stackunderflow");
@@ -285,48 +335,53 @@ namespace waavs {
             !startAngleObj.isNumber() || !endAngleObj.isNumber())
             return vm.error("arcn: typecheck");
 
-        double cx = xObj.asReal();
-        double cy = yObj.asReal();
-        double radius = radiusObj.asReal();
+        double cx{ 0 };
+        double cy{ 0 };
+        double radius{ 0 };
+        double rdummy{ 0 };
         double startDeg = startAngleObj.asReal();
         double endDeg = endAngleObj.asReal();
+
+        ctm.transformPoint(xObj.asReal(), yObj.asReal(), cx, cy);
+        ctm.dtransform(radiusObj.asReal(), 0.0, radius, rdummy);
 
         return path.arcCCW(cx, cy, radius, startDeg, endDeg);
     }
 
-    // arcto - draws an arc to a point (x1, y1) with a radius r, and then to (x2, y2)
     inline bool op_arcto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         if (s.size() < 5)
             return vm.error("arcto: stackunderflow");
 
-        PSObject y2Obj, x2Obj, y1Obj, x1Obj, rObj;
+        PSObject rObj, x1Obj, y1Obj, x2Obj, y2Obj;
+        s.pop(rObj);
         s.pop(y2Obj); s.pop(x2Obj);
         s.pop(y1Obj); s.pop(x1Obj);
-        s.pop(rObj);
+
 
         if (!x1Obj.isNumber() || !y1Obj.isNumber() ||
             !x2Obj.isNumber() || !y2Obj.isNumber() || !rObj.isNumber())
             return vm.error("arcto: typecheck");
 
-        double x1 = x1Obj.asReal();
-        double y1 = y1Obj.asReal();
-        double x2 = x2Obj.asReal();
-        double y2 = y2Obj.asReal();
-        double r = rObj.asReal();
-
-        double cx, cy;
-        if (!path.getCurrentPoint(cx, cy))
+        double x0, y0;
+        if (!path.getCurrentPoint(x0, y0))
             return vm.error("arcto: no currentpoint");
 
-        // Use a helper function that returns the tangent points
+        // Transform all points
+        double x1, y1, x2, y2, r, dummy;
+        ctm.transformPoint(x1Obj.asReal(), y1Obj.asReal(), x1, y1);
+        ctm.transformPoint(x2Obj.asReal(), y2Obj.asReal(), x2, y2);
+        ctm.dtransform(rObj.asReal(), 0.0, r, dummy);  // only x-direction used for circle
+
+        // Execute the arc and retrieve tangent points
         double xt1, yt1, xt2, yt2;
-        if (!path.arcto(cx, cy, x1, y1, x2, y2, r, xt1, yt1, xt2, yt2))
+        if (!path.arcto(x0, y0, x1, y1, x2, y2, r, xt1, yt1, xt2, yt2))
             return vm.error("arcto: unable to compute arc");
 
-        // Push output values (start and end of arc)
+        // Push the tangent points as per spec
         s.push(PSObject::fromReal(xt1));
         s.push(PSObject::fromReal(yt1));
         s.push(PSObject::fromReal(xt2));
@@ -342,19 +397,20 @@ namespace waavs {
     inline bool op_curveto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         // Ensure 6 items are available
         if (s.size() < 6)
             return vm.error("curveto: stackunderflow");
 
-        PSObject y3, x3, y2, x2, y1, x1;
-        s.pop(y3); s.pop(x3);
-        s.pop(y2); s.pop(x2);
-        s.pop(y1); s.pop(x1);
+        PSObject y3Obj, x3Obj, y2Obj, x2Obj, y1Obj, x1Obj;
+        s.pop(y3Obj); s.pop(x3Obj);
+        s.pop(y2Obj); s.pop(x2Obj);
+        s.pop(y1Obj); s.pop(x1Obj);
 
-        if (!x1.isNumber() || !y1.isNumber() ||
-            !x2.isNumber() || !y2.isNumber() ||
-            !x3.isNumber() || !y3.isNumber()) {
+        if (!x1Obj.isNumber() || !y1Obj.isNumber() ||
+            !x2Obj.isNumber() || !y2Obj.isNumber() ||
+            !x3Obj.isNumber() || !y3Obj.isNumber()) {
             return vm.error("curveto: typecheck");
         }
 
@@ -362,28 +418,32 @@ namespace waavs {
         if (!path.hasCurrentPoint())
             return vm.error("curveto: no currentpoint");
 
-        return path.curveto(
-            x1.asReal(), y1.asReal(),
-            x2.asReal(), y2.asReal(),
-            x3.asReal(), y3.asReal());
+        double x1, y1, x2, y2, x3, y3;
+
+        ctm.transformPoint(x1Obj.asReal(), y1Obj.asReal(), x1, y1);
+        ctm.transformPoint(x2Obj.asReal(), y2Obj.asReal(), x2, y2);
+        ctm.transformPoint(x3Obj.asReal(), y3Obj.asReal(), x3, y3);
+
+        return path.curveto( x1, y1,  x2, y2,  x3, y3);
     }
 
 
     inline bool op_rcurveto(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
+        auto& ctm = vm.graphics()->getCTM();
 
         if (s.size() < 6)
             return vm.error("rcurveto: stackunderflow");
 
-        PSObject dy3, dx3, dy2, dx2, dy1, dx1;
-        s.pop(dy3); s.pop(dx3);
-        s.pop(dy2); s.pop(dx2);
-        s.pop(dy1); s.pop(dx1);
+        PSObject dy3Obj, dx3Obj, dy2Obj, dx2Obj, dy1Obj, dx1Obj;
+        s.pop(dy3Obj); s.pop(dx3Obj);
+        s.pop(dy2Obj); s.pop(dx2Obj);
+        s.pop(dy1Obj); s.pop(dx1Obj);
 
-        if (!dx1.isNumber() || !dy1.isNumber() ||
-            !dx2.isNumber() || !dy2.isNumber() ||
-            !dx3.isNumber() || !dy3.isNumber()) {
+        if (!dx1Obj.isNumber() || !dy1Obj.isNumber() ||
+            !dx2Obj.isNumber() || !dy2Obj.isNumber() ||
+            !dx3Obj.isNumber() || !dy3Obj.isNumber()) {
             return vm.error("rcurveto: typecheck");
         }
 
@@ -391,12 +451,18 @@ namespace waavs {
         if (!path.getCurrentPoint(cx, cy))
             return vm.error("rcurveto: no currentpoint");
 
-        double x1 = cx + dx1.asReal();
-        double y1 = cy + dy1.asReal();
-        double x2 = x1 + dx2.asReal();
-        double y2 = y1 + dy2.asReal();
-        double x3 = x2 + dx3.asReal();
-        double y3 = y2 + dy3.asReal();
+        double dx1, dy1, dx2, dy2, dx3, dy3;
+
+        ctm.transformPoint(dx1Obj.asReal(), dy1Obj.asReal(), dx1, dy1);
+        ctm.transformPoint(dx2Obj.asReal(), dy2Obj.asReal(), dx2, dy2);
+        ctm.transformPoint(dx3Obj.asReal(), dy3Obj.asReal(), dx3, dy3);
+
+        double x1 = cx + dx1;
+        double y1 = cy + dy1;
+        double x2 = x1 + dx2;
+        double y2 = y1 + dy2;
+        double x3 = x2 + dx3;
+        double y3 = y2 + dy3;
 
         return path.curveto(x1, y1, x2, y2, x3, y3);
     }
@@ -414,6 +480,12 @@ namespace waavs {
 
     inline bool op_fill(PSVirtualMachine& vm) {
         vm.graphics()->fill();
+
+        return true;
+    }
+    
+    inline bool op_eofill(PSVirtualMachine& vm) {
+        vm.graphics()->eofill();
 
         return true;
     }
@@ -484,6 +556,16 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_currentrgbcolor(PSVirtualMachine& vm) {
+        double r, g, b;
+        if (!vm.graphics()->getCurrentRgb(r, g, b))
+            return vm.error("currentrgbcolor: no current color set");
+        vm.opStack().push(PSObject::fromReal(r));
+        vm.opStack().push(PSObject::fromReal(g));
+        vm.opStack().push(PSObject::fromReal(b));
+        return true;
+    }
+
     inline bool op_setrgbcolor(PSVirtualMachine& vm) {
         PSObject b, g, r;
 
@@ -505,6 +587,56 @@ namespace waavs {
             return vm.error("op_setcmykcolor:typecheck: expected 4 numbers");
 
         vm.graphics()->setCMYK(c.asReal(), m.asReal(), y.asReal(), k.asReal());
+        return true;
+    }
+
+    // Reference implementation of sethsbcolor
+    bool op_sethsbcolor(PSVirtualMachine& vm)
+    {
+        PSObject bObj, sObj, hObj;
+        if (!vm.opStack().pop(bObj) || !vm.opStack().pop(sObj) || !vm.opStack().pop(hObj))
+            return vm.error("sethsbcolor: stack underflow");
+
+        if (!hObj.isNumber() || !sObj.isNumber() || !bObj.isNumber())
+            return vm.error("sethsbcolor: all operands must be real");
+
+        double h = hObj.asReal();
+        double s = sObj.asReal();
+        double v = bObj.asReal();
+
+        if (h < 0.0) h = 0.0;
+        if (s < 0.0) s = 0.0;
+        if (v < 0.0) v = 0.0;
+        if (h > 1.0) h = 1.0;
+        if (s > 1.0) s = 1.0;
+        if (v > 1.0) v = 1.0;
+
+        double r, g, b;
+
+        if (s == 0.0) {
+            // Grayscale
+            r = g = b = v;
+        }
+        else {
+            h *= 6.0; // Scale hue to [0,6)
+            int i = static_cast<int>(std::floor(h));
+            double f = h - i;
+            double p = v * (1.0 - s);
+            double q = v * (1.0 - s * f);
+            double t = v * (1.0 - s * (1.0 - f));
+
+            switch (i % 6) {
+            case 0: r = v; g = t; b = p; break;
+            case 1: r = q; g = v; b = p; break;
+            case 2: r = p; g = v; b = t; break;
+            case 3: r = p; g = q; b = v; break;
+            case 4: r = t; g = p; b = v; break;
+            case 5: r = v; g = p; b = q; break;
+            default: r = g = b = 0.0; break; // unreachable
+            }
+        }
+
+        vm.graphics()->setRGB(r, g, b);
         return true;
     }
 
@@ -589,7 +721,8 @@ namespace waavs {
             { "setgray",       op_setgray },
             { "setrgbcolor",   op_setrgbcolor },
             { "setcmykcolor",  op_setcmykcolor },
-
+            { "sethsbcolor",   op_sethsbcolor },
+            { "currentrgbcolor", op_currentrgbcolor },
             // Drawing attributes
             { "setlinewidth",  op_setlinewidth },
             { "setlinecap",    op_setlinecap },
@@ -601,6 +734,7 @@ namespace waavs {
 
             // Path operations
             { "clippath",      op_clippath },
+            { "pathbbox",      op_pathbbox },
             { "newpath",       op_newpath },
             { "currentpoint",  op_currentpoint },
             { "moveto",        op_moveto },
@@ -622,6 +756,7 @@ namespace waavs {
             // Path rendering
             { "stroke",        op_stroke },
             { "fill",          op_fill },
+            { "eofill",        op_eofill },
 
             // Images
             {"image", op_image }
