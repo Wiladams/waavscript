@@ -17,11 +17,16 @@ namespace waavs {
     }
 
     inline bool op_setlinewidth(PSVirtualMachine& vm) {
+        auto& ctm = vm.graphics()->getCTM();
+
         PSObject obj;
         if (!vm.opStack().pop(obj) || !obj.isNumber())
             return vm.error("typecheck: expected number");
 
-        vm.graphics()->setLineWidth(obj.asReal());
+        double width, dwidth;
+        ctm.dtransform(obj.asReal(), 0.0, width, dwidth);
+        vm.graphics()->setLineWidth(width);
+
         return true;
     }
 
@@ -125,8 +130,11 @@ namespace waavs {
         return true;
     }
 
+    //=================================================
+    // 
+    // Path building operations
+    //=================================================
 
-    // Path building
     inline bool op_clippath(PSVirtualMachine& vm) {
         PSPath clipPath = vm.graphics()->getClipPath();  // Retrieves a copy
         vm.opStack().push(PSObject::fromPath(std::move(clipPath)));
@@ -176,7 +184,7 @@ namespace waavs {
     }
 
     inline bool op_currentpoint(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        //auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         
         double x = 0.0, y = 0.0;
@@ -196,10 +204,7 @@ namespace waavs {
         if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("op_moveto:typecheck; expected two numbers");
 
-        double x{ 0 };
-        double y{ 0 };
-        ctm.transformPoint(objx.asReal(), objy.asReal(), x, y);
-        if (!path.moveto(x, y))
+        if (!path.moveto(ctm, objx.asReal(), objy.asReal()))
             return vm.error("op_moveto:currentpatherror");
 
         return true;
@@ -220,9 +225,10 @@ namespace waavs {
         if (!path.getCurrentPoint(x0, y0))
             return vm.error("op_rmoveto:nocurrentpoint");
 
-        double dx{ 0 }, dy{ 0 };
-        ctm.dtransform(objdx.asReal(), objdy.asReal(), dx, dy);
-        return path.moveto(x0 + dx, y0 + dy);
+        double dx = objdx.asReal();
+        double dy = objdy.asReal();
+
+        return path.moveto(ctm, x0 + dx, y0 + dy);
     }
 
     inline bool op_lineto(PSVirtualMachine& vm) {
@@ -234,9 +240,7 @@ namespace waavs {
         if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("typecheck: expected two numbers");
 
-        double x{ 0 }, y{ 0 };
-        ctm.transformPoint(objx.asReal(), objy.asReal(), x, y);
-        return path.lineto(x, y);
+        return path.lineto(ctm, objx.asReal(), objy.asReal());
     }
 
     inline bool op_rlineto(PSVirtualMachine& vm) {
@@ -244,18 +248,22 @@ namespace waavs {
         auto& path = vm.graphics()->currentPath();
         auto& ctm = vm.graphics()->getCTM();
 
-        PSObject objdy, objdx;
-        if (!s.pop(objdy) || !s.pop(objdx) || !objdx.isNumber() || !objdy.isNumber())
+        PSObject dyObj, dxObj;
+        if (!s.pop(dyObj) || !s.pop(dxObj) || !dxObj.isNumber() || !dyObj.isNumber())
             return vm.error("op_rlineto:typecheck; expected two numbers");
 
         double x0, y0;
         if (!path.getCurrentPoint(x0, y0)) return vm.error("op_rlineto:nocurrentpoint");
 
-        double dx{ 0 }, dy{ 0 };
-        ctm.dtransform(objdx.asReal(), objdy.asReal(), dx, dy);
-        return path.lineto(x0 + dx, y0 + dy);
+        double dx = dxObj.asReal();
+        double dy = dyObj.asReal();
+
+        return path.lineto(ctm, x0 + dx, y0 + dy);
     }
 
+    // convenience for creating a rectangle path
+    // x y width height -- path
+    //
     inline bool op_rectpath(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
@@ -274,22 +282,22 @@ namespace waavs {
             !widthObj.isNumber() || !heightObj.isNumber())
             return vm.error("rectpath: typecheck");
 
-        double x{ 0 };
-        double y{ 0 };
-        double w{ 0 };
-        double h{ 0 };
+        double x = xObj.asReal();
+        double y = yObj.asReal();
+        double w = widthObj.asReal();
+        double h = heightObj.asReal();
 
-        ctm.transformPoint(xObj.asReal(), yObj.asReal(), x, y);
-        ctm.dtransform(widthObj.asReal(), heightObj.asReal(), w, h);
-        // Rectangles can have negative width/height, which should still work
-        return path.moveto(x, y)
-            && path.lineto(x + w, y)
-            && path.lineto(x + w, y + h)
-            && path.lineto(x, y + h)
-            && path.lineto(x, y); // Optional final lineto to starting point (not closepath)
+
+        return path.moveto(ctm, x, y)
+            && path.lineto(ctm, x + w, y)
+            && path.lineto(ctm, x + w, y + h)
+            && path.lineto(ctm, x, y + h)
+            && path.lineto(ctm, x, y); // Optional final lineto to starting point (not closepath)
     }
     
-    // arc - draws an arc from startAngle to endAngle in degrees
+    // arc 
+    // x y radius startAngle endAngle -- path
+    // draws an arc from startAngle to endAngle in degrees
     inline bool op_arc(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         auto& path = vm.graphics()->currentPath();
@@ -304,17 +312,13 @@ namespace waavs {
             !radiusObj.isNumber() || !startAngleObj.isNumber() || !endAngleObj.isNumber())
             return vm.error("typecheck: expected 5 numbers");
 
-        double cx{ 0 };
-        double cy{ 0 };
-        double radius{ 0 };
-        double rdummy{ 0 }; // Dummy variable for transform
+        double cx = xObj.asReal();
+        double cy = yObj.asReal();
+        double radius = radiusObj.asReal();
         double startAngle = startAngleObj.asReal();
         double endAngle = endAngleObj.asReal();
 
-        ctm.transformPoint(xObj.asReal(), yObj.asReal(), cx, cy);
-        ctm.dtransform(radiusObj.asReal(), 0.0, radius, rdummy);
-
-        return path.arc(cx, cy, radius, startAngle, endAngle);
+        return path.arc(ctm, cx, cy, radius, startAngle, endAngle);
     }
 
     // arcn - arc counter-clockwise
@@ -378,7 +382,7 @@ namespace waavs {
 
         // Execute the arc and retrieve tangent points
         double xt1, yt1, xt2, yt2;
-        if (!path.arcto(x0, y0, x1, y1, x2, y2, r, xt1, yt1, xt2, yt2))
+        if (!path.arcto(ctm, x0, y0, x1, y1, x2, y2, r, xt1, yt1, xt2, yt2))
             return vm.error("arcto: unable to compute arc");
 
         // Push the tangent points as per spec
@@ -418,13 +422,14 @@ namespace waavs {
         if (!path.hasCurrentPoint())
             return vm.error("curveto: no currentpoint");
 
-        double x1, y1, x2, y2, x3, y3;
+        double x1 = x1Obj.asReal();
+        double y1 = y1Obj.asReal();
+        double x2 = x2Obj.asReal();
+        double y2 = y2Obj.asReal();
+        double x3 = x3Obj.asReal();
+        double y3 = y3Obj.asReal();
 
-        ctm.transformPoint(x1Obj.asReal(), y1Obj.asReal(), x1, y1);
-        ctm.transformPoint(x2Obj.asReal(), y2Obj.asReal(), x2, y2);
-        ctm.transformPoint(x3Obj.asReal(), y3Obj.asReal(), x3, y3);
-
-        return path.curveto( x1, y1,  x2, y2,  x3, y3);
+        return path.curveto( ctm, x1, y1,  x2, y2,  x3, y3);
     }
 
 
@@ -451,11 +456,10 @@ namespace waavs {
         if (!path.getCurrentPoint(cx, cy))
             return vm.error("rcurveto: no currentpoint");
 
-        double dx1, dy1, dx2, dy2, dx3, dy3;
+        double dx1 = dx1Obj.asReal(), dy1 = dy1Obj.asReal();
+        double dx2 = dx2Obj.asReal(), dy2 = dy2Obj.asReal();
+        double dx3 = dx3Obj.asReal(), dy3 = dy3Obj.asReal();
 
-        ctm.transformPoint(dx1Obj.asReal(), dy1Obj.asReal(), dx1, dy1);
-        ctm.transformPoint(dx2Obj.asReal(), dy2Obj.asReal(), dx2, dy2);
-        ctm.transformPoint(dx3Obj.asReal(), dy3Obj.asReal(), dx3, dy3);
 
         double x1 = cx + dx1;
         double y1 = cy + dy1;
@@ -464,7 +468,7 @@ namespace waavs {
         double x3 = x2 + dx3;
         double y3 = y2 + dy3;
 
-        return path.curveto(x1, y1, x2, y2, x3, y3);
+        return path.curveto(ctm, x1, y1, x2, y2, x3, y3);
     }
 
 
@@ -492,25 +496,27 @@ namespace waavs {
 
     // ( x y width height -- )
     inline bool op_rectfill(PSVirtualMachine& vm) {
-        PSObject h, w, y, x;
-        if (!vm.opStack().pop(h)) return vm.error("rectfill: missing height");
-        if (!vm.opStack().pop(w)) return vm.error("rectfill: missing width");
-        if (!vm.opStack().pop(y)) return vm.error("rectfill: missing y");
-        if (!vm.opStack().pop(x)) return vm.error("rectfill: missing x");
+        auto& ctm = vm.graphics()->getCTM();
 
-        if (!h.isNumber() || !w.isNumber() || !y.isNumber() || !x.isNumber())
+        PSObject hObj, wObj, yObj, xObj;
+        if (!vm.opStack().pop(hObj)) return vm.error("rectfill: missing height");
+        if (!vm.opStack().pop(wObj)) return vm.error("rectfill: missing width");
+        if (!vm.opStack().pop(yObj)) return vm.error("rectfill: missing y");
+        if (!vm.opStack().pop(xObj)) return vm.error("rectfill: missing x");
+
+        if (!hObj.isNumber() || !wObj.isNumber() || !yObj.isNumber() || !xObj.isNumber())
             return vm.error("rectfill: all operands must be numbers");
 
-        double dx = x.asReal();
-        double dy = y.asReal();
-        double dw = w.asReal();
-        double dh = h.asReal();
+        double x = xObj.asReal();
+        double y = yObj.asReal();
+        double w = wObj.asReal();
+        double h = hObj.asReal();
 
         auto& path = vm.graphics()->currentPath();
-        path.moveto(dx, dy);
-        path.lineto(dx + dw, dy);
-        path.lineto(dx + dw, dy + dh);
-        path.lineto(dx, dy + dh);
+        path.moveto(ctm, x, y);
+        path.lineto(ctm, x + w, y);
+        path.lineto(ctm, x + w, y + h);
+        path.lineto(ctm, x, y + h);
         path.close();
 
         vm.graphics()->fill();
@@ -520,26 +526,29 @@ namespace waavs {
 
     // ( x y width height -- )
     inline bool op_rectstroke(PSVirtualMachine& vm) {
-        PSObject h, w, y, x;
-        if (!vm.opStack().pop(h)) return vm.error("rectfill: missing height");
-        if (!vm.opStack().pop(w)) return vm.error("rectfill: missing width");
-        if (!vm.opStack().pop(y)) return vm.error("rectfill: missing y");
-        if (!vm.opStack().pop(x)) return vm.error("rectfill: missing x");
+        auto& ctm = vm.graphics()->getCTM();
 
-        if (!h.isNumber() || !w.isNumber() || !y.isNumber() || !x.isNumber())
-            return vm.error("rectfill: all operands must be numbers");
+        PSObject hObj, wObj, yObj, xObj;
+        if (!vm.opStack().pop(hObj)) return vm.error("rectstroke: missing height");
+        if (!vm.opStack().pop(wObj)) return vm.error("rectstroke: missing width");
+        if (!vm.opStack().pop(yObj)) return vm.error("rectstroke: missing y");
+        if (!vm.opStack().pop(xObj)) return vm.error("rectstroke: missing x");
 
-        double dx = x.asReal();
-        double dy = y.asReal();
-        double dw = w.asReal();
-        double dh = h.asReal();
+        if (!hObj.isNumber() || !wObj.isNumber() || !yObj.isNumber() || !xObj.isNumber())
+            return vm.error("rectstroke: all operands must be numbers");
+
+        double x = xObj.asReal();
+        double y = yObj.asReal();
+        double w = wObj.asReal();
+        double h = hObj.asReal();
 
         auto& path = vm.graphics()->currentPath();
-        path.moveto(dx, dy);
-        path.lineto(dx + dw, dy);
-        path.lineto(dx + dw, dy + dh);
-        path.lineto(dx, dy + dh);
+        path.moveto(ctm, x, y);
+        path.lineto(ctm, x + w, y);
+        path.lineto(ctm, x + w, y + h);
+        path.lineto(ctm, x, y + h);
         path.close();
+
 
         vm.graphics()->stroke();
 

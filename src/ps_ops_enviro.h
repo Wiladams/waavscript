@@ -82,8 +82,22 @@ namespace waavs {
         return true;
     }
 
+    bool op_initclip(PSVirtualMachine& vm) {
+        // Initialize the clip path to an empty state
+        vm.graphics()->initClipPath();
+        return true;
+    }
 
     bool op_initgraphics(PSVirtualMachine& vm) {
+        auto& ctm = vm.graphics()->getCTM();
+
+        //reset();              // Clear state stack
+        ctm.reset();           // Identity CTM
+        //newpath();            // Clear current path
+        //setRGB(0, 0, 0);      // Default black color
+        //setLineWidth(1);      // Default line width
+        //initClipPath();      // Default clip path
+
         vm.graphics()->initGraphics();
         return true;
     }
@@ -104,12 +118,13 @@ namespace waavs {
             { "save",            op_save },                 // Save the current state of the VM
             { "restore",         op_restore },              // Restore the saved state of the VM
 
-			{ "languagelevel",   op_languagelevel },
-            { "setpagedevice",    op_setpagedevice },
-            { "currentpagedevice", op_currentpagedevice },
-            { "initgraphics",     op_initgraphics },
-            { "showpage",         op_showpage },
-            { "erasepage",        op_erasepage }
+			{ "languagelevel",      op_languagelevel },
+            { "setpagedevice",      op_setpagedevice },
+            { "currentpagedevice",  op_currentpagedevice },
+            { "initclip",           op_initclip},
+            { "initgraphics",       op_initgraphics },
+            { "showpage",           op_showpage },
+            { "erasepage",          op_erasepage }
         };
         return table;
     }

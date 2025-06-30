@@ -12,6 +12,12 @@ namespace waavs {
         static constexpr double PI = 3.14159265358979323846;
         static constexpr double RADIANS_PER_DEGREE = PI / 180.0;
 
+        // Postscript matrix representation is:
+        // | m00 m01 0 |
+        // | m10 m11 0 |
+        // | m20 m21 1 |
+        // We will use a 1D array to represent this matrix, where the
+        // elements are stored in row-major order, omitting the last column.
         double m[6]; // m00 m01 m10 m11 m20 m21
 
 		//===========================================
@@ -81,24 +87,22 @@ namespace waavs {
 		//=============================================
 		// Transformations
 		//=============================================
-        PSMatrix& rotate(double angleDegrees, double cx = 0, double cy = 0) {
-            PSMatrix r = rotation(angleDegrees, cx, cy);
+        
+        PSMatrix& rotate(double angleDegrees) {
+            PSMatrix r = rotation(angleDegrees);
             return preMultiply(r);
         }
+        
 
         constexpr PSMatrix& scale(double sx, double sy) {
-            m[0] *= sx; m[1] *= sx;
-            m[2] *= sy; m[3] *= sy;
-            return *this;
+            return preMultiply(scaling(sx, sy));
         }
 
-        constexpr PSMatrix& translate(double tx, double ty) {
-            double x{ 0 }, y{ 0 };
-            transformPoint(tx, ty, x, y);
-            m[4] += x;
-            m[5] += y;
-            return *this;
+        PSMatrix& translate(double tx, double ty) {
+            return preMultiply(translation(tx, ty));
         }
+
+
 
         constexpr void transformPoint(double x, double y, double& outX, double& outY) const {
             outX = m[0] * x + m[2] * y + m[4];
@@ -117,6 +121,7 @@ namespace waavs {
 
         //============================================
         // Factory constructors
+        // 
         //============================================
         static constexpr PSMatrix identity() {
             return PSMatrix(1, 0, 0, 1, 0, 0);
@@ -130,11 +135,11 @@ namespace waavs {
             return PSMatrix(sx, 0, 0, sy, 0, 0);
         }
 
-        static constexpr PSMatrix rotation(double angleDegrees, double cx = 0, double cy = 0) {
+        static constexpr PSMatrix rotation(double angleDegrees) {
             double rad = angleDegrees * RADIANS_PER_DEGREE;
             double cosA = std::cos(rad);
             double sinA = std::sin(rad);
-            return PSMatrix(cosA, sinA, -sinA, cosA, cx, cy);
+            return PSMatrix(cosA, sinA, -sinA, cosA, 0, 0);
         }
     };
 

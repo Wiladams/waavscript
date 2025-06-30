@@ -190,6 +190,7 @@
     <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\psgraphicscontext.h" />
     <ClInclude Include="..\..\src\psmatrix.h" />
+    <ClInclude Include="..\..\src\pspaint.h" />
     <ClInclude Include="..\..\src\pspath.h" />
     <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />

@@ -1,64 +1,17 @@
 #pragma once
 
 namespace waavs {
-struct PSVMOps {
+	struct PSVMOps {
 
-const char* op_executive = R"||(
-% calling format
-% executive
-% found in: userdict
-% referenced in 1 (specialswitch)
-/executive
-{
-	//execdict
-	begin
-	cearinterrupt
-	disableinterrupt
-
-/execdepth
-1
-add
-def
-
-(\nPostScript (tm) Version )
-
-print
-version
-print
-(\nCopyright (c) 1985 Adobe Systems Incorporated.\n)
-
-print
-
-% begin executive loop
-{
-} def
+		// Calculate the maximum between two values
+		const char* op_code_max = R"||(
+/.max {2 copy lt { exch } if pop } bind def
 )||";
+
+		const char* op_code_min = R"||(
+/.min {2 copy gt { exch } if pop } bind def
+)||";
+
 	};
-
-const char* op_setnulldevice = R"||(
-/setnulldevice
-{
-  nulldevice
-
-  $printerdict
-  /mtx
-  get
-
-  setmatrix
-} def
-)||";
-
-const char* op_start = R"||(
-/start
-{
-  disableinterrupt
-  execdict
-/execdepth
-0
-put
-ReadIdleFonts
-
-} def
-)||";
 
 }

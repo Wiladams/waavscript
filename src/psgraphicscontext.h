@@ -73,17 +73,18 @@ namespace waavs {
 
         virtual void initClipPath() {
             PSPath& clip = currentState()->fCurrentClipPath;
+            auto& ctm = currentState()->ctm;
+
             clip.reset();
-            clip.moveto(0, 0);
-            clip.lineto(pageWidth, 0);
-            clip.lineto(pageWidth, pageHeight);
-            clip.lineto(0, pageHeight);
+            clip.moveto(ctm, 0, 0);
+            clip.lineto(ctm, pageWidth, 0);
+            clip.lineto(ctm, pageWidth, pageHeight);
+            clip.lineto(ctm, 0, pageHeight);
             clip.close();
         }
 
         virtual void initGraphics() {
             reset();              // Clear state stack
-            resetCTM();           // Identity CTM
             newpath();            // Clear current path
             setRGB(0, 0, 0);      // Default black color
             setLineWidth(1);      // Default line width
@@ -91,47 +92,10 @@ namespace waavs {
         }
 
 
-        // --- CTM operations ---
-        virtual void setCTM(const PSMatrix& m) {
-            currentState()->ctm = m;
-        }
-
-        virtual void concat(const PSMatrix& m) {
-            currentState()->ctm.preMultiply(m);
-        }
-
-
         virtual PSMatrix & getCTM()  {
             return currentState()->ctm;
         }
 
-        virtual void resetCTM() {
-            currentState()->ctm.reset();
-        }
-
-        virtual void translate(double tx, double ty) {
-            currentState()->ctm.translate(tx, ty);
-        }
-
-        virtual void scale(double sx, double sy) {
-            currentState()->ctm.scale(sx, sy);
-        }
-
-        virtual void rotate(double angle) {
-            currentState()->ctm.rotate(angle, 0, 0);
-        }
-
-        virtual void transformPoint(double x, double y, double &outX, double &outY) {
-            currentState()->ctm.transformPoint(x, y, outX, outY);
-		}
-
-        //virtual void itransformPoint(double x, double y, double &outX, double &outY) {
-        //    currentState()->ctm.itransform(x, y, outX, outY);
-		//}
-
-        virtual void dtransformPoint(double x, double y, double &outX, double &outY) {
-            currentState()->ctm.dtransform(x, y, outX, outY);
-        }
 
         // Handling paint
         virtual void setGray(double gray) {

@@ -118,11 +118,15 @@ namespace waavs {
 
     inline bool op_srand(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        if (s.empty()) 
+            return vm.error("op_srand: stackunderflow");
+
         PSObject obj;
         s.pop(obj);
-        if (!obj.isInt()) return false;
+        if (!obj.isInt())
+            return vm.error("op_srand: typecheck");
         vm.randSeed = obj.asInt() & 0x7FFFFFFF;
+
         return true;
     }
 

@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cmath>
+#include "psmatrix.h"
 
 namespace waavs {
 #define CLAMP(x, low, high) std::min(std::max(x, low), high)
@@ -59,26 +60,39 @@ namespace waavs {
 
         bool getCurrentPoint(double& x, double& y) const {
             if (!fHasCurrentPoint) return false;
+
             x = fCurrentX;
             y = fCurrentY;
+            
             return true;
 		}
 
         // Movement commands to build path
-        bool moveto(double x, double y) {
-            segments.push_back({ PSPathCommand::MoveTo, x, y });
+        bool moveto(const PSMatrix &ctm, double x, double y) {
+            double newX{ 0 };
+            double newY{ 0 };
+            ctm.transformPoint(x, y, newX, newY);
+
+            segments.push_back({ PSPathCommand::MoveTo, newX, newY });
+
             fCurrentX = fStartX = x;
             fCurrentY = fStartY = y;
+
             fHasCurrentPoint = true;
 
             return true;
         }
 
-        bool lineto(double x, double y) {
+        bool lineto(const PSMatrix& ctm, double x, double y) {
 			if (!fHasCurrentPoint) return false;
-            segments.push_back({ PSPathCommand::LineTo, x, y });
-			fCurrentX = x;
-			fCurrentY = y;
+
+            double newX{ 0 };
+            double newY{ 0 };
+            ctm.transformPoint(x, y, newX, newY);
+            segments.push_back({ PSPathCommand::LineTo, newX, newY });
+
+            fCurrentX = x;
+            fCurrentY = y;
 
             return true;
         }
@@ -91,24 +105,34 @@ namespace waavs {
         //   startDeg-x3 = starting angle in degrees
         //   endDeg-y3 = ending angle in degrees
         // Note: Angles are in degrees, with 0 degrees pointing to the right (positive X axis)
-        bool arc(double cx, double cy, double radius, double startDeg, double endDeg) {
+        bool arc(const PSMatrix &ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
             // Arc is valid even if there is no currentpoint yet (like moveto)
+            // Update currentpoint to arc endpoint (angle = endDeg)
+            double thetaRad = endDeg * (P_PI / 180.0);
+            fCurrentX = cx + radius * std::cos(thetaRad);
+            fCurrentY = cy + radius * std::sin(thetaRad);
+            fHasCurrentPoint = true;
+
+
+            double tcx = 0.0;
+            double tcy = 0.0;
+            double tradius = 0;
+            double rdummy = 0.0;
+            ctm.transformPoint(cx, cy, tcx, tcy);
+            ctm.dtransform(radius, 0.0, tradius, rdummy);
+
+
             PSPathSegment seg;
             seg.command = PSPathCommand::Arc;
-            seg.x1 = cx;        // Center X
-            seg.y1 = cy;        // Center Y
-            seg.x2 = radius;    // Radius
+            seg.x1 = tcx;        // Center X
+            seg.y1 = tcy;        // Center Y
+            seg.x2 = tradius;    // Radius
             seg.y2 = 0;         // Unused
             seg.x3 = startDeg;  // Start angle (degrees)
             seg.y3 = endDeg;    // End angle (degrees)
 
             segments.push_back(seg);
 
-            // Update currentpoint to arc endpoint (angle = endDeg)
-            double thetaRad = endDeg * (P_PI / 180.0);
-            fCurrentX = cx + radius * std::cos(thetaRad);
-            fCurrentY = cy + radius * std::sin(thetaRad);
-            fHasCurrentPoint = true;
 
             return true;
         }
@@ -150,7 +174,7 @@ namespace waavs {
             return true;
         }
 
-        bool arcto(double x0, double y0,
+        bool arcto(const PSMatrix &ctm, double x0, double y0,
             double x1, double y1,
             double x2, double y2,
             double r,
@@ -228,10 +252,10 @@ namespace waavs {
             
 
             // Build the actual path segments
-            lineto(xt1, yt1);
+            lineto(ctm, xt1, yt1);
             ellipticArcTo(r, sweepFlag, xt2, yt2);
             //moveto(xt2, yt2);
-            lineto(x2, y2);
+            lineto(ctm, x2, y2);
 
 
             fCurrentX = x2;
@@ -242,19 +266,24 @@ namespace waavs {
         }
 
 
-
-
-
-
-
-
-        bool curveto(double x1, double y1,
+        bool curveto(const PSMatrix &ctm, 
+            double x1, double y1,
             double x2, double y2,
             double x3, double y3) {
 
             if (!fHasCurrentPoint) return false;
 
-            segments.push_back({ PSPathCommand::CurveTo, x1, y1, x2, y2, x3, y3 });
+
+            
+            double tx1, ty1;
+            double tx2, ty2;
+            double tx3, ty3;
+            
+            ctm.transformPoint(x1, y1, tx1, ty1);
+            ctm.transformPoint(x2, y2, tx2, ty2);
+            ctm.transformPoint(x3, y3, tx3, ty3);
+
+            segments.push_back({ PSPathCommand::CurveTo, tx1, ty1, tx2, ty2, tx3, ty3 });
 
             fCurrentX = x3; // Assuming x3 is the end point of the curve
             fCurrentY = y3;
@@ -270,59 +299,81 @@ namespace waavs {
             return true;
         }
 
+        // Get the boundary box for the path
         bool getBoundingBox(double& minX, double& minY, double& maxX, double& maxY) const {
             bool found = false;
+
+            auto includePoint = [&](double x, double y) {
+                if (!found) {
+                    minX = maxX = x;
+                    minY = maxY = y;
+                    found = true;
+                }
+                else {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+                };
+
+            auto includeArcBounds = [&](double cx, double cy, double r, double startDeg, double sweepDeg) {
+                auto normDeg = [](double deg) {
+                    deg = std::fmod(deg, 360.0);
+                    return deg < 0 ? deg + 360.0 : deg;
+                    };
+
+                startDeg = normDeg(startDeg);
+                double endDeg = normDeg(startDeg + sweepDeg);
+
+                auto isAngleBetween = [](double angle, double start, double end) {
+                    if (end < start) end += 360.0;
+                    if (angle < start) angle += 360.0;
+                    return angle >= start && angle <= end;
+                    };
+
+                auto include = [&](double deg) {
+                    double rad = deg * (P_PI / 180.0);
+                    double x = cx + r * std::cos(rad);
+                    double y = cy + r * std::sin(rad);
+                    includePoint(x, y);
+                    };
+
+                include(startDeg);
+                include(endDeg);
+
+                for (int i = 0; i < 4; ++i) {
+                    double axisDeg = i * 90.0;
+                    if (isAngleBetween(axisDeg, startDeg, endDeg))
+                        include(axisDeg);
+                }
+                };
 
             for (const auto& seg : segments) {
                 switch (seg.command) {
                 case PSPathCommand::MoveTo:
                 case PSPathCommand::LineTo:
                 case PSPathCommand::ClosePath:
-                {
-                    double x = seg.x1;
-                    double y = seg.y1;
-                    if (!found) {
-                        minX = maxX = x;
-                        minY = maxY = y;
-                        found = true;
-                    }
-                    else {
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
-                    }
-                }
-                break;
+                    includePoint(seg.x1, seg.y1);
+                    break;
 
                 case PSPathCommand::CurveTo:
                     for (int i = 0; i < 3; ++i) {
                         double x = (&seg.x1)[i * 2];
                         double y = (&seg.y1)[i * 2];
-                        if (!found) {
-                            minX = maxX = x;
-                            minY = maxY = y;
-                            found = true;
-                        }
-                        else {
-                            if (x < minX) minX = x;
-                            if (x > maxX) maxX = x;
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
-                        }
+                        includePoint(x, y);
                     }
                     break;
 
                 case PSPathCommand::Arc:
-                case PSPathCommand::ArcCCW:
-                {
+                case PSPathCommand::ArcCCW: {
                     double cx = seg.x1;
                     double cy = seg.y1;
                     double r = seg.x2;
                     double startDeg = seg.x3;
                     double endDeg = seg.y3;
 
-                    // Normalize angles to [0, 360)
+                    // Convert to sweep angle
                     auto norm = [](double deg) {
                         deg = std::fmod(deg, 360.0);
                         return deg < 0 ? deg + 360.0 : deg;
@@ -331,107 +382,23 @@ namespace waavs {
                     endDeg = norm(endDeg);
 
                     bool ccw = (seg.command == PSPathCommand::ArcCCW);
-                    double sweep = ccw ? endDeg - startDeg : endDeg - startDeg;
-                    if (!ccw && sweep < 0) sweep += 360.0;
+                    double sweep = endDeg - startDeg;
                     if (ccw && sweep < 0) sweep += 360.0;
+                    if (!ccw && sweep > 0) sweep -= 360.0;
 
-                    // Always include start and end points
-                    auto include = [&](double angleDeg) {
-                        double rad = angleDeg * (P_PI / 180.0);
-                        double x = cx + r * std::cos(rad);
-                        double y = cy + r * std::sin(rad);
-                        if (!found) {
-                            minX = maxX = x;
-                            minY = maxY = y;
-                            found = true;
-                        }
-                        else {
-                            if (x < minX) minX = x;
-                            if (x > maxX) maxX = x;
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
-                        }
-                        };
-
-                    include(startDeg);
-                    include(endDeg);
-
-                    // Also check the 0, 90, 180, 270 degree axis points if they lie within the sweep
-                    for (int axis = 0; axis < 4; ++axis) {
-                        double a = axis * 90.0;
-                        double rel = a - startDeg;
-                        if (ccw) {
-                            if (rel < 0) rel += 360.0;
-                            if (rel <= sweep)
-                                include(a);
-                        }
-                        else {
-                            if (rel < 0) rel += 360.0;
-                            if (rel <= sweep)
-                                include(a);
-                        }
-                    }
+                    includeArcBounds(cx, cy, r, startDeg, sweep);
+                    break;
                 }
-                break;
 
-                case PSPathCommand::EllipticArc:
-                {
-                    // Get stored data (in degrees)
+                case PSPathCommand::EllipticArc: {
                     double cx = seg.x1;
                     double cy = seg.y1;
                     double r = seg.x2;
                     double startDeg = seg.x3;
                     double sweepDeg = seg.y3;
-
-                    double endDeg = startDeg + sweepDeg;
-
-                    // Normalize angle to [0, 360)
-                    auto normDeg = [](double deg) -> double {
-                        deg = std::fmod(deg, 360.0);
-                        return deg < 0 ? deg + 360.0 : deg;
-                        };
-
-                    startDeg = normDeg(startDeg);
-                    endDeg = normDeg(endDeg);
-
-                    auto isAngleBetween = [&](double angle, double start, double end) -> bool {
-                        if (end < start)
-                            end += 360.0;
-                        if (angle < start)
-                            angle += 360.0;
-                        return angle >= start && angle <= end;
-                        };
-
-                    auto include = [&](double deg) {
-                        double rad = deg * (P_PI / 180.0);
-                        double x = cx + r * std::cos(rad);
-                        double y = cy + r * std::sin(rad);
-                        if (!found) {
-                            minX = maxX = x;
-                            minY = maxY = y;
-                            found = true;
-                        }
-                        else {
-                            if (x < minX) minX = x;
-                            if (x > maxX) maxX = x;
-                            if (y < minY) minY = y;
-                            if (y > maxY) maxY = y;
-                        }
-                        };
-
-                    // Include start and end points
-                    include(startDeg);
-                    include(endDeg);
-
-                    // Check axis angles: 0, 90, 180, 270
-                    for (int i = 0; i < 4; ++i) {
-                        double axisDeg = i * 90.0;
-                        if (isAngleBetween(axisDeg, startDeg, endDeg))
-                            include(axisDeg);
-                    }
+                    includeArcBounds(cx, cy, r, startDeg, sweepDeg);
+                    break;
                 }
-                break;
-
 
                 default:
                     break;

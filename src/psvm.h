@@ -81,7 +81,6 @@ namespace waavs
         PSDictionaryHandle setUserDict(PSDictionaryHandle dict)
         {
             userdict = dict;
-           // dictionaryStack.setTop(dict);
             return userdict;
         }
 
@@ -172,7 +171,8 @@ namespace waavs
 
             auto arr = proc.asArray();
             for (const auto& obj : arr->elements) {
-                if (!execObject(obj)) return false;
+                if (!execObject(obj)) 
+                    return false;
 
                 if (isExitRequested()) break;
                 if (isStopRequested()) break;
@@ -186,22 +186,42 @@ namespace waavs
         // This is meant to run executable names
         bool execName(const PSObject& obj)
         {
-            // Lookup the thing in the dictionary stack
             auto name = obj.asName();
+            //printf("execName: %s\n", name.c_str());
+
+            // 1. If It's a literal name= ("/foo"), push to opStack as literal
+            if (obj.isLiteralName())
+                return opStack().push(obj);
+
+            // If it's not a literal name, it should be an exacutable name
+            // so lookup the thing with the name
             PSObject resolved;
 
-            if (!dictionaryStack.load(name, resolved)) {
-                return error("undefined name", name.c_str());
+            // First, check system dictionary, for names that started with '//aname'
+            if (obj.isSystemOp()) {
+                if (!systemdict->get(name, resolved)) {
+                    return error("undefined system name", name.c_str());
+                }
+            }
+            else {
+                if (!dictionaryStack.load(name, resolved)) {
+                    return error("undefined name", name.c_str());
+                }
             }
 
             // 2. If it's an operator?  run it immediately
+            //return execObject(resolved);
+
             if (resolved.isOperator()) {
                 auto op = resolved.asOperator();
 
                 // Run the operator if it's valid, otherwise return false
                 if (op.isValid()) {
                     return op.func(*this);
-                } return false;
+                } 
+                
+                return error("operator not valid", op.name.c_str());
+
             }
 
             // 3. Name resolves to a procedure?  auto-exec
@@ -210,9 +230,20 @@ namespace waavs
             }
 
             // 4. Otherwise, it's a literal value, push to operand stack
-            opStack().push(resolved);
+            return opStack().push(resolved);
+        }
 
-            return true;
+        bool execOperator(const PSObject& obj)
+        {
+            auto op = obj.asOperator();
+
+            //printf("DBG: execOperator - executing operator: %s\n", op.name.c_str());
+
+            if (op.isValid()) {
+                return op.func(*this);
+            }
+ 
+            return error("PSVirtualMachine::ececute - invalid operator", op.name.c_str());
         }
 
         // --- Execute a single PSObject
@@ -237,46 +268,11 @@ namespace waavs
                     return true;
 
                 case PSObjectType::Operator: {
-                    auto op = obj.asOperator();
-                    if (op.isValid()) {
-                        return op.func(*this);
-                    }
-                    else {
-                        return error("PSVirtualMachine::ececute - invalid operator", op.name.c_str());
-                    }
+                    return execOperator(obj);
                 }
 
                 case PSObjectType::Name: {
-
-                    // 1. If It's a literal name= ("/foo"), push to opStack as literal
-                    if (obj.isLiteralName())
-                        return opStack().push(obj);
-
-                    // If it's not a literal name, then it's something we should lookup
-                    // It should resolve to either an executable thing (operator,procedure)
-                    // or it will be another literal, which can just be put on the opStack
-                    auto name = obj.asName();
-                    PSObject resolved;
-
-
-                    if (!dictionaryStack.load(name, resolved)) {
-                        return error("undefined name", name.c_str());
-                    }
-
-
-                    // 2. If it's an operator?  Execute it
-                    if (resolved.isOperator()) {
-                        return execObject(resolved);
-                    }
-
-                    // 3. Name resolves to a procedure?  auto-exec
-                    if (resolved.isArray() && resolved.asArray()->isProcedure()) {
-                        return execProc(resolved);
-                    }
-
-                    // 4. Otherwise, it's a literal value, push to operand stack
-                    opStack().push(resolved);
-                    return true;
+                    return execName(obj); // Execute the name directly
                 }
 
                 case PSObjectType::Array: {
@@ -304,16 +300,77 @@ namespace waavs
         // happens at the scanner level, or in the case of an array, as
         // regular operators.
         //
+
         bool interpret(const PSObject& obj)
         {
-            // The only things we try to execute directly are
-            // executable names.  Everything else is pushed onto the stack.
-            if (obj.isExecutableName())
+            // if is name, then see if it's an executable name
+            // if it is, then execute it immediately.
+            // if not executable name, then push it onto the operand stack.
+            //if (obj.isName())
+            //{
+            //    return execName(obj); // Execute the name directly
+            //}
+            //else if (obj.isOperator()) {
+            //    return execObject(obj); // Execute the operator directly
+            //}
+            //else {
+            //    return opStack().push(obj); // Push literal object onto operand stack
+            //}
+
+            
+            if (obj.isExecutable())
             {
-                if (!execName(obj)) return false;
+                if (obj.isExecutableName())
+                {
+                    return execName(obj);
+                }
+                else if (obj.isOperator())
+                {
+                    return execObject(obj); // Execute the operator directly
+                }
+                //else if (obj.isArray() && obj.asArray()->isProcedure())
+                else
+                {
+                    // Any other Executable type
+                    return opStack().push(obj);
+                }
             }
-            else {
+            else
+            {
+                // Literal object → push to operand stack
                 opStack().push(obj);
+                return true;
+            }
+            
+
+           // printf("PSVirtualMachine::interpret - unhandled object type: %d\n", obj.type);
+            return error("interpret: unknown object type"); // Should not reach here
+        }
+
+        // This is a shim.  Mainly it needs to convert systemNamed objects
+        // into system operators, which can be executed.
+        bool genNextObject(PSObjectGenerator& objGen, PSObject& obj)
+        {
+            // return the next object from the object generator
+            if (!objGen.next(obj))
+                return false;
+
+            // If the object is a system name, resolve it to an operator
+            if (obj.isName() && obj.isSystemOp())
+            {
+                if (!systemdict->get(obj.asName(), obj)) {
+                    return error("genNextObject: undefined system name", obj.asName().c_str());
+                }
+
+                // If the resolved object is an operator, use it
+                if (obj.isOperator()) {
+                    return true;
+                }
+                else {
+                    return false; // Error, expected an operator
+                    // Otherwise, treat it as a literal value
+                    //return opStack().push(resolved);
+                }
             }
 
             return true;
@@ -327,8 +384,10 @@ namespace waavs
                 PSObject obj;
 
                 // return the next object from the object generator
-                if (!objGen.next(obj)) 
-                    return false;
+                // getting a 'false' return value means the end of the stream
+                // it does not necessarily mean an error
+                if (!genNextObject(objGen, obj))
+                    break; //  error("END of Object stream");
 
 				if (!interpret(obj)) 
                     return false;

@@ -127,12 +127,6 @@ namespace waavs {
                 break;
             }
 
-                                   /*
-            seg.x1 = radius;        // radius
-            seg.y1 = sweepFlag;     // sweep flag (0 or 1)
-            seg.x2 = x2;            // endpoint x
-            seg.y2 = y2;            // endpoint y
-                                   */
             case PSPathCommand::EllipticArc: {
                 double x1 = seg.x2;
                 double y1 = seg.y2;
@@ -206,18 +200,17 @@ namespace waavs {
         // Painting - filling and stroking paths
         bool fill() override {
             BLPath blPath;
-            //BLMatrix2D blTrans;
-
-            //blTrans = blTransform(currentState()->ctm);
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
 
             ctx.save(); // Save current state
 
+            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
+            BLFillRule fillRule = BL_FILL_RULE_NON_ZERO;
 
-            //ctx.setTransform(blTrans);
-            ctx.setFillStyle(convertPaint(currentState()->fillPaint));
+            ctx.setFillRule(fillRule); // Set even-odd fill rule
+            ctx.setFillStyle(fillColor);
 
             ctx.fillPath(blPath);
 
@@ -230,19 +223,17 @@ namespace waavs {
 
         bool eofill() override {
             BLPath blPath;
-            //BLMatrix2D blTrans;
 
-            //blTrans = blTransform(currentState()->ctm);
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
-
             ctx.save(); // Save current state
 
-            ctx.setFillRule(BL_FILL_RULE_EVEN_ODD); // Set even-odd fill rule
-            //ctx.setTransform(blTrans);
-            ctx.setFillStyle(convertPaint(currentState()->fillPaint));
+            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
+            BLFillRule fillRule = BL_FILL_RULE_EVEN_ODD;
 
+            ctx.setFillRule(fillRule); // Set even-odd fill rule
+            ctx.setFillStyle(fillColor);
             ctx.fillPath(blPath);
 
             currentPath().reset();
@@ -250,20 +241,15 @@ namespace waavs {
             ctx.restore(); // Restore to previous state
 
             return true;
-
         }
 
         bool stroke() override {
             BLPath blPath;
-            //BLMatrix2D blTrans;
 
-            //blTrans = blTransform(currentState()->ctm);
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
 			ctx.save(); // Save current state
-
-            //ctx.setTransform(blTrans);
 
             BLRgba32 strokeColor = convertPaint(currentState()->strokePaint);
             double strokeWidth = currentState()->lineWidth;

@@ -95,5 +95,8 @@
     <ClInclude Include="..\..\src\ps_ops_enviro.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\pspaint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -34,7 +34,6 @@ namespace waavs {
     struct PSOperator;
     struct PSDictionary;
     struct PSVirtualMachine;
-    struct PSFile;
     struct PSFont;
     struct PSFontFace;
 
@@ -59,22 +58,22 @@ namespace std {
 
 namespace waavs
 {
-	// --------------------
-	// PSMark
-	// Used to mark positions on a stack or in a procedure
-	// --------------------
+    // --------------------
+    // PSMark
+    // Used to mark positions on a stack or in a procedure
+    // --------------------
     struct PSMark {
     private:
-		PSName fName = nullptr; // Name of the marker, always interned
-        
-    public:
-        PSMark(const char* name=nullptr) noexcept
-			: fName(PSNameTable::INTERN(name)) {
-		}
+        PSName fName = nullptr; // Name of the marker, always interned
 
-        PSName name() const noexcept { 
-            return fName; 
-		}
+    public:
+        PSMark(const char* name = nullptr) noexcept
+            : fName(PSNameTable::INTERN(name)) {
+        }
+
+        PSName name() const noexcept {
+            return fName;
+        }
     };
     // --------------------
     // PSOperator
@@ -89,11 +88,11 @@ namespace waavs
 
         PSOperator() = default;
 
-        PSOperator(const PSName & opName, PSOperatorFunc f) noexcept
+        PSOperator(const PSName& opName, PSOperatorFunc f) noexcept
             : name(opName), func(f) {
         }
 
-		// an operator() overload to call the function
+        // an operator() overload to call the function
         bool operator()(PSVirtualMachine& vm) {
             if (func) {
                 return func(vm);
@@ -102,320 +101,252 @@ namespace waavs
         }
 
         // Check if the operator is valid
-		bool isValid() const noexcept { 
-            return func != nullptr; 
+        bool isValid() const noexcept {
+            return func != nullptr;
         }
 
 
     };
+}
 
+namespace waavs {
 
-// --------------------
-// PSObject Type Enum
-// --------------------
+    // --------------------
+    // PSObject Type Enum
+    // --------------------
     enum struct PSObjectType : char {
-        Null            = 'z'       // Null type, represents a null object
-        , Int           = 'i'       // Integer type, represents a 32-bit signed integer
-        , Real          = 'r'       // Real type, represents a double-precision floating-point number
-        , Bool          = 'b'       // Boolean type, represents a true or false value
-        , Name          = 'n'       // Name type, represents an interned name (string)
-        , String        = 's'       // String type, represents a PSString object
-        , Array         = 'a'
-        , Dictionary    = 'd'
-        , Operator      = 'O'
-        , Path          = 'p'       // Path type, represents a drawing path
-        , File          = 'L'       // File type, represents a file object
-        , Font          = 'f'       // Font type, represents a font object
-        , FontFace      = 'F'       // FontFace type, represents a font face object
-        , Mark          = 'm'
-        , Matrix        = 'x'
-        , Invalid       = '?'       // Invalid type, used for uninitialized objects
-        , Any           = '*'       // Any type, used for generic operations
-        , Save          = 'S'       // VM Save state
+        Null = 'z'       // Null type, represents a null object
+        , Int = 'i'       // Integer type, represents a 32-bit signed integer
+        , Real = 'r'       // Real type, represents a double-precision floating-point number
+        , Bool = 'b'       // Boolean type, represents a true or false value
+        , Name = 'n'       // Name type, represents an interned name (string)
+        , String = 's'       // String type, represents a PSString object
+        , Array = 'a'
+        , Dictionary = 'd'
+        , Operator = 'O'
+        , Path = 'p'       // Path type, represents a drawing path
+        , File = 'L'       // File type, represents a file object
+        , Font = 'f'       // Font type, represents a font object
+        , FontFace = 'F'       // FontFace type, represents a font face object
+        , Mark = 'm'
+        , Matrix = 'x'
+        , Invalid = '?'       // Invalid type, used for uninitialized objects
+        , Any = '*'       // Any type, used for generic operations
+        , Save = 'S'       // VM Save state
     };
 
-
-struct PSObject {
-private:
-    using Variant = std::variant<
-        std::monostate,                      // INVALID
-        int32_t,                             // Int
-        double,                              // Real
-        bool,                                // Bool
-        PSName,                         // Name (interned)
-        PSOperator,                          // Operator
-		PSMatrix,                            // Matrix
-        PSPath,                              // Path
-        PSString,                            // String
-        PSArrayHandle,                       // Array
-        PSDictionaryHandle,                  // Dictionary
-        PSFileHandle,                        // File
-        PSFontFaceHandle,                    // FontFace
-        PSFontHandle,                        // Font
-        PSMark                               // Mark
-    >;
-
-    bool fIsExec = false;
-    Variant fValue;
-
-public:
-    PSObjectType type = PSObjectType::Null;
-
-    // Reset state
-    bool reset() {
-        fValue = std::monostate{};
-        type = PSObjectType::Null;
-        fIsExec = false;
-        return true;
-    }
-
-
-    bool resetFromInt(int32_t v) {
-        reset(); type = PSObjectType::Int; fValue = v; return true;
-    }
-    bool resetFromReal(double v) {
-        reset(); type = PSObjectType::Real; fValue = v; return true;
-    }
-    bool resetFromBool(bool v) {
-        reset(); type = PSObjectType::Bool; fValue = v; return true;
-    }
-
-    bool resetFromName(const PSName & n) {
-        reset(); type = PSObjectType::Name; fValue = n; return true;
-    }
-
-    bool resetFromInternedName(const char* interned) {
-        reset(); type = PSObjectType::Name; fValue =PSName(interned); return true;
-	}
-    //bool resetFromName(const char* cstr) {
-	//	return resetFromInternedName(PSNameTable::INTERN(cstr));
-    //}
-    bool resetFromName(const OctetCursor& oc) {
-        return resetFromInternedName(PSNameTable::INTERN(oc));
-    }
-    bool resetFromString(PSString s) {
-        reset(); type = PSObjectType::String; fValue = s; return true;
-    }
-    bool resetFromArray(PSArrayHandle a) {
-        reset(); type = PSObjectType::Array; fValue = a; return true;
-    }
-    bool resetFromDictionary(PSDictionaryHandle d) {
-        reset(); type = PSObjectType::Dictionary; fValue = d; return true;
-    }
-
-    bool resetFromFile(PSFileHandle f) {
-        reset(); type = PSObjectType::File; fValue = f; return true;
-    }
-
-    bool resetFromFontFace(PSFontFaceHandle v) {
-        reset(); type = PSObjectType::FontFace; fValue = v; return true;
-    }
-
-    bool resetFromFont(PSFontHandle v) {
-        reset(); type = PSObjectType::Font; fValue = v; return true;
-    }
-
-    bool resetFromOperator(const PSOperator& f) {
-        reset(); type = PSObjectType::Operator; fIsExec = true; fValue = f; fIsExec = true; return true;
-    }
-    bool resetFromMatrix(const PSMatrix& m) {
-        reset(); type = PSObjectType::Matrix; fValue = m; return true;
-	}
-    bool resetFromPath(const PSPath& p) {
-        reset(); type = PSObjectType::Path; fValue = p; return true;
-    }
-    bool resetFromPath(PSPath&& p) {
-        reset(); type = PSObjectType::Path; fValue = std::move(p); return true;
-    }
-    bool resetFromMark(const PSMark& m) {
-        reset(); type = PSObjectType::Mark; fValue = m; return true;
-    }
-
-    bool resetFromSave() { reset(); type = PSObjectType::Save; return true; }
-
-
-    // Static constructors
-    static PSObject fromInt(int32_t v) { PSObject o; o.resetFromInt(v); return o; }
-    static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
-    static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
-    static PSObject fromName(const PSName & n) { PSObject o; o.resetFromName(n); return o; }
-	static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
-	//static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
-    static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
-    static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
-    static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
-    static PSObject fromFile(PSFileHandle f) { PSObject o; o.resetFromFile(f); return o; }
-    static PSObject fromFontFace(PSFontFaceHandle v) { PSObject o; o.resetFromFontFace(v); return o; }
-    static PSObject fromFont(PSFontHandle v) { PSObject o; o.resetFromFont(v); return o; }
-    static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
-	static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
-    static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
-    static PSObject fromPath(PSPath&& p) { PSObject o; o.resetFromPath(p); return o; }
-    static PSObject fromMark(const PSMark &m) { PSObject o; o.resetFromMark(m); return o; }
-    static PSObject fromSave() { PSObject o; o.resetFromSave(); return o; }
-
-    // Accessors using std::get
-    template<typename T>
-    constexpr bool get(T& out) const {
-        if (const T* ptr = std::get_if<T>(&fValue)) {
-            out = *ptr;
-            return true;
-        }
-        return false;
-    }
-
-    template<typename T>
-    constexpr T as() const {
-        return std::get<T>(fValue);
-    }
-
-    template<typename T>
-    constexpr T* try_as() {
-        return std::get_if<T>(&fValue);
-    }
-
-    // Legacy-style accessors
-    int asInt() const { return as<int32_t>(); }
-    double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(as<int32_t>()) : as<double>(); }
-    bool asBool() const { return as<bool>(); }
-    PSName asName() const { return as<PSName>(); }
-    const char* asNameCStr() const { return as<PSName>().c_str(); } 
-    PSString asString() const { return as<PSString>(); }
-    PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
-    PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
-    PSFileHandle asFile() const { return as<PSFileHandle>(); }
-    PSFontFaceHandle asFontFace() const { return as<PSFontFaceHandle>(); }
-    PSFontHandle asFont() const { return as<PSFontHandle>(); }
-    PSOperator asOperator() const { return as<PSOperator>(); }
-	PSMatrix asMatrix() const { return as<PSMatrix>(); }
-    PSPath asPath() const { return as<PSPath>(); }
-	PSMark asMark() const { return as<PSMark>(); }
-
-    // Type checks
-    bool isExecutable() const { return fIsExec; }
-    void setExecutable(bool flag) { fIsExec = flag; }
-
-    inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
-    inline bool isNumber() const { return isInt() || isReal(); }
-    inline bool isInt() const { return is(PSObjectType::Int); }
-    inline bool isReal() const { return is(PSObjectType::Real); }
-    inline bool isBool() const { return is(PSObjectType::Bool); }
-    inline bool isName() const { return is(PSObjectType::Name); }
-    inline bool isLiteralName() const { return isName() && !fIsExec; }
-	inline bool isExecutableName() const { return isName() && fIsExec; }
-    inline bool isString() const { return is(PSObjectType::String); }
-    inline bool isArray() const { return is(PSObjectType::Array); }
-    inline bool isExecutableArray() const { return isArray() && isExecutable(); }
-    inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
-    inline bool isFile() const { return is(PSObjectType::File); }
-    inline bool isFontFace() const { return is(PSObjectType::FontFace); }
-    inline bool isFont() const { return is(PSObjectType::Font); }
-    inline bool isOperator() const { return is(PSObjectType::Operator); }
-    inline bool isMark() const { return is(PSObjectType::Mark); }
-    inline bool isMatrix() const { return is(PSObjectType::Matrix); }
-    inline bool isPath() const { return is(PSObjectType::Path); }
-    inline bool isNull() const { return is(PSObjectType::Null); }
-    inline bool isSave() const { return is(PSObjectType::Save); }
-
-    // Signature helper
-    char typeChar() const { return static_cast<char>(type); }
-};
-
-
-    struct PSOperatorSignature
-    {
-        const char* name;       // Name of the operator
-        PSObjectType kinds[8];  // Types of arguments
-        uint8_t arity;          // Number of arguments
-
-        PSOperatorSignature(const char* opName, const char* typeString)
-        {
-            name = PSNameTable::INTERN(opName);
-            arity = 0;
-
-            // Assign argument types
-            while (*typeString && arity < 8) {
-                kinds[arity++] = static_cast<PSObjectType>(*typeString++);
-            }
-        }
+    enum PSObjectFlags : uint32_t {
+        PS_OBJ_FLAG_NONE = 0,
+        PS_OBJ_FLAG_EXECUTABLE = 1 << 0,
+        PS_OBJ_FLAG_READABLE = 1 << 1,
+        PS_OBJ_FLAG_WRITABLE = 1 << 2,
+        PS_OBJ_FLAG_SYSTEM_OP = 1 << 3,
+        // Future bits here (like `CONST`, `PROTECTED`, `FROM_ROM`, etc.)
     };
 
-    struct PSOperatorArgs {
-        const PSOperatorSignature& signature;
-        PSObject values[8];   // fixed-size array
-        size_t count;
-
-        bool isValid() const { return count == signature.arity; }
-
-        PSObject& operator[](size_t i) { return values[i]; }
-        const PSObject& operator[](size_t i) const { return values[i]; }
-
-        const char* operatorName() const { return signature.name; }
-        PSObjectType operandType(size_t i) const { return (i < count) ? signature.kinds[i] : PSObjectType::Invalid; }
-    };
-
-    /*
-    // --------------------
-    // PSDictionary
-    // --------------------
-    struct PSDictionary {
+    struct PSObject {
     private:
-		// Actual storage for the dictionary entries
-		// the key is an interned string (const char*),
-		// this is reinfoced upon insertion
-        std::unordered_map<PSName, PSObject> fEntries;
+        using Variant = std::variant<
+            std::monostate,                      // INVALID
+            int32_t,                             // Int
+            double,                              // Real
+            bool,                                // Bool
+            PSName,                         // Name (interned)
+            PSOperator,                          // Operator
+            PSMatrix,                            // Matrix
+            PSPath,                              // Path
+            PSString,                            // String
+            PSArrayHandle,                       // Array
+            PSDictionaryHandle,                  // Dictionary
+            PSFileHandle,                        // File
+            PSFontFaceHandle,                    // FontFace
+            PSFontHandle,                        // Font
+            PSMark                               // Mark
+        >;
 
-        PSDictionary() = default;
-
-        PSDictionary(size_t initialSize) {
-            fEntries.reserve(initialSize);
-        }
-
+        uint32_t fFlags{ PS_OBJ_FLAG_NONE };
+        Variant fValue;
 
     public:
-        
-        static PSDictionaryHandle create(size_t initialSize = 0) {
-            auto ptr = std::shared_ptr<PSDictionary>(new PSDictionary(initialSize));
+        PSObjectType type = PSObjectType::Null;
 
-            return ptr;
-        }
 
-        const std::unordered_map<PSName, PSObject>& entries() const {return fEntries;}
 
-        size_t size() const {return fEntries.size();}
-
-        bool put(const PSName &key, const PSObject& value) {
-            fEntries[key] = value;
+        // Reset state
+        bool reset() {
+            fValue = std::monostate{};
+            type = PSObjectType::Null;
+            fFlags = PS_OBJ_FLAG_NONE;
             return true;
         }
 
-        bool get(const PSName &key, PSObject& out) const {
-            auto it = fEntries.find(key);
-            if (it == fEntries.end()) return false;
-            out = it->second;
-            return true;
+
+        bool resetFromInt(int32_t v) {
+            reset(); type = PSObjectType::Int; fValue = v; return true;
+        }
+        bool resetFromReal(double v) {
+            reset(); type = PSObjectType::Real; fValue = v; return true;
+        }
+        bool resetFromBool(bool v) {
+            reset(); type = PSObjectType::Bool; fValue = v; return true;
         }
 
-        bool copyEntryFrom(const PSDictionary& other, const PSName &key) {
-            PSObject value;
-            if (!other.get(key, value)) return false;
-            
-            fEntries[key] = value;
-            return true;
+        bool resetFromName(const PSName& n) {
+            reset(); type = PSObjectType::Name; fValue = n; return true;
         }
 
-        bool contains(const PSName &key) const {
-            return fEntries.find(key) != fEntries.end();
+        bool resetFromInternedName(const char* interned) {
+            reset(); type = PSObjectType::Name; fValue = PSName(interned); return true;
+        }
+        //bool resetFromName(const char* cstr) {
+        //	return resetFromInternedName(PSNameTable::INTERN(cstr));
+        //}
+        bool resetFromName(const OctetCursor& oc) {
+            return resetFromInternedName(PSNameTable::INTERN(oc));
+        }
+        bool resetFromString(PSString s) {
+            reset(); type = PSObjectType::String; fValue = s; return true;
+        }
+        bool resetFromArray(PSArrayHandle a) {
+            reset(); type = PSObjectType::Array; fValue = a; return true;
+        }
+        bool resetFromDictionary(PSDictionaryHandle d) {
+            reset(); type = PSObjectType::Dictionary; fValue = d; return true;
         }
 
-        void clear() {
-            fEntries.clear();
+        bool resetFromFile(PSFileHandle f) {
+            reset(); type = PSObjectType::File; fValue = f; return true;
         }
 
+        bool resetFromFontFace(PSFontFaceHandle v) {
+            reset(); type = PSObjectType::FontFace; fValue = v; return true;
+        }
 
+        bool resetFromFont(PSFontHandle v) {
+            reset(); type = PSObjectType::Font; fValue = v; return true;
+        }
+
+        bool resetFromOperator(const PSOperator& f) {
+            reset(); type = PSObjectType::Operator; setExecutable(true); fValue = f; return true;
+        }
+        bool resetFromMatrix(const PSMatrix& m) {
+            reset(); type = PSObjectType::Matrix; fValue = m; return true;
+        }
+        bool resetFromPath(const PSPath& p) {
+            reset(); type = PSObjectType::Path; fValue = p; return true;
+        }
+        bool resetFromPath(PSPath&& p) {
+            reset(); type = PSObjectType::Path; fValue = std::move(p); return true;
+        }
+        bool resetFromMark(const PSMark& m) {
+            reset(); type = PSObjectType::Mark; fValue = m; return true;
+        }
+
+        bool resetFromSave() { reset(); type = PSObjectType::Save; return true; }
+
+
+        // Static constructors
+        static PSObject fromInt(int32_t v) { PSObject o; o.resetFromInt(v); return o; }
+        static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
+        static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
+        static PSObject fromName(const PSName& n) { PSObject o; o.resetFromName(n); return o; }
+        static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
+        //static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
+        static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
+        static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
+        static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
+        static PSObject fromFile(PSFileHandle f) { PSObject o; o.resetFromFile(f); return o; }
+        static PSObject fromFontFace(PSFontFaceHandle v) { PSObject o; o.resetFromFontFace(v); return o; }
+        static PSObject fromFont(PSFontHandle v) { PSObject o; o.resetFromFont(v); return o; }
+        static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
+        static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
+        static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
+        static PSObject fromPath(PSPath&& p) { PSObject o; o.resetFromPath(p); return o; }
+        static PSObject fromMark(const PSMark& m) { PSObject o; o.resetFromMark(m); return o; }
+        static PSObject fromSave() { PSObject o; o.resetFromSave(); return o; }
+
+        // Accessors using std::get
+        template<typename T>
+        constexpr bool get(T& out) const {
+            if (const T* ptr = std::get_if<T>(&fValue)) {
+                out = *ptr;
+                return true;
+            }
+            return false;
+        }
+
+        template<typename T>
+        constexpr T as() const {
+            return std::get<T>(fValue);
+        }
+
+        template<typename T>
+        constexpr T* try_as() {
+            return std::get_if<T>(&fValue);
+        }
+
+        // Legacy-style accessors
+        int32_t asInt() const { return (type == PSObjectType::Int) ? as<int32_t>() : static_cast<int32_t>(as<double>()); }
+        double asReal() const { return (type == PSObjectType::Int) ? static_cast<double>(as<int32_t>()) : as<double>(); }
+        bool asBool() const { return as<bool>(); }
+        PSName asName() const { return as<PSName>(); }
+        const char* asNameCStr() const { return as<PSName>().c_str(); }
+        PSString asString() const { return as<PSString>(); }
+        PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
+        PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
+        PSFileHandle asFile() const { return as<PSFileHandle>(); }
+        PSFontFaceHandle asFontFace() const { return as<PSFontFaceHandle>(); }
+        PSFontHandle asFont() const { return as<PSFontHandle>(); }
+        PSOperator asOperator() const { return as<PSOperator>(); }
+        PSMatrix asMatrix() const { return as<PSMatrix>(); }
+        PSPath asPath() const { return as<PSPath>(); }
+        PSMark asMark() const { return as<PSMark>(); }
+
+        // Type and flag checks
+        // Checking and setting object attributes
+        inline void setFlag(uint32_t flag) noexcept { fFlags |= flag; }
+        inline void clearFlag(uint32_t flag) noexcept { fFlags &= ~flag; }
+        inline bool hasFlag(uint32_t flag) const noexcept { return (fFlags & flag) != 0; }
+
+        inline bool isExecutable() const noexcept { return hasFlag(PS_OBJ_FLAG_EXECUTABLE); }
+        inline void setExecutable(bool val) noexcept {val ? setFlag(PS_OBJ_FLAG_EXECUTABLE) : clearFlag(PS_OBJ_FLAG_EXECUTABLE);}
+
+        inline bool isSystemOp() const noexcept { return hasFlag(PS_OBJ_FLAG_SYSTEM_OP); }
+        inline void setSystemOp(bool val) noexcept { val ? setFlag(PS_OBJ_FLAG_SYSTEM_OP) : clearFlag(PS_OBJ_FLAG_SYSTEM_OP); }
+
+        // Checking object type
+        inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
+        inline bool isNumber() const { return isInt() || isReal(); }
+        inline bool isInt() const {return is(PSObjectType::Int) || (isReal() && (as<double>() == static_cast<int64_t>(as<double>()))); }
+        inline bool isReal() const { return is(PSObjectType::Real); }
+        inline bool isBool() const { return is(PSObjectType::Bool); }
+        inline bool isName() const { return is(PSObjectType::Name); }
+        inline bool isLiteralName() const { return isName() && !isExecutable(); }
+        inline bool isExecutableName() const { return isName() && isExecutable(); }
+        inline bool isString() const { return is(PSObjectType::String); }
+        inline bool isArray() const { return is(PSObjectType::Array); }
+        inline bool isExecutableArray() const { return isArray() && isExecutable(); }
+        inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
+        inline bool isFile() const { return is(PSObjectType::File); }
+        inline bool isFontFace() const { return is(PSObjectType::FontFace); }
+        inline bool isFont() const { return is(PSObjectType::Font); }
+        inline bool isOperator() const { return is(PSObjectType::Operator); }
+        inline bool isMark() const { return is(PSObjectType::Mark); }
+        inline bool isMatrix() const { return is(PSObjectType::Matrix); }
+        inline bool isPath() const { return is(PSObjectType::Path); }
+        inline bool isNull() const { return is(PSObjectType::Null); }
+        inline bool isSave() const { return is(PSObjectType::Save); }
+
+        // Signature helper
+        char typeChar() const { return static_cast<char>(type); }
     };
-    */
+}
 
+
+
+
+
+namespace waavs {
     // --------------------
     // PSArray
     // --------------------
@@ -510,15 +441,6 @@ public:
 
 }
 
-// Help the operand processing
-namespace waavs {
-	// An operand signature is a tuple of name and types of arguments
-    struct OperandSignature {
-        const char* name;       // name of the operator
-        PSObjectType kinds[8];  // Max 8 arguments
-        uint8_t arity;          // how many arguments are there
-    };
-}
 
 // Some helper functions
 namespace waavs {

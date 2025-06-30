@@ -108,9 +108,10 @@ namespace waavs
 	enum class PSLexType {
 		Invalid = 0,
 		Whitespace,
-		Name,
+        Name,			// name without leading /, e.g. moveto
+        LiteralName,	// /name with leading /, e.g. /moveto
+        SystemName,		// //moveto
 		Number,
-		LiteralName,
 		String,
 		UnterminatedString,
 		HexString,
@@ -319,6 +320,41 @@ namespace waavs {
 		return false;
 	}
 
+	static bool scanLiteralNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
+	{
+		src.skip(1);
+
+		const uint8_t* start = src.begin();
+		const uint8_t* p = start;			// skip first '/'
+		const uint8_t* end = src.end();
+
+
+		if (p < end && *p == '/') {
+			// This is a system operator name, like //moveto, //setgray, etc.
+			++p; // skip second '/'
+			lex.type = PSLexType::SystemName;
+			src.skip(1);
+		}
+		else {
+			// Literal name: /name}
+			lex.type = PSLexType::LiteralName;
+		}
+
+		const uint8_t* nameStart = p;
+		skipWhile(src, PS_NAME_CHAR);
+		lex.span = OctetCursor(nameStart, src.begin() - nameStart);
+		
+		return true;
+	}
+
+	static bool scanNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
+	{
+		const uint8_t * start = src.begin();
+		skipWhile(src, PS_NAME_CHAR);
+		lex.type = PSLexType::Name;
+		lex.span = OctetCursor(start, src.begin() - start);
+		return true;
+	}
 
 
 	// nextPSLexeme
@@ -350,12 +386,7 @@ namespace waavs {
 
 		// Literal name: starts with '/'
 		if (c == '/') {
-			++src; // skip '/'
-			const uint8_t* nameStart = src.begin();
-			skipWhile(src, PS_NAME_CHAR);
-			lex.type = PSLexType::LiteralName;
-			lex.span = OctetCursor(nameStart, src.begin() - nameStart);
-			return true;
+			return scanLiteralNameLexeme(src, lex);
 		}
 
 		// Procedure delimiters
@@ -444,15 +475,21 @@ namespace waavs {
 
 
 		// Number (starts with digit, '.', '+', or '-')
+		// need to distinguish between numbers
+        // and extension operators, which begin with '.' typically (.max, .min, etc.)
 		if (PSCharClass::isNumericBegin(c)) {
+			// if it's a '.', it could be a number
+			// or an extension name
+			uint8_t c1 = src.peek(1);
+			if (src.size() > 1 && !CC::isNumeric(c1) && !CC::isWhitespace(c1) && !CC::isDelimiter(c1))
+				return scanNameLexeme(src, lex);
+
 			return scanNumberLexeme(src, lex);
 		}
 
 		// Name token (default)
 		if (CC::isNameChar(c)) {
-			skipWhile(src, PS_NAME_CHAR);
-			lex.type = PSLexType::Name;
-			lex.span = OctetCursor(start, src.begin() - start);
+			scanNameLexeme(src, lex);
 			return true;
 		}
 

@@ -1,3 +1,5 @@
+#include <unordered_map>
+
 #include "ps_lexer.h"
 #include "mappedfile.h"
 #include "ocspan.h"
@@ -5,12 +7,60 @@
 
 using namespace waavs;
 
+/*
+	enum class PSLexType {
+		Invalid = 0,
+		Whitespace,
+		Name,			// name without leading /, e.g. moveto
+		LiteralName,	// /name with leading /, e.g. /moveto
+		SystemName,		// //moveto
+		Number,
+		String,
+		UnterminatedString,
+		HexString,
+		LBRACE,			// {
+		RBRACE,			// }
+		LBRACKET,		// [
+		RBRACKET,		// ]
+		LLANGLE,		// for <<
+		RRANGLE,		// for >>
+		Comment,
+		DSCComment,		// %%DSCKeyword value
+		Delimiter,
+		Eof
+	};
+*/
 
+std::unordered_map<PSLexType, const char*> lexTypeNames = {
+	{PSLexType::Invalid, "Invalid"},
+	{PSLexType::Whitespace, "Whitespace"},
+	{PSLexType::Name, "Name"},
+	{PSLexType::LiteralName, "LiteralName"},
+	{PSLexType::SystemName, "SystemName"},
+	{PSLexType::Number, "Number"},
+	{PSLexType::String, "String"},
+	{PSLexType::UnterminatedString, "UnterminatedString"},
+	{PSLexType::HexString, "HexString"},
+	{PSLexType::LBRACE, "LBRACE"},
+	{PSLexType::RBRACE, "RBRACE"},
+	{PSLexType::LBRACKET, "LBRACKET"},
+	{PSLexType::RBRACKET, "RBRACKET"},
+	{PSLexType::LLANGLE, "LLANGLE"},
+	{PSLexType::RRANGLE, "RRANGLE"},
+	{PSLexType::Comment, "Comment"},
+	{PSLexType::DSCComment, "DSCComment"},
+	{PSLexType::Delimiter, "Delimiter"},
+	{PSLexType::Eof, "Eof"}
+};
 
 void printLexeme(const PSLexeme& lex)
 {
-	printf("Lexeme Type: %d   VALUE: %.*s\n", (int)lex.type, (unsigned int)lex.span.size(), lex.span.data());
-
+    const char* typeName = "UNKNOWN";
+    auto it = lexTypeNames.find(lex.type);
+	if (it != lexTypeNames.end()) {
+		typeName = it->second;
+    }
+	printf("Lexeme Type: %2d  %16s  VALUE: %.*s\n", (int)lex.type, typeName, (unsigned int)lex.span.size(), lex.span.data());
 }
 
 static void test_lexgen(OctetCursor s)

@@ -197,12 +197,12 @@ stroke
 4 setlinewidth
 
 newpath
-0 200 moveto
+0 150 moveto
 0 400 200 400 R 2 mul arcto
 400 400 400 200 R 2 mul arcto
-300 50 150 50 R 2 div arcto
-100 50 100 100 R 2 div arcto
-
+400 150 250 150 R 2 mul arcto
+100 0 100 150 R 4 div arcto
+closepath
 gsave
   0 0 1 setrgbcolor
   fill
@@ -398,18 +398,33 @@ grid
     runPostscript(test_s1);
 }
 
+static void star()
+{
+    const char* test_s1 = R"||(
+/side {72 0 lineto currentpoint translate 144 rotate} bind def
+
+newpath
+5 30 translate 0 0 moveto
+4 { side } repeat closepath
+stroke
+showpage
+)||";
+    runPostscript(test_s1);
+}
+
+
 static void truchet()
 {
 	const char* test_s1 = R"||(
 %!PS-Adobe-3.0 EPSF-3.0 
 %%BoundingBox: 0 0 595 842 
-2.835 dup scale 
-5 4 translate 
+%2.835 dup scale 
+%5 4 translate 
 1 setlinecap 
 0 0 200 290 rectstroke 
 100 145 translate 
 /W 10 def 
-/W2 { W 2 div }  def 
+/W2 { W 2 div }  bind def 
 /DRAWUNIT { 
 gsave  
 translate 
@@ -500,19 +515,20 @@ static void test_core()
 static void test_idioms()
 {
     //test_flower();
-	gridOfCircles();
+	//gridOfCircles();
     //radialLines();
-    //scaledRectangles();
+    scaledRectangles();
     //grid();
     //truchet();
     //pbourke_example9();
+    //star();
 
 }
 
 int main() {
 
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }

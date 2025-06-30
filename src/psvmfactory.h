@@ -19,6 +19,8 @@
 #include "ps_ops_enviro.h"
 #include "ps_ops_file.h"
 #include "ps_ops_font.h"
+#include "ps_ops_vm.h"
+
 
 namespace waavs
 {
@@ -31,6 +33,14 @@ namespace waavs
 	public:
 		PSVMFactory() = default;
 		~PSVMFactory() = default;
+
+		static inline void registerExtensionOps(PSVirtualMachine* vm)
+		{
+			PSVMOps extOps;
+
+			vm->interpret(extOps.op_code_max);
+			vm->interpret(extOps.op_code_min);
+		}
 
 		static inline void registerCoreOps(PSVirtualMachine *vm) 
 		{
@@ -50,6 +60,7 @@ namespace waavs
 			vm->registerOps(getEnviroOps());
             vm->registerOps(getFileOps());
             vm->registerOps(getFontOps());
+
 		}
 
 		// Create a new PSVM instance
@@ -59,6 +70,7 @@ namespace waavs
 			
 			// Register built-in operations
 			PSVMFactory::registerCoreOps(vm.get());
+			PSVMFactory::registerExtensionOps(vm.get());
 
 			return vm;
 		}

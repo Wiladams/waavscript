@@ -136,6 +136,11 @@ namespace waavs
             s.push(PSObject::fromInt(static_cast<int>(obj.asArray()->size())));
             return true;
 
+        case PSObjectType::Matrix:
+        {
+            return s.push(PSObject::fromInt(6));
+        }
+
         case PSObjectType::String:
             s.push(PSObject::fromInt(static_cast<int>(obj.asString().length())));
             return true;
@@ -293,6 +298,7 @@ namespace waavs
         case PSObjectType::Array: typeName = "arraytype"; break;
         case PSObjectType::Dictionary: typeName = "dicttype"; break;
         case PSObjectType::Name: typeName = "nametype"; break;
+        case PSObjectType::Matrix: typeName = "arraytype"; break;
         case PSObjectType::Null: typeName = "nulltype"; break;
         default: break;
         }

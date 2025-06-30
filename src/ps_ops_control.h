@@ -70,7 +70,7 @@ namespace waavs {
         int n = count.asInt();
         for (int i = 0; i < n; ++i) {
             if (!vm.execProc(proc))
-                return vm.error("repeat:: runArray() failed");
+                return vm.error("repeat:: execProc() failed");
 
             if (vm.isExitRequested()) {
                 vm.clearExitRequest();
@@ -96,7 +96,7 @@ namespace waavs {
 
         while (true) {
             if (!vm.execProc(proc)) {
-                return vm.error("loop:: runArray() failed");
+                return vm.error("op_loop:: execProc() failed");
 			}
 
             if (vm.isExitRequested()) {

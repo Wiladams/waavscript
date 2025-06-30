@@ -61,6 +61,8 @@ namespace waavs {
 	// x y matrix transform x' y'
     inline bool op_transform(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
+        auto& ctm = vm.graphics()->getCTM();
+
         if (s.size() < 2) return false;
 
         PSMatrix tmat;
@@ -77,7 +79,8 @@ namespace waavs {
             s.pop(x);
             if (!x.isNumber() || !y.isNumber()) return false;
             double xOut{ 0 }, yOut{ 0 };
-            vm.graphics()->transformPoint(x.asReal(), y.asReal(), xOut, yOut);
+            ctm.transformPoint(x.asReal(), y.asReal(), xOut, yOut);
+            //vm.graphics()->transformPoint(x.asReal(), y.asReal(), xOut, yOut);
 
             return s.push(PSObject::fromReal(xOut)) && s.push(PSObject::fromReal(yOut));
 		}
@@ -108,6 +111,8 @@ namespace waavs {
     // 
     inline bool op_dtransform(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
+        auto& ctm = vm.graphics()->getCTM();
+
         if (s.size() < 2) return false;
 
         PSMatrix tmat;
@@ -124,7 +129,8 @@ namespace waavs {
             s.pop(x);
             if (!x.isNumber() || !y.isNumber()) return false;
             double xOut{ 0 }, yOut{ 0 };
-            vm.graphics()->dtransformPoint(x.asReal(), y.asReal(), xOut, yOut);
+            ctm.dtransform(x.asReal(), y.asReal(), xOut, yOut);
+            //vm.graphics()->dtransformPoint(x.asReal(), y.asReal(), xOut, yOut);
 
             return s.push(PSObject::fromReal(xOut)) && s.push(PSObject::fromReal(yOut));
         }
@@ -151,6 +157,8 @@ namespace waavs {
    // ( x' y' matrix -- x y )
     inline bool op_itransform(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
+        auto &ctm = vm.graphics()->getCTM();
+
         if (s.size() < 2)
             return vm.error("itransform: stackunderflow");
 
@@ -158,15 +166,16 @@ namespace waavs {
         PSObject top;
         s.top(top);
 
+        // if the top is not a matrix, we use the current CTM
         if (!extractMatrix(top, mat)) {
             // Use current CTM
             PSObject yObj, xObj;
-            s.pop(yObj); s.pop(xObj);
+            s.pop(yObj); 
+            s.pop(xObj);
 
             if (!xObj.isNumber() || !yObj.isNumber())
                 return vm.error("itransform: typecheck");
 
-            PSMatrix ctm = vm.graphics()->getCTM();
             PSMatrix inv;
             if (!ctm.inverse(inv))
                 return vm.error("itransform: singular CTM");
@@ -274,6 +283,8 @@ namespace waavs {
 	// Replace CTM by matrix on top of stack
     inline bool op_setmatrix(PSVirtualMachine& vm) {
         PSObject obj;
+        auto& ctm = vm.graphics()->getCTM();
+
         if (!vm.opStack().pop(obj))
             return vm.error("op_setmatrix: stackunderflow");
 
@@ -281,7 +292,7 @@ namespace waavs {
         if (!extractMatrix(obj, mat))
             return vm.error("typecheck: expected matrix");
 
-        vm.graphics()->setCTM(mat);
+        ctm = mat; // set CTM to the new matrix
 
         return true;
     }
@@ -289,7 +300,9 @@ namespace waavs {
     // - initmatrix -
 	// Reset CTM to identity matrix
     inline bool op_initmatrix(PSVirtualMachine& vm) {
-        vm.graphics()->resetCTM(); // identity
+        auto& ctm = vm.graphics()->getCTM();
+
+        ctm.reset(); // identity
         return true;
     }
 
@@ -322,6 +335,8 @@ namespace waavs {
 	// matrix concat -
     inline bool op_concat(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
+        auto& ctm = vm.graphics()->getCTM();
+
         if (s.empty())
 			return vm.error("op_concat: stackunderflow");
 
@@ -333,7 +348,9 @@ namespace waavs {
         if (!extractMatrix(matObj, mat))
 			return vm.error("op_concat: typecheck, expected matrix or array");
 
-        vm.graphics()->concat(mat);
+        ctm.preMultiply(mat);
+
+        //vm.graphics()->concat(mat);
         return true;
     }
 
@@ -343,7 +360,10 @@ namespace waavs {
     //
     inline bool op_concatmatrix(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 3) return false;
+        //auto& ctm = vm.graphics()->getCTM();
+
+        if (s.size() < 3) 
+            return vm.error("op_concatmatrix: stackunderflow");
 
         PSObject m3, m2, m1;
 		s.pop(m3);
@@ -353,8 +373,11 @@ namespace waavs {
         PSMatrix mat1, mat2, mat3;
         if (!extractMatrix(m1, mat1) || !extractMatrix(m2, mat2)) return false;
 
-        mat1.preMultiply(mat2);
-		m3.resetFromMatrix(mat1); // reset m3 to the result of the multiplication
+        mat2.preMultiply(mat1); // mat2 = mat1 * mat2
+        m3.resetFromMatrix(mat2); // copy mat2 to mat3
+
+        //mat1.preMultiply(mat2);
+		//m3.resetFromMatrix(mat1); // reset m3 to the result of the multiplication
 
         return s.push(m3);
     }
@@ -363,7 +386,10 @@ namespace waavs {
 	// tx ty matrix translate matrix' - Define translation by (tx, ty)
     inline bool op_translate(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        auto& ctm = vm.graphics()->getCTM();
+
+        if (s.size() < 2)
+            return vm.error("op_translate: stack underflow");
 
         PSObject top;
         s.top(top);
@@ -378,9 +404,10 @@ namespace waavs {
             s.pop(ty);
             s.pop(tx);
 
-            if (!tx.isNumber() || !ty.isNumber()) return false;
+            if (!tx.isNumber() || !ty.isNumber()) 
+                return vm.error("op_translate: typecheck");
 
-            vm.graphics()->translate(tx.asReal(), ty.asReal());
+            ctm.translate(tx.asReal(), ty.asReal());
             return true;
         }
         else {
@@ -409,7 +436,10 @@ namespace waavs {
     // sx sy matrix scale
     inline bool op_scale(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        auto& ctm = vm.graphics()->getCTM();
+
+        if (s.size() < 2) 
+            return vm.error("op_scale: stackunderflow");
 
         PSObject top;
         s.top(top);
@@ -424,9 +454,10 @@ namespace waavs {
             s.pop(sy);
             s.pop(sx);
 
-            if (!sx.isNumber() || !sy.isNumber()) return false;
+            if (!sx.isNumber() || !sy.isNumber()) 
+                return vm.error("op_scale: typecheck");
 
-            vm.graphics()->scale(sx.asReal(), sy.asReal());
+            ctm.scale(sx.asReal(), sy.asReal());
             return true;
         }
         else {
@@ -440,7 +471,8 @@ namespace waavs {
             s.pop(sy);
             s.pop(sx);
 
-            if (!sx.isNumber() || !sy.isNumber()) return false;
+            if (!sx.isNumber() || !sy.isNumber()) 
+                return vm.error("op_scale: typecheck");
 
             // we've already extracted the matrix, so we can use it
             mat.scale(sx.asReal(), sy.asReal());
@@ -458,14 +490,18 @@ namespace waavs {
     //
     inline bool op_rotate(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        auto& ctm = vm.graphics()->getCTM();
+
+        if (s.empty()) 
+            return vm.error("op_rotate: stackunderflow");
+
 
         PSObject top;
         s.pop(top);
 
         if (top.isNumber()) {
             double angle = top.asReal();
-            vm.graphics()->rotate(angle);
+            ctm.rotate(angle);
 
             return true;
         }
@@ -476,7 +512,8 @@ namespace waavs {
             PSObject angObj;
             s.pop(angObj);
 
-            if (!angObj.isNumber()) return vm.error("op_rotate: typecheck, expected number");
+            if (!angObj.isNumber()) 
+                return vm.error("op_rotate: typecheck, expected number");
 
             mat.rotate(angObj.asReal());
             return s.push(PSObject::fromMatrix(mat));

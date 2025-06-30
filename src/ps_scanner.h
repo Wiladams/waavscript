@@ -15,15 +15,15 @@ namespace waavs
 {
 
     // Turn a supposed hex ascii character into a byte value.
-    static inline bool  decodeHex(uint8_t c, uint8_t& out) noexcept
+    // Returns true if the character was a valid hex digit, and out is set to the value.
+    // Returns false if the character was not a valid hex digit, and out is unchanged.
+    static inline constexpr bool  decodeHex(uint8_t c, uint8_t& out) noexcept
     {
-        if (!PSCharClass::isHexDigit(c)) return false;
+        if (c >= '0' && c <= '9') { out = (c - '0'); return true; }
+        if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; return true; }
+        if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10; return true; }
 
-        if (c >= '0' && c <= '9') { out = (c - '0'); }
-        if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; }
-        if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10; }
-
-        return true;
+        return false;
     }
 
     static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
@@ -86,6 +86,15 @@ namespace waavs
                 return true;
             }
         }
+
+        case PSLexType::SystemName:
+        {
+            obj.resetFromName(lex.span);
+            obj.setExecutable(true); // System names are always executable
+            obj.setSystemOp(true);
+            return true;
+        }
+
 
         case PSLexType::Number:     // 123.456
         {
