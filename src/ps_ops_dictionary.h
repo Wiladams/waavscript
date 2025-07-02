@@ -37,6 +37,7 @@ namespace waavs {
 
         auto d = PSDictionary::create(sizeObj.asInt());
         s.push(PSObject::fromDictionary(d));
+
         return true;
     }
 

@@ -20,8 +20,10 @@ namespace waavs {
         PSDictTable() = delete;
 
     public:
+        // Create entries, with a minimum initial capacity
         PSDictTable(size_t initialCapacity)
-            : fCapacity(initialCapacity), fCount(0)
+            : fCapacity(std::max(size_t(4), initialCapacity))
+            , fCount(0)
         {
             fEntries = new PSDictEntry[fCapacity](); // zero-initialized
         }
@@ -30,31 +32,59 @@ namespace waavs {
             delete[] fEntries;
         }
 
-        bool put(PSName key, const PSObject& value) {
+        constexpr size_t size() const noexcept { return fCount; }
+
+        // put
+        // Place the value into the table 
+        // Perform an update if the key already exists,
+        // otherwise insert a new entry.
+        bool put(PSName key, const PSObject& value) noexcept 
+        {
             if (loadFactor() > 0.75)
                 grow();
 
-            size_t index = findSlot(key);
-            if (fEntries[index].isEmpty()) {
+            size_t slot;
+            if (!findSlotForUpsertIn(fEntries, fCapacity, key, slot))
+            {
+                return false;
+            }
+
+            if (fEntries[slot].isEmpty()) {
                 fCount++;
             }
-            fEntries[index].key = key;
-            fEntries[index].value = value;
+            fEntries[slot].key = key;
+            fEntries[slot].value = value;
             return true;
         }
 
-        bool get(PSName key, PSObject& outValue) const {
-            size_t index = findSlot(key);
-            if (fEntries[index].key == key) {
-                outValue = fEntries[index].value;
-                return true;
-            }
-            return false;
+
+        // get
+        // Retrieve the value for the key.
+        bool get(PSName key, PSObject& outValue) const noexcept
+        {
+            size_t slot;
+            
+            if (!findKey(key, slot))
+                return false;
+
+            outValue = fEntries[slot].value;
+            
+            return true;
         }
 
-        size_t size() const { return fCount; }
+        // Find the slot of the key.
+        // return true if it's found, and slot == the slot
+        // return false if it's not found, and slot indicates
+        // where it could be placed.
+        bool contains(const PSName key) const noexcept
+        {
+            size_t slot;
+            return findKey(key, slot);
+        }
 
-        void clear() {
+
+        void clear() noexcept
+        {
             for (size_t i = 0; i < fCapacity; ++i) {
                 fEntries[i].key = PSName();       // invalidate key
                 fEntries[i].value.reset();        // drop shared_ptrs, destroy objects
@@ -62,8 +92,13 @@ namespace waavs {
             fCount = 0;
         }
 
+        // Support for iterating over the entries
+        // applying a supplied function to each entry.
+        // Allows the function to mutate entries, although not really because
+        // it's only handed the key/values as value types.
         template <typename Fn>
-        void forEach(Fn&& fn) {
+        void forEach(Fn&& fn) noexcept 
+        {
             for (size_t i = 0; i < fCapacity; ++i) {
                 if (!fEntries[i].isEmpty()) {
                     if (!fn(fEntries[i].key, fEntries[i].value)) break;
@@ -71,46 +106,99 @@ namespace waavs {
             }
         }
 
+        // This one does not allow mutation of the entries
+        template <typename Fn>
+        void forEachConst(Fn&& fn) const noexcept {
+            for (size_t i = 0; i < fCapacity; ++i) {
+                if (!fEntries[i].isEmpty()) {
+                    if (!fn(fEntries[i].key, fEntries[i].value)) break;
+                }
+            }
+        }
+
+
     private:
         PSDictEntry* fEntries = nullptr;
         size_t fCapacity = 0;
         size_t fCount = 0;
 
-        float loadFactor() const {
+        constexpr float loadFactor() const {
             return static_cast<float>(fCount) / static_cast<float>(fCapacity);
         }
 
-        void grow() {
-            PSDictEntry* old = fEntries;
-            size_t oldCap = fCapacity;
+        bool grow() noexcept {
+            size_t newCapacity = fCapacity * 2;
 
-            fCapacity *= 2;
-            fEntries = new PSDictEntry[fCapacity]();
+            PSDictEntry* newEntries = new (std::nothrow) PSDictEntry[newCapacity]();
+            if (!newEntries) {
+                return false; // allocation failed
+            }
 
-            fCount = 0;
-            for (size_t i = 0; i < oldCap; ++i) {
-                if (!old[i].isEmpty()) {
-                    put(old[i].key, old[i].value);
+            size_t newCount = 0;
+
+            for (size_t i = 0; i < fCapacity; ++i) {
+                if (!fEntries[i].isEmpty()) {
+                    size_t slot;
+                    bool ok = findSlotForUpsertIn(newEntries, newCapacity, fEntries[i].key, slot);
+                    if (!ok) {
+                        delete[] newEntries;
+                        return false; // rehash failed, should never happen if capacity doubled
+                    }
+                    newEntries[slot].key = fEntries[i].key;
+                    newEntries[slot].value = fEntries[i].value;
+                    newCount++;
                 }
             }
-            delete[] old;
+
+            delete[] fEntries;
+            fEntries = newEntries;
+            fCapacity = newCapacity;
+            fCount = newCount;
+
+            return true;
         }
 
-        // try to find the slot for the key using linear probing
-        size_t findSlot(PSName key) const {
+
+        // returns true if the key exists, slot is where it is
+        bool findKey(PSName key, size_t& slot) const noexcept {
             size_t hash = reinterpret_cast<size_t>(key.c_str());
             size_t index = hash % fCapacity;
+            size_t start = index;   // sentinel for wrapping around
 
-            while (!fEntries[index].isEmpty()) {
-                if (fEntries[index].key == key)
-                    return index;
-
+            while (true) {
+                if (fEntries[index].isEmpty()) {
+                    return false; // key cannot be present
+                }
+                if (fEntries[index].key == key) {
+                    slot = index;
+                    return true;
+                }
                 index = (index + 1) % fCapacity;
+                if (index == start) {
+                    return false; // wrapped around, not found
+                }
             }
-            return index;
         }
 
+        // returns an empty slot for a key to be inserted
+        // returns true if a slot was found (always true unless the table is truly full)
+        static bool findSlotForUpsertIn(PSDictEntry* entries, size_t cap, PSName key, size_t& slot) noexcept
+        {
+            size_t hash = reinterpret_cast<size_t>(key.c_str());
+            size_t index = hash % cap;
+            size_t start = index;
 
+            while (true) {
+                if (!entries[index].key.isValid() || entries[index].key == key) {
+                    slot = index;
+                    return true;
+                }
+                index = (index + 1) % cap;
+                if (index == start) {
+                    return false; // table full, should never happen if grow doubled
+                }
+            }
+        }
 
     };
 
