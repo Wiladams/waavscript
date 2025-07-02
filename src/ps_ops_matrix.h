@@ -360,7 +360,6 @@ namespace waavs {
     //
     inline bool op_concatmatrix(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        //auto& ctm = vm.graphics()->getCTM();
 
         if (s.size() < 3) 
             return vm.error("op_concatmatrix: stackunderflow");
@@ -370,14 +369,12 @@ namespace waavs {
         s.pop(m2); 
         s.pop(m1);
 
-        PSMatrix mat1, mat2, mat3;
-        if (!extractMatrix(m1, mat1) || !extractMatrix(m2, mat2)) return false;
+        PSMatrix mat1, mat2;
+        if (!extractMatrix(m1, mat1) || !extractMatrix(m2, mat2))
+            return vm.error("op_concatmatrix: typecheck");
 
         mat2.preMultiply(mat1); // mat2 = mat1 * mat2
         m3.resetFromMatrix(mat2); // copy mat2 to mat3
-
-        //mat1.preMultiply(mat2);
-		//m3.resetFromMatrix(mat1); // reset m3 to the result of the multiplication
 
         return s.push(m3);
     }
@@ -421,7 +418,8 @@ namespace waavs {
             s.pop(ty);
             s.pop(tx);
 
-            if (!tx.isNumber() || !ty.isNumber()) return false;
+            if (!tx.isNumber() || !ty.isNumber())
+                return vm.error("op_translate: typecheck");
 
 			// we've already extracted the matrix, so we can use it
             mat.translate(tx.asReal(), ty.asReal());

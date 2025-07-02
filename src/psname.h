@@ -64,6 +64,10 @@ namespace waavs {
             : fData(PSNameTable::INTERN(name)) {
         }
 
+        PSName(const char *ptr, size_t len) noexcept
+            : fData(PSNameTable::INTERN(ptr, len)) {
+        }
+
         PSName(const OctetCursor& span) noexcept
             : fData(PSNameTable::INTERN(span)) {
         }

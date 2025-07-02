@@ -514,10 +514,10 @@ static void test_core()
 
 static void test_idioms()
 {
-    //test_flower();
+    test_flower();
 	//gridOfCircles();
     //radialLines();
-    scaledRectangles();
+    //scaledRectangles();
     //grid();
     //truchet();
     //pbourke_example9();

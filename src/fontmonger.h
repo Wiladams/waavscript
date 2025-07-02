@@ -8,30 +8,9 @@
 
 #include "pscore.h"
 #include "psfont.h"
-
+#include "strutil.h"
 
 namespace waavs {
-
-
-        // Portable replacement for POSIX strncasecmp
-    inline int pstrncasecmp(const char* s1, const char* s2, size_t n) {
-        for (size_t i = 0; i < n; ++i) {
-            unsigned char c1 = static_cast<unsigned char>(s1[i]);
-            unsigned char c2 = static_cast<unsigned char>(s2[i]);
-
-            // Null terminator ends comparison
-            if (c1 == '\0' || c2 == '\0') {
-                return c1 - c2;
-            }
-
-            // Compare lowercased characters
-            int diff = std::tolower(c1) - std::tolower(c2);
-            if (diff != 0)
-                return diff;
-        }
-        return 0;
-    }
-
 
     // Create a PostScript name from family and subfamily names.
     // The PostScript name is constructed as follows:
@@ -82,7 +61,7 @@ namespace waavs {
         }
 
         temp.setLength(static_cast<uint32_t>(index));
-        return PSName(PSNameTable::INTERN(reinterpret_cast<const char*>(temp.data()), temp.length()));
+        return PSName(reinterpret_cast<const char*>(temp.data(), temp.length()));
     }
 
 } // namespace waavs
@@ -157,8 +136,8 @@ namespace waavs {
             meta.stretch = face.stretch();
             meta.style = face.style();
 
-            printf("Family: %-16s, SubFamily: %-16s PostScript: %20s, Path: %s\n", 
-                meta.familyName, meta.subfamily, meta.postscriptName, meta.path);
+            //printf("Family: %-16s, SubFamily: %-16s PostScript: %20s, Path: %s\n", 
+            //    meta.familyName, meta.subfamily, meta.postscriptName, meta.path);
 
             size_t index = fMeta.size();
             fMeta.push_back(meta);

@@ -99,7 +99,8 @@ namespace waavs {
         }
 
         PSMatrix& translate(double tx, double ty) {
-            return preMultiply(translation(tx, ty));
+            PSMatrix tr = translation(tx, ty);
+            return preMultiply(tr);
         }
 
 

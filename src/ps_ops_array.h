@@ -120,19 +120,24 @@ namespace waavs {
 		PSObject obj;
 		if (!vm.opStack().pop(obj)) return false;
 
-		if (!obj.isArray()) return false;
+		if (!obj.isArray())
+			return vm.error("op_bind: typecheck");
 
 		auto arr = obj.asArray();
-		if (!arr || !arr->isProcedure()) return false;
+		if (!arr)
+			return vm.error("op_bind: valuecheck");
 
 		for (auto& elem : arr->elements) {
-			if (elem.isName() && elem.isExecutable()) {
+			if (elem.isExecutableName()) {
+				// If the name resolves to an operator, then replace it in 
+				// the array with the actual operator object.
 				PSObject resolved;
 				if (vm.dictionaryStack.load(elem.asName(), resolved)) {
 					if (resolved.isOperator()) {
 						elem.resetFromOperator(resolved.asOperator());
 					}
-				}
+				} 
+
 			}
 			// Do NOT recurse into nested procedures
 		}

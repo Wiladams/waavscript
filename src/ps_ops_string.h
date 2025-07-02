@@ -34,7 +34,7 @@ namespace waavs {
             len = std::snprintf(dst, maxLen, "%s", valObj.asBool() ? "true" : "false");
             break;
         case PSObjectType::Name:
-            len = std::snprintf(dst, maxLen, "/%s", valObj.asName());
+            len = std::snprintf(dst, maxLen, "/%s", valObj.asName().c_str());
             break;
         default:
             len = std::snprintf(dst, maxLen, "<object>");

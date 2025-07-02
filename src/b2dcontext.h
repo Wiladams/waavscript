@@ -28,10 +28,10 @@ namespace waavs {
     }
 
     // From current point to: angleStart + sweep
-// With radius = BLPoint(r, r), rotation = 0
-// largeArcFlag = sweepDeg > 180
-// sweepFlag = true  // clockwise
-
+    // With radius = BLPoint(r, r), rotation = 0
+    // largeArcFlag = sweepDeg > 180
+    // sweepFlag = true  // clockwise
+    /*
     bool emitArcToBlend2D(BLPath& path, double cx, double cy, double r, double a1Deg, double sweepDeg)
     {
         double a2Deg = a1Deg + sweepDeg;
@@ -56,9 +56,9 @@ namespace waavs {
 
         return path.ellipticArcTo(BLPoint(r, r), 0.0, largeArc, sweep, BLPoint(x1, y1)) == BL_SUCCESS;
     }
-
-
-    static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1) {
+    */
+    
+    static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1, const PSMatrix &ctm) {
         double cos0 = std::cos(t0), sin0 = std::sin(t0);
         double cos1 = std::cos(t1), sin1 = std::sin(t1);
 
@@ -76,8 +76,19 @@ namespace waavs {
         double x2 = x3 + r * alpha * sin1;
         double y2 = y3 - r * alpha * cos1;
 
-        out.cubicTo(x1, y1, x2, y2, x3, y3);
+        double tx0, ty0;
+        double tx1, ty1;
+        double tx2, ty2;
+        double tx3, ty3;
+
+        ctm.transformPoint(x0, y0, tx0, ty0);
+        ctm.transformPoint(x1, y1, tx1, ty1);
+        ctm.transformPoint(x2, y2, tx2, ty2);
+        ctm.transformPoint(x3, y3, tx3, ty3);
+
+        out.cubicTo(tx1, ty1, tx2, ty2, tx3, ty3);
     }
+    
 
     bool convertPSPathToBLPath(const PSPath &path, BLPath& out) {
         static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
@@ -85,19 +96,31 @@ namespace waavs {
 
         for (const auto& seg : path.segments) {
             switch (seg.command) {
-            case PSPathCommand::MoveTo:
-                out.moveTo(seg.x1, seg.y1);
+            case PSPathCommand::MoveTo: {
+                double tx, ty;
+                seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
+                out.moveTo(tx, ty);
+            }
+
                 break;
 
-            case PSPathCommand::LineTo:
-                out.lineTo(seg.x1, seg.y1);
+            case PSPathCommand::LineTo: {
+                double tx, ty;
+                seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
+
+                out.lineTo(tx, ty);
+            }
                 break;
 
             case PSPathCommand::CurveTo:
                 out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
                 break;
 
-            case PSPathCommand::Arc: {
+
+            case PSPathCommand::Arc: 
+            case PSPathCommand::ArcCCW:
+            {
+
                 double cx = seg.x1;
                 double cy = seg.y1;
                 double radius = seg.x2;
@@ -117,12 +140,14 @@ namespace waavs {
                 // Add moveTo for start point
                 double startX = cx + radius * std::cos(startRad);
                 double startY = cy + radius * std::sin(startRad);
-                out.moveTo(startX, startY);
+                double tx, ty;
+                seg.fTransform.transformPoint(startX, startY, tx, ty);
+                out.moveTo(tx, ty);
 
                 for (int i = 0; i < steps; ++i) {
                     double t0 = startRad + i * delta;
                     double t1 = t0 + delta;
-                    emitArcSegmentAsBezier(out, cx, cy, radius, t0, t1);
+                    emitArcSegmentAsBezier(out, cx, cy, radius, t0, t1, seg.fTransform);
                 }
                 break;
             }
@@ -136,8 +161,6 @@ namespace waavs {
                 out.ellipticArcTo(r, r, 0.0, false, sweepFlag, x1, y1);
                 break;
             }
-
-
 
             case PSPathCommand::ClosePath:
                 out.close();
@@ -164,7 +187,7 @@ namespace waavs {
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-			ctx.fillAll(BLRgba32(0xc0, 0xc0, 0xc0, 255)); // Fill with white background
+			ctx.fillAll(BLRgba32(0xff, 0xff, 0xff, 255)); // Fill with white background
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);
@@ -173,6 +196,7 @@ namespace waavs {
             // Flip coordinate system: origin to bottom-left, Y+ goes up
             double h = fCanvas.height();
             BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
+
             flipY.translate(0, -h);
 
             ctx.setTransform(flipY);
@@ -209,7 +233,7 @@ namespace waavs {
             BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
             BLFillRule fillRule = BL_FILL_RULE_NON_ZERO;
 
-            ctx.setFillRule(fillRule); // Set even-odd fill rule
+            ctx.setFillRule(fillRule);
             ctx.setFillStyle(fillColor);
 
             ctx.fillPath(blPath);
@@ -252,11 +276,11 @@ namespace waavs {
 			ctx.save(); // Save current state
 
             BLRgba32 strokeColor = convertPaint(currentState()->strokePaint);
-            double strokeWidth = currentState()->lineWidth;
+            double lineWidth = currentState()->lineWidth;
             BLStrokeJoin join = convertLineJoin(currentState()->lineJoin);
 
             ctx.setStrokeStyle(strokeColor);
-            ctx.setStrokeWidth(strokeWidth);
+            ctx.setStrokeWidth(lineWidth);
             ctx.setStrokeCaps(static_cast<BLStrokeCap>(currentState()->lineCap));
             ctx.setStrokeJoin(join);
             ctx.setStrokeMiterLimit(currentState()->miterLimit);

@@ -25,7 +25,9 @@ namespace waavs {
 
         double width, dwidth;
         ctm.dtransform(obj.asReal(), 0.0, width, dwidth);
-        vm.graphics()->setLineWidth(width);
+
+        //vm.graphics()->setLineWidth(width);
+        vm.graphics()->setLineWidth(obj.asReal());
 
         return true;
     }
@@ -339,17 +341,13 @@ namespace waavs {
             !startAngleObj.isNumber() || !endAngleObj.isNumber())
             return vm.error("arcn: typecheck");
 
-        double cx{ 0 };
-        double cy{ 0 };
-        double radius{ 0 };
-        double rdummy{ 0 };
+        double cx = xObj.asReal();
+        double cy = yObj.asReal();
+        double radius = radiusObj.asReal();
         double startDeg = startAngleObj.asReal();
         double endDeg = endAngleObj.asReal();
 
-        ctm.transformPoint(xObj.asReal(), yObj.asReal(), cx, cy);
-        ctm.dtransform(radiusObj.asReal(), 0.0, radius, rdummy);
-
-        return path.arcCCW(cx, cy, radius, startDeg, endDeg);
+        return path.arcCCW(ctm, cx, cy, radius, endDeg, startDeg);
     }
 
     inline bool op_arcto(PSVirtualMachine& vm) {

@@ -38,8 +38,8 @@ namespace waavs
 		{
 			PSVMOps extOps;
 
-			vm->interpret(extOps.op_code_max);
-			vm->interpret(extOps.op_code_min);
+			//vm->interpret(extOps.op_code_max);
+			//vm->interpret(extOps.op_code_min);
 		}
 
 		static inline void registerCoreOps(PSVirtualMachine *vm) 

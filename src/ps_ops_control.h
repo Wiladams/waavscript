@@ -14,6 +14,10 @@ namespace waavs {
 
         PSObject proc;
         s.pop(proc);
+
+        if (!proc.isArray() || !proc.isExecutable())
+            return vm.error("exec::typecheck: expected procedure (array)");
+
         return vm.execProc(proc);
     }
 
@@ -235,12 +239,12 @@ namespace waavs {
         PSObject proc;
         s.pop(proc);
 
-        if (!proc.isArray())
+        if (!proc.isArray() || !proc.isExecutable())
             return vm.error("typecheck");
 
         auto arr = proc.asArray();
-        if (!arr || !arr->isProcedure())
-            return vm.error("typecheck");
+        if (!arr)
+            return vm.error("op_stopped: valuecheck");
 
         bool prevStop = vm.isStopRequested();
         vm.clearStopRequest();

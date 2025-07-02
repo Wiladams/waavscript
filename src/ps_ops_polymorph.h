@@ -25,7 +25,9 @@ namespace waavs
 
         switch (container.type) {
         case PSObjectType::Array:
-            if (index.type != PSObjectType::Int) return false;
+            if (!index.isInt()) 
+                return false;
+            
             {
                 auto arr = container.asArray();
                 int idx = index.asInt();
@@ -36,7 +38,8 @@ namespace waavs
             }
 
         case PSObjectType::String:
-            if (index.type != PSObjectType::Int) return false;
+            if (!index.isInt()) 
+                return false;
             {
                 auto str = container.asString();
                 int idx = index.asInt();
@@ -57,7 +60,9 @@ namespace waavs
             }
 
         case PSObjectType::Matrix:
-            if (!index.is(PSObjectType::Int)) return vm.error("op_get:PSObjectType::Matrix, expects to see an Int");
+            if (!index.isInt()) 
+                return vm.error("op_get:PSObjectType::Matrix, index not an Int");
+
             {
                 int idx = index.asInt();
                 const PSMatrix& mat = container.asMatrix();
@@ -75,7 +80,8 @@ namespace waavs
 	// put: a b c -> a b (c = a[b])
     inline bool op_put(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 3) return false;
+        if (s.size() < 3)
+            return vm.error("op_put: stackunderflow");
 
         PSObject value;
         PSObject index;
@@ -87,24 +93,32 @@ namespace waavs
 
         switch (container.type) {
         case PSObjectType::Array:
-            if (index.type != PSObjectType::Int) return false;
+            if (!index.isInt())
+                return vm.error("op_put: typeckeck");
+
             {
                 auto arr = container.asArray();
                 int idx = index.asInt();
                 if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->elements.size())
-                    return false;
+                    return vm.error("op_put: rangecheck");
+
                 arr->elements[idx] = value;
                 return true;
             }
 
         case PSObjectType::String:
-            if (index.type != PSObjectType::Int || value.type != PSObjectType::Int) return false;
+            if (!index.isInt())
+                return vm.error("op_put: typecheck, string, index not int");
+            if (!value.isInt())
+                return vm.error("op_put: typecheck, string, value.type != int");
             {
                 auto str = container.asString();
                 int idx = index.asInt();
                 int byte = value.asInt();
+                
                 if (idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str.capacity())
-                    return false;
+                    return vm.error("op_put: rangecheck, string");
+
 				str.put(idx, static_cast<char>(byte));
                 return true;
             }
@@ -113,19 +127,20 @@ namespace waavs
             if (index.type != PSObjectType::Name) return false;
             {
                 auto dict = container.asDictionary();
-                if (!dict) return false;
+                if (!dict) 
+                    return false;
                 return dict->put(index.asName(), value);
             }
 
         default:
-            return false;
+            return vm.error("op_put: typecheck, container");
         }
     }
 
 	// length: container -> length (number of elements in container)
     inline bool op_length(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        if (s.empty()) return vm.error("op_length: stackkunderflow");
 
         PSObject obj;
 
@@ -150,7 +165,7 @@ namespace waavs
             return true;
 
         default:
-            return false;
+            return vm.error("op_length: typecheck");
         }
     }
 
@@ -234,10 +249,12 @@ namespace waavs
  
 
 
-
+    // op_equality
+    // eq
     inline bool op_equality(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return false;
 
         PSObject b;
         PSObject a;
@@ -245,17 +262,33 @@ namespace waavs
         s.pop(a);
         s.pop(b);
 
+        // Try as integer first, because one might be int, and one might be real
+        if (a.isInt() && b.isInt()) {
+            // Both are integers
+            s.push(PSObject::fromBool(a.asInt() == b.asInt()));
+            return true;
+        }
+        else if (a.isReal() && b.isReal()) {
+            // Both can be treated as reals
+            s.push(PSObject::fromBool(a.asReal() == b.asReal()));
+            return true;
+        }
+
         bool result = (a.type == b.type);
 
         if (result) {
             switch (a.type) {
-            case PSObjectType::Int:     result = a.asInt() == b.asInt(); break;
-            case PSObjectType::Real:    result = a.asReal() == b.asReal(); break;
             case PSObjectType::Bool:    result = a.asBool() == b.asBool(); break;
             case PSObjectType::Name:    result = a.asName() == b.asName(); break;
             case PSObjectType::Null:    result = true; break;
-            default: result = false; break;
+            default:
+                return vm.error("op_equality: typecheck failed");
+                //result = false; 
+                //break;
             }
+        }
+        else {
+            //return vm.error("op_equality: typemismatch");
         }
 
         s.push(PSObject::fromBool(result));
@@ -266,13 +299,15 @@ namespace waavs
 		auto& s = vm.opStack();
 
         bool ok = op_equality(vm);
-        if (!ok) return false;
+        if (!ok)
+            return vm.error("op_ne: op_equality false");
 
         PSObject top;
         
         s.pop(top);
 
-        if (!top.isBool()) return false;
+        if (!top.isBool())
+            return vm.error("op_ne: typecheck");
 
         s.push(PSObject::fromBool(!top.asBool()));
         return true;
@@ -295,10 +330,12 @@ namespace waavs
         case PSObjectType::Real: typeName = "realtype"; break;
         case PSObjectType::Bool: typeName = "booleantype"; break;
         case PSObjectType::String: typeName = "stringtype"; break;
-        case PSObjectType::Array: typeName = "arraytype"; break;
+
+        case PSObjectType::Array: 
+        case PSObjectType::Matrix: typeName = "arraytype"; break;
+        
         case PSObjectType::Dictionary: typeName = "dicttype"; break;
         case PSObjectType::Name: typeName = "nametype"; break;
-        case PSObjectType::Matrix: typeName = "arraytype"; break;
         case PSObjectType::Null: typeName = "nulltype"; break;
         default: break;
         }
@@ -307,14 +344,10 @@ namespace waavs
         return true;
     }
 
-
-
-
-
-
     inline bool op_cvlit(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return vm.error("stackunderflow");
+        if (s.empty()) 
+            return vm.error("op_cvlit: stackunderflow");
 
         PSObject obj;
         s.pop(obj);
@@ -325,7 +358,8 @@ namespace waavs
 
     inline bool op_cvx(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return vm.error("stackunderflow");
+        if (s.empty()) 
+            return vm.error("op_cvx: stackunderflow");
 
         PSObject obj;
         s.pop(obj);
@@ -336,7 +370,8 @@ namespace waavs
 
     inline bool op_xcheck(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return vm.error("stackunderflow");
+        if (s.empty()) 
+            return vm.error("op_xcheck: stackunderflow");
 
         PSObject obj;
         s.pop(obj);

@@ -6,7 +6,8 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <map>
+//#include <map>
+#include <iostream>
 
 #include <vector>
 #include <functional>
@@ -80,7 +81,7 @@ namespace waavs
     // --------------------
     // These definitions are used for builtin operators that are known at compile time
     using PSOperatorFunc = bool(*)(PSVirtualMachine&);
-    using PSOperatorFuncMap = std::unordered_map<const char*, PSOperatorFunc>;
+    using PSOperatorFuncMap = std::unordered_map<const char *, PSOperatorFunc>;
 
     struct PSOperator {
         PSName name;       // Always interned and stable
@@ -353,7 +354,7 @@ namespace waavs {
     struct PSArray {
     public:
         std::vector<PSObject> elements;
-        bool fIsProcedure = false;
+        //bool fIsProcedure = false;
 
         // Constructors
         PSArray() = default;
@@ -371,8 +372,8 @@ namespace waavs {
         // Size and flags
         size_t size() const { return elements.size(); }
 
-        constexpr bool isProcedure() const noexcept { return fIsProcedure; }
-        void setIsProcedure(bool flag) noexcept { fIsProcedure = flag; }
+        //constexpr bool isProcedure() const noexcept { return fIsProcedure; }
+        //void setIsProcedure(bool flag) noexcept { fIsProcedure = flag; }
 
         // Element access
         bool get(size_t index, PSObject& out) const {
@@ -429,7 +430,9 @@ namespace waavs {
         }
 
         bool allNumbers() const {
-            return allOfType(PSObjectType::Int) || allOfType(PSObjectType::Real);
+            return allOf([=](const PSObject& o) { return o.isNumber(); });
+
+            //return allOfType(PSObjectType::Int) || allOfType(PSObjectType::Real);
         }
 
         // Factory method
@@ -469,4 +472,5 @@ namespace waavs {
         return false;
     }
 }
+
 

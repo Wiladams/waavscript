@@ -50,6 +50,7 @@ namespace waavs {
 
 		static constexpr bool isWhitespace(uint8_t c) noexcept { return is(c, PS_WHITESPACE); }
 		static constexpr bool isNameChar(uint8_t c) noexcept { return is(c, PS_NAME_CHAR); }
+		static constexpr bool isDigit(uint8_t c) noexcept { return c >= '0' && c <= '9'; }
 		static constexpr bool isNumeric(uint8_t c) noexcept { return is(c, PS_NUMERIC); }
 		static constexpr bool isNumericBegin(uint8_t c) noexcept { return (isdigit(c) || c == '.' ||c == '+' || c == '-'); }
 		static constexpr bool isHexDigit(uint8_t c) noexcept { return is(c, PS_HEX_DIGIT); }
@@ -57,8 +58,6 @@ namespace waavs {
 		static constexpr bool isCommentStart(uint8_t c) noexcept { return is(c, PS_COMMENT_START); }
 		static constexpr bool isStringDelim(uint8_t c) noexcept { return is(c, PS_STRING_DELIM); }
 		static constexpr bool isProcDelim(uint8_t c) noexcept { return is(c, PS_PROC_DELIM); }
-
-
 
 	};
 
@@ -99,6 +98,18 @@ namespace waavs {
 		}
 		src.fStart = p;  // Update cursor position
 		return p;
+	}
+
+	// Turn a supposed hex ascii character into a byte value.
+	// Returns true if the character was a valid hex digit, and out is set to the value.
+	// Returns false if the character was not a valid hex digit, and out is unchanged.
+	static inline constexpr bool  decodeHex(uint8_t c, uint8_t& out) noexcept
+	{
+		if (c >= '0' && c <= '9') { out = (c - '0'); return true; }
+		if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; return true; }
+		if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10; return true; }
+
+		return false;
 	}
 }
 
@@ -153,7 +164,7 @@ namespace waavs {
 		bool isDSC = (p < end && *p == '%');
 		if (isDSC) ++p;
 
-		const uint8_t* commentStart = p;
+		//const uint8_t* commentStart = p;
 
 		// Scan to end of line, allowing \n, \r, or \r\n
 		while (p < end && *p != '\n' && *p != '\r')
@@ -473,10 +484,11 @@ namespace waavs {
 			}
 		}
 
-
+		/*
 		// Number (starts with digit, '.', '+', or '-')
 		// need to distinguish between numbers
         // and extension operators, which begin with '.' typically (.max, .min, etc.)
+		// or anything of these starts not immediately followed by a numeric
 		if (PSCharClass::isNumericBegin(c)) {
 			// if it's a '.', it could be a number
 			// or an extension name
@@ -486,6 +498,42 @@ namespace waavs {
 
 			return scanNumberLexeme(src, lex);
 		}
+		*/
+
+		if (c == '+' || c == '-') {
+			uint8_t next = src.peek(1);
+
+			if (CC::isDigit(next)) {
+				// +5 or -3 etc.
+				return scanNumberLexeme(src, lex);
+			}
+
+			if (next == '.') {
+				uint8_t next2 = src.peek(2);
+				if (CC::isDigit(next2)) {
+					// +.5 or -.7
+					return scanNumberLexeme(src, lex);
+				}
+			}
+
+			// lone + or - or +name
+			return scanNameLexeme(src, lex);
+		}
+
+		if (c == '.') {
+			uint8_t next = src.peek(1);
+			if (CC::isDigit(next)) {
+				// .5
+				return scanNumberLexeme(src, lex);
+			}
+			// .foo
+			return scanNameLexeme(src, lex);
+		}
+
+		if (CC::isDigit(c)) {
+			return scanNumberLexeme(src, lex);
+		}
+
 
 		// Name token (default)
 		if (CC::isNameChar(c)) {

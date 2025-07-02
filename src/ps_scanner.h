@@ -14,17 +14,7 @@
 namespace waavs
 {
 
-    // Turn a supposed hex ascii character into a byte value.
-    // Returns true if the character was a valid hex digit, and out is set to the value.
-    // Returns false if the character was not a valid hex digit, and out is unchanged.
-    static inline constexpr bool  decodeHex(uint8_t c, uint8_t& out) noexcept
-    {
-        if (c >= '0' && c <= '9') { out = (c - '0'); return true; }
-        if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; return true; }
-        if (c >= 'A' && c <= 'F') { out = (c - 'A') + 10; return true; }
 
-        return false;
-    }
 
     static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
     {
@@ -34,10 +24,12 @@ namespace waavs
             skipWhile(src, PS_WHITESPACE);
             if (src.empty()) break;
 
-            uint8_t hiChar = *src.fStart++;
+            uint8_t hiChar = *src;
+            ++src;
             skipWhile(src, PS_WHITESPACE);
 
-            uint8_t loChar = src.empty() ? '0' : *src.fStart++;
+            uint8_t loChar = src.empty() ? '0' : *src;
+            ++src;
 
             uint8_t hi, lo;
             if (!decodeHex(hiChar, hi) || !decodeHex(loChar, lo))
@@ -152,14 +144,12 @@ namespace waavs
     static bool scanProcedure(PSLexemeGenerator& lexgen, PSObject& out)
     {
         auto arr = PSArray::create();
-        arr->setIsProcedure(true);
-
 
         while (true) {
             PSObject element;
-            PSLexeme lex;
 
-			if (!nextPSObject(lexgen, element)) return false;   // unterminated procedure
+			if (!nextPSObject(lexgen, element)) 
+                return false;   // unterminated procedure
 
             // We get a null object either at procEnd, or end of input
             if (element.isNull()) {

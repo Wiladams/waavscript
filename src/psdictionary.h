@@ -5,6 +5,8 @@
 
 namespace waavs {
 
+    // A collection made explicitly to support PSObjects that are
+    // accessed by PSName keys.
     struct PSDictEntry {
         PSName key;
         PSObject value;
@@ -61,7 +63,7 @@ namespace waavs {
         }
 
         template <typename Fn>
-        void visitEntries(Fn&& fn) {
+        void forEach(Fn&& fn) {
             for (size_t i = 0; i < fCapacity; ++i) {
                 if (!fEntries[i].isEmpty()) {
                     if (!fn(fEntries[i].key, fEntries[i].value)) break;
@@ -94,6 +96,7 @@ namespace waavs {
             delete[] old;
         }
 
+        // try to find the slot for the key using linear probing
         size_t findSlot(PSName key) const {
             size_t hash = reinterpret_cast<size_t>(key.c_str());
             size_t index = hash % fCapacity;
@@ -133,14 +136,14 @@ namespace waavs {
             return ptr;
         }
 
-        //const std::unordered_map<PSName, PSObject>& entries() const { return fEntries; }
-
         size_t size() const { return fEntries.size(); }
 
         bool put(const PSName& key, const PSObject& value) {
             return fEntries.put(key, value);
         }
-        bool get(const PSName& key, PSObject& out) const {return fEntries.get(key, out);}
+        bool get(const PSName& key, PSObject& out) const {
+            return fEntries.get(key, out);
+        }
 
         bool copyEntryFrom(const PSDictionary& other, const PSName& key) {
             PSObject value;
@@ -159,8 +162,9 @@ namespace waavs {
             fEntries.clear();
         }
 
+        // Apply a function to each entry in the dictionary.
         bool forEach(std::function<bool(PSName, PSObject&)> fn) {
-            fEntries.visitEntries(fn);
+            fEntries.forEach(fn);
             return true;
         }
     };

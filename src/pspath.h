@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <cmath>
+
 #include "psmatrix.h"
 
 namespace waavs {
@@ -24,6 +25,8 @@ namespace waavs {
         double x1 = 0, y1 = 0;
         double x2 = 0, y2 = 0;
         double x3 = 0, y3 = 0;
+        PSMatrix fTransform;    // transformation matrix for this segment
+
     };
 
     struct PSPath {
@@ -69,11 +72,13 @@ namespace waavs {
 
         // Movement commands to build path
         bool moveto(const PSMatrix &ctm, double x, double y) {
-            double newX{ 0 };
-            double newY{ 0 };
-            ctm.transformPoint(x, y, newX, newY);
+            PSPathSegment seg;
+            seg.command = PSPathCommand::MoveTo;
+            seg.x1 = x;
+            seg.y1 = y;
+            seg.fTransform = ctm; // Store the transformation matrix
 
-            segments.push_back({ PSPathCommand::MoveTo, newX, newY });
+            segments.push_back(seg);
 
             fCurrentX = fStartX = x;
             fCurrentY = fStartY = y;
@@ -86,10 +91,13 @@ namespace waavs {
         bool lineto(const PSMatrix& ctm, double x, double y) {
 			if (!fHasCurrentPoint) return false;
 
-            double newX{ 0 };
-            double newY{ 0 };
-            ctm.transformPoint(x, y, newX, newY);
-            segments.push_back({ PSPathCommand::LineTo, newX, newY });
+            PSPathSegment seg;
+            seg.command = PSPathCommand::LineTo;
+            seg.x1 = x;
+            seg.y1 = y;
+            seg.fTransform = ctm;
+
+            segments.push_back(seg);
 
             fCurrentX = x;
             fCurrentY = y;
@@ -105,28 +113,25 @@ namespace waavs {
         //   startDeg-x3 = starting angle in degrees
         //   endDeg-y3 = ending angle in degrees
         // Note: Angles are in degrees, with 0 degrees pointing to the right (positive X axis)
+        
         bool arc(const PSMatrix &ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
+            static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
+            static constexpr double RAD_TO_DEG = 180.0 / 3.14159265358979323846;
+
             // Arc is valid even if there is no currentpoint yet (like moveto)
             // Update currentpoint to arc endpoint (angle = endDeg)
-            double thetaRad = endDeg * (P_PI / 180.0);
+            double thetaRad = endDeg * DEG_TO_RAD;
             fCurrentX = cx + radius * std::cos(thetaRad);
             fCurrentY = cy + radius * std::sin(thetaRad);
             fHasCurrentPoint = true;
 
 
-            double tcx = 0.0;
-            double tcy = 0.0;
-            double tradius = 0;
-            double rdummy = 0.0;
-            ctm.transformPoint(cx, cy, tcx, tcy);
-            ctm.dtransform(radius, 0.0, tradius, rdummy);
-
-
             PSPathSegment seg;
+            seg.fTransform = ctm; // Store the transformation matrix
             seg.command = PSPathCommand::Arc;
-            seg.x1 = tcx;        // Center X
-            seg.y1 = tcy;        // Center Y
-            seg.x2 = tradius;    // Radius
+            seg.x1 = cx;        // Center X
+            seg.y1 = cy;        // Center Y
+            seg.x2 = radius;    // Radius
             seg.y2 = 0;         // Unused
             seg.x3 = startDeg;  // Start angle (degrees)
             seg.y3 = endDeg;    // End angle (degrees)
@@ -136,14 +141,21 @@ namespace waavs {
 
             return true;
         }
+        
 
-        bool arcCCW(double cx, double cy, double radius, double startDeg, double endDeg) {
-            segments.push_back({
-                PSPathCommand::ArcCCW,
-                cx, cy,                      // x1, y1 = center
-                radius, 0,                   // x2 = radius (y2 unused)
-                startDeg, endDeg             // x3 = start angle, y3 = end angle (in degrees)
-                });
+        bool arcCCW(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
+
+            PSPathSegment seg;
+            seg.fTransform = ctm; // Store the transformation matrix
+            seg.command = PSPathCommand::ArcCCW;
+            seg.x1 = cx;        // Center X
+            seg.y1 = cy;        // Center Y
+            seg.x2 = radius;    // Radius
+            seg.y2 = 0;         // Unused
+            seg.x3 = startDeg;  // Start angle (degrees)
+            seg.y3 = endDeg;    // End angle (degrees)
+
+            segments.push_back(seg);
 
             // Update currentpoint to the arc’s endpoint
             double endRad = endDeg * (P_PI / 180.0);

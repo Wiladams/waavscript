@@ -11,6 +11,7 @@
 #include "psgraphicscontext.h"
 #include "ps_scanner.h"
 #include "psfile.h"
+#include "ps_print.h"
 
 
 namespace waavs
@@ -158,6 +159,19 @@ namespace waavs
             return true;
         }
 
+        
+        bool execOperator(const PSObject& obj)
+        {
+            auto op = obj.asOperator();
+
+            //printf("DBG: execOperator - executing operator: %s\n", op.name.c_str());
+
+            if (op.isValid()) {
+                return op.func(*this);
+            }
+
+            return error("PSVirtualMachine::execOperator - invalid operator", op.name.c_str());
+        }
 
         // This is a critical function, as it dictates how procedures are executed,
         // whether we get tail recursion, etc.
@@ -171,7 +185,8 @@ namespace waavs
 
             auto arr = proc.asArray();
             for (const auto& obj : arr->elements) {
-                if (!execObject(obj)) 
+                //if (!execObject(obj)) 
+                if (!interpretObject(obj))
                     return false;
 
                 if (isExitRequested()) break;
@@ -213,19 +228,20 @@ namespace waavs
             //return execObject(resolved);
 
             if (resolved.isOperator()) {
-                auto op = resolved.asOperator();
+                return execOperator(resolved);
+                //auto op = resolved.asOperator();
 
                 // Run the operator if it's valid, otherwise return false
-                if (op.isValid()) {
-                    return op.func(*this);
-                } 
+                //if (op.isValid()) {
+                //    return op.func(*this);
+                //} 
                 
-                return error("operator not valid", op.name.c_str());
+                //return error("operator not valid", op.name.c_str());
 
             }
 
             // 3. Name resolves to a procedure?  auto-exec
-            if (resolved.isExecutable() && resolved.isArray()) {
+            if (resolved.isArray() && resolved.isExecutable()) {
                 return execProc(resolved);
             }
 
@@ -233,22 +249,13 @@ namespace waavs
             return opStack().push(resolved);
         }
 
-        bool execOperator(const PSObject& obj)
-        {
-            auto op = obj.asOperator();
 
-            //printf("DBG: execOperator - executing operator: %s\n", op.name.c_str());
-
-            if (op.isValid()) {
-                return op.func(*this);
-            }
- 
-            return error("PSVirtualMachine::ececute - invalid operator", op.name.c_str());
-        }
 
         // --- Execute a single PSObject
         bool execObject(const PSObject& obj)
         {
+            //writeObjectDeep(obj); printf("\n");
+
             switch (obj.type) {
                 // Literal value (number, string, etc.) — push onto operand stack
 
@@ -301,8 +308,10 @@ namespace waavs
         // regular operators.
         //
 
-        bool interpret(const PSObject& obj)
+        bool interpretObject(const PSObject& obj)
         {
+
+
             // if is name, then see if it's an executable name
             // if it is, then execute it immediately.
             // if not executable name, then push it onto the operand stack.
@@ -326,9 +335,8 @@ namespace waavs
                 }
                 else if (obj.isOperator())
                 {
-                    return execObject(obj); // Execute the operator directly
+                    return execOperator(obj); // Execute the operator directly
                 }
-                //else if (obj.isArray() && obj.asArray()->isProcedure())
                 else
                 {
                     // Any other Executable type
@@ -389,7 +397,7 @@ namespace waavs
                 if (!genNextObject(objGen, obj))
                     break; //  error("END of Object stream");
 
-				if (!interpret(obj)) 
+				if (!interpretObject(obj)) 
                     return false;
 
                 if (isExitRequested()) {

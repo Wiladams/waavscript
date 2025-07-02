@@ -215,7 +215,9 @@
     <ClInclude Include="..\..\src\ps_ops_matrix.h" />
     <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
     <ClInclude Include="..\..\src\ps_ops_vm.h" />
+    <ClInclude Include="..\..\src\ps_print.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
+    <ClInclude Include="..\..\src\strutil.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

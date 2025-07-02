@@ -163,7 +163,9 @@ namespace waavs {
             { "idiv",     op_idiv },
             { "mod",      op_mod },
             { "max",      op_max },
+            { ".max",     op_max },         // Common alias
             { "min",      op_min },
+            { ".min",     op_min},          // Common alias
             { "neg",      op_neg },
             { "abs",      op_abs },
             { "sqrt",     op_sqrt },
