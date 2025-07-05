@@ -6,7 +6,6 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
-//#include <map>
 #include <iostream>
 
 #include <vector>
@@ -81,7 +80,8 @@ namespace waavs
     // --------------------
     // These definitions are used for builtin operators that are known at compile time
     using PSOperatorFunc = bool(*)(PSVirtualMachine&);
-    using PSOperatorFuncMap = std::unordered_map<const char *, PSOperatorFunc>;
+    //using PSOperatorFuncMap = std::unordered_map<const char *, PSOperatorFunc>;
+    using PSOperatorFuncMap = std::unordered_map<PSName, PSOperatorFunc>;
 
     struct PSOperator {
         PSName name;       // Always interned and stable
@@ -196,15 +196,15 @@ namespace waavs {
             reset(); type = PSObjectType::Name; fValue = n; return true;
         }
 
-        bool resetFromInternedName(const char* interned) {
-            reset(); type = PSObjectType::Name; fValue = PSName(interned); return true;
-        }
+        //bool resetFromInternedName(const char* interned) {
+        //    reset(); type = PSObjectType::Name; fValue = PSName(interned); return true;
+        //}
         //bool resetFromName(const char* cstr) {
         //	return resetFromInternedName(PSNameTable::INTERN(cstr));
         //}
-        bool resetFromName(const OctetCursor& oc) {
-            return resetFromInternedName(PSNameTable::INTERN(oc));
-        }
+        //bool resetFromName(const OctetCursor& oc) {
+        //    return resetFromInternedName(PSNameTable::INTERN(oc));
+        //}
         bool resetFromString(PSString s) {
             reset(); type = PSObjectType::String; fValue = s; return true;
         }
@@ -251,8 +251,8 @@ namespace waavs {
         static PSObject fromReal(double v) { PSObject o; o.resetFromReal(v); return o; }
         static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
         static PSObject fromName(const PSName& n) { PSObject o; o.resetFromName(n); return o; }
-        static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
-        //static PSObject fromInternedName(const char* interned) { PSObject o; o.resetFromInternedName(interned); return o; }
+        static PSObject fromExecName(const PSName& n) { PSObject o; o.resetFromName(n); o.setExecutable(true); return o; }
+        //static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
         static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
         static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
         static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }

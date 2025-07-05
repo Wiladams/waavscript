@@ -24,7 +24,7 @@ namespace waavs {
 
         // Query FontMonger for the fonthandle associated with the name
         PSObject fontFace;
-        if (!g->findFont(param.asName(), fontFace))
+        if (!g->findFont(vm, param.asName(), fontFace))
             return vm.error("failed to find font");
 
         // Push the font object onto the stack
@@ -126,7 +126,7 @@ namespace waavs {
 
         auto* g = vm.graphics();
         PSObject fontFace;
-        if (!g->findFont(name.asName(), fontFace))
+        if (!g->findFont(vm, name.asName(), fontFace))
             return vm.error("invalidfont: failed to find font");
 
         auto fontHandle = PSFont::createFromSize(fontFace.asFontFace(), size.asReal());

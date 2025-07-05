@@ -20,7 +20,7 @@
 #include "ps_ops_file.h"
 #include "ps_ops_font.h"
 #include "ps_ops_vm.h"
-
+#include "ps_ops_resource.h"
 
 namespace waavs
 {
@@ -42,6 +42,24 @@ namespace waavs
 			//vm->interpret(extOps.op_code_min);
 		}
 
+		static inline void registerResources(PSVirtualMachine* vm)
+		{
+			PSVMEncodings encodings;
+
+			vm->interpret(encodings.standardEncodingPS);
+            vm->interpret(encodings.expertEncodingPS);
+			vm->interpret(encodings.isoLatin1EncodingPS);
+			vm->interpret(encodings.macRomanEncodingPS);
+			vm->interpret(encodings.symbolEncodingPS);
+			vm->interpret(encodings.winAnsiEncodingPS);
+			vm->interpret(encodings.zapfDingbatsEncodingPS);
+
+
+
+
+
+        }
+
 		static inline void registerCoreOps(PSVirtualMachine *vm) 
 		{
 			vm->registerOps(getArrayOps());
@@ -60,7 +78,7 @@ namespace waavs
 			vm->registerOps(getEnviroOps());
             vm->registerOps(getFileOps());
             vm->registerOps(getFontOps());
-
+			vm->registerOps(getResourceOperators());
 		}
 
 		// Create a new PSVM instance
@@ -71,6 +89,7 @@ namespace waavs
 			// Register built-in operations
 			PSVMFactory::registerCoreOps(vm.get());
 			PSVMFactory::registerExtensionOps(vm.get());
+			PSVMFactory::registerResources(vm.get());
 
 			return vm;
 		}

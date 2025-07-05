@@ -13,7 +13,7 @@ namespace waavs {
 
 
 
-    // =
+    // ==
     static bool op_eqeq(PSVirtualMachine& vm) {
         if (vm.opStack().empty()) return false;
         PSObject obj;
@@ -23,7 +23,7 @@ namespace waavs {
         return true;
     }
 
-    // ==
+    // =
     static bool op_eq(PSVirtualMachine& vm) {
         if (vm.opStack().empty()) return false;
         PSObject obj;
@@ -35,12 +35,17 @@ namespace waavs {
 
     // print
     static bool op_print(PSVirtualMachine& vm) {
-        if (vm.opStack().empty()) return false;
+        if (vm.opStack().empty())
+            return vm.error("op_print: stackunderflow");
+
         PSObject obj;
         vm.opStack().pop(obj);
 
-        if (!obj.isString()) return false;
+        if (!obj.isString())
+            return vm.error("op_print: typecheck, only prints strings");
+        
         std::cout << obj.asString().toString();
+        
         return true;
     }
 

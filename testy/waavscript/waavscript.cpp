@@ -15,7 +15,7 @@ std::unique_ptr<PSVirtualMachine> vm;
 // Scan all the fonts in the specified directory, making them
 // known to the FontMonger.
 //
-size_t scanFontsInDirectory(const char* dirpath) {
+size_t loadFontsInDirectory(PSVirtualMachine *vm, const char* dirpath) {
     namespace fs = std::filesystem;
     size_t count = 0;
     for (const auto& entry : fs::directory_iterator(dirpath)) {
@@ -23,7 +23,9 @@ size_t scanFontsInDirectory(const char* dirpath) {
 
         auto ext = entry.path().extension().string();
         if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
-            if (FontMonger::instance().scanFontFile(entry.path().string().c_str()))
+            PSObject pathObj = PSObject::fromString(entry.path().string().c_str());
+            vm->opStack().push(pathObj);
+            if (FontMonger::instance()->loadFontResource(*vm))
                 ++count;
         }
     }
@@ -57,7 +59,7 @@ int main() {
     ctx->initGraphics();
     vm->setGraphicsContext(std::move(ctx));
 
-    scanFontsInDirectory("c:/windows/fonts");
+    loadFontsInDirectory(vm.get(), "c:/windows/fonts");
 
     interactiveLoop();
 

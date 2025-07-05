@@ -8,7 +8,7 @@
 #include "psmatrix.h"
 #include "psimage.h"
 #include "psfont.h"
-#include "fontmonger.h"
+//#include "fontmonger.h"
 
 namespace waavs {
 
@@ -182,7 +182,7 @@ namespace waavs {
         }
 
         // Font handling
-        virtual bool findFont(const PSName & name, PSObject &outObj)
+        virtual bool findFont(PSVirtualMachine &vm, const PSName & name, PSObject &outObj)
         {
             printf("PSGraphicsContext::findFont: Not implemented\n");
             return false;

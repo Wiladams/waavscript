@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "pscore.h"  // Provides PSObject, PSMatrix, PSDictionaryHandle, etc.
 #include "psdictionary.h"
 
@@ -23,13 +24,24 @@ namespace waavs {
     // BuildGlyph       Alternative procedure for building glyphs (Type 3 fonts)
     // ------------------------------------------------------
     struct PSFontFace {
-        void* fSystemKey = nullptr;     // This is what the system uses to identify the fontface
-        PSDictionaryHandle fDict;       // Dictionary of font properties
+    private:
+        // This is what the system uses to identify the fontface
+        // The system that is loading font information will put something here
+        // that associates font face information for later building of scaled
+        // fonts.  It's opaque to the PostScript code, so we remain backend agnostic
+        void* fSystemHandle{ nullptr };      
+        PSDictionaryHandle fDict;           // Dictionary of font properties
 
+    public:
         PSFontFace() : fDict(PSDictionary::create()) 
         {
             
         }
+
+        void setSystemHandle(void* handle) {fSystemHandle = handle;}
+        void* getSystemHandle() const {return fSystemHandle;}
+
+        PSDictionaryHandle getDictionary() const { return fDict; }
 
         void set(const PSName & key, const PSObject& value) 
         {
@@ -40,11 +52,12 @@ namespace waavs {
             return fDict->get(key, out);
         }
 
-        static PSFontFaceHandle create(const PSString& name) {
-            auto face = std::make_shared<PSFontFace>();
+        bool contains(const PSName & key) const {
+            return fDict->contains(key);
+        }
 
-            face->set("FontName", PSObject::fromString(name));
-            face->set("FontMatrix", PSObject::fromMatrix(PSMatrix()));
+        static PSFontFaceHandle create() {
+            auto face = std::make_shared<PSFontFace>();
 
             return face;
         }
@@ -89,12 +102,12 @@ namespace waavs {
         PSDictionaryHandle fDict;       // Dictionary exposed as /currentfont
 
         PSFont() : fDict(PSDictionary::create()) {}
-        PSFont(const PSFontFaceHandle& face, const PSMatrix &fontMatrix) : fDict(PSDictionary::create())
+        PSFont(const PSFontFaceHandle face, const PSMatrix &fontMatrix) : fDict(PSDictionary::create())
         {
             if (!face) return; // Ensure face is valid
 
             fDict->put("FontFace", PSObject::fromFontFace(face)); // Store the face reference
-            fDict->copyEntryFrom(*face->fDict.get(), "FontName"); // Copy the font name from the face
+            fDict->copyEntryFrom(*face->getDictionary().get(), "FontName"); // Copy the font name from the face
 
             // scale face matrix by size
             PSObject faceMatrixObj;
@@ -112,7 +125,7 @@ namespace waavs {
             if (!face) return; // Ensure face is valid
 
             fDict->put("FontFace", PSObject::fromFontFace(face)); // Store the face reference
-            fDict->copyEntryFrom(*face->fDict.get(), "FontName"); // Copy the font name from the face
+            fDict->copyEntryFrom(*face->getDictionary().get(), "FontName"); // Copy the font name from the face
             fDict->put("PointSize", PSObject::fromReal(size)); // Store the point size
 
             // scale face matrix by size
@@ -126,6 +139,8 @@ namespace waavs {
 
             fDict->put("FontMatrix", PSObject::fromMatrix(fontMatrix));
         }
+
+        PSDictionaryHandle getDictionary() const { return fDict; }
 
         void set(const PSName & key, const PSObject& value) 
         {

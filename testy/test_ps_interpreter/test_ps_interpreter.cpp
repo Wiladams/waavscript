@@ -525,22 +525,180 @@ static void test_dictionary_inline()
 	runPostscript(test_s1);
 }
 
+static void test_resources()
+{
+    printf("\n== Resources ==\n");
+    const char* test_s1 = R"||(
+% Define a simple resource in the Font category
+/myFontResource <<
+  /FontType 3
+  /FontMatrix [0.001 0 0 0.001 0 0]
+  /Encoding StandardEncoding
+>> 
+/Font defineresource
+
+% Check its status
+/myFontResource /Font resourcestatus
+% Should print: true
+{ = = = } if
+
+% Find the resource
+/myFontResource /Font findresource
+% Should print the dictionary
+==
+
+% List all Font resources using resourceforall
+/Font {
+  (resourceforall:) print
+  = % key
+  = % value
+} resourceforall
+
+% Save the resource stack
+resourcestack
+dup
+% Should print the array
+==
+
+% Now replace the resource stack with just the system dictionary
+dup 0 1 getinterval setresourcestack
+
+% Test that the user resource is no longer visible
+/myFontResource /Font resourcestatus
+% Should print: false
+=
+
+% Restore the saved stack
+setresourcestack
+
+% Verify the resource is found again
+/myFontResource /Font resourcestatus
+% Should print: true
+{ = = = } if
+
+% Test beginresource / endresource
+/myComposite /Pattern beginresource
+% define pattern parts here if you wanted
+endresource
+
+)||";
+
+    runPostscript(test_s1);
+}
+
+static void test_encodings()
+{
+    printf("\n== Encoding Tests ==\n");
+
+    const char* test_s1 = R"||(
+% Check StandardEncoding
+(StandardEncoding:) print
+StandardEncoding type ==
+StandardEncoding length ==     % 256
+StandardEncoding 65 get ==     % /A
+StandardEncoding 97 get ==     % /a
+
+% Check ISOLatin1Encoding
+(ISOLatin1Encoding:) print
+ISOLatin1Encoding type ==
+ISOLatin1Encoding length ==    % 256
+ISOLatin1Encoding 160 get ==   % /space
+ISOLatin1Encoding 173 get ==   % /hyphen
+ISOLatin1Encoding 255 get ==   % /ydieresis
+
+% Check WinAnsiEncoding
+(WinAnsiEncoding:) print
+WinAnsiEncoding type ==
+WinAnsiEncoding length ==      % 256
+WinAnsiEncoding 128 get ==     % /Euro
+WinAnsiEncoding 164 get ==     % /currency
+WinAnsiEncoding 216 get ==     % /Oslash
+
+% Check MacRomanEncoding
+(MacRomanEncoding:) print
+MacRomanEncoding type ==
+MacRomanEncoding length ==     % 256
+MacRomanEncoding 65 get ==     % /A
+MacRomanEncoding 128 get ==    % /Adieresis
+MacRomanEncoding 141 get ==    % /Oslash
+
+% Check ExpertEncoding
+(ExpertEncoding:) print
+ExpertEncoding type ==
+ExpertEncoding length ==       % 256
+ExpertEncoding 33 get ==       % /exclamsmall
+ExpertEncoding 100 get ==      % /onequarter
+ExpertEncoding 200 get ==      % /bracketlefttp
+
+% Check SymbolEncoding
+(SymbolEncoding:) print
+SymbolEncoding type ==
+SymbolEncoding length ==       % 256
+SymbolEncoding 65 get ==       % /Alpha
+SymbolEncoding 97 get ==       % /alpha
+SymbolEncoding 240 get ==      % /therefore
+
+% Check ZapfDingbatsEncoding
+(ZapfDingbatsEncoding:) print
+ZapfDingbatsEncoding type ==
+ZapfDingbatsEncoding length == % 256
+ZapfDingbatsEncoding 33 get ==   % /a1
+ZapfDingbatsEncoding 97 get ==   % /a60
+ZapfDingbatsEncoding 191 get ==  % /a191
+ZapfDingbatsEncoding 250 get ==  % /.notdef
+
+% All done
+(Done testing encodings.) print
+
+
+)||";
+
+    runPostscript(test_s1);
+}
+
+static void test_encodings2()
+{
+    printf("\n== Resources ==\n");
+    const char* test_s1 = R"||(
+/listarray
+{
+    0                          % start index at 0
+    /myindex exch def          % store in myindex
+    20 string /indexstr exch def  % reusable string buffer
+    {
+        myindex indexstr cvs print   % convert and print index (no newline)
+        ( Value: ) print
+        =                            % print element with newline
+        /myindex myindex 1 add def
+    } forall
+} def
+
+StandardEncoding listarray
+% ISOLatin1Encoding listarray
+% WinAnsiEncoding listarray
+% ExpertEncoding listarray
+% ZapfDingbatsEncoding listarray
+)||";
+
+    runPostscript(test_s1);
+}
+
 // ------------ Entry ------------
 
 static void test_core()
 {
 	printf("== Core Tests ==\n");
-    test_meta();
-    test_arithmetic_ops();
-    test_stack_ops();
-    test_control_flow();
-    test_debug_ops();
-    test_loop_op();
-    test_forall();
+    //test_meta();
+    //test_arithmetic_ops();
+    //test_stack_ops();
+    //test_control_flow();
+    //test_debug_ops();
+    //test_loop_op();
+    //test_forall();
     //test_logic();
     //test_procedure();
-    test_repeat();
-    test_nested();
+    //test_repeat();
+    //test_nested();
     //test_exec();
     //test_op_stopped();
     //test_operator_def();
@@ -549,6 +707,9 @@ static void test_core()
     //test_unimplemented_op();
     //test_dictionary_inline();
     //test_numeric();
+    //test_resources();
+    //test_encodings();
+    test_encodings2();
 }
 
 static void test_idioms()
@@ -558,7 +719,11 @@ static void test_idioms()
     //test_factorial();
     test_average();
     //test_fizzbuzz();
+
 }
+
+
+
 
 int main() {
     test_core();

@@ -214,6 +214,7 @@
     <ClInclude Include="..\..\src\ps_ops_math.h" />
     <ClInclude Include="..\..\src\ps_ops_matrix.h" />
     <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
+    <ClInclude Include="..\..\src\ps_ops_resource.h" />
     <ClInclude Include="..\..\src\ps_ops_vm.h" />
     <ClInclude Include="..\..\src\ps_print.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />

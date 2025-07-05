@@ -6,9 +6,12 @@
 #include <blend2d/blend2d.h>
 #include <blend2d/blend2d/fontmanager.h>
 
-#include "pscore.h"
-#include "psfont.h"
 #include "strutil.h"
+
+#include "pscore.h"
+#include "psvm.h"
+#include "psfont.h"
+
 
 namespace waavs {
 
@@ -18,7 +21,7 @@ namespace waavs {
     // 2. If subfamily is empty or "regular", do not append it.
     // 3. If subfamily is non-empty and not "regular", append it after a dash, also in lowercase.
     //
-    PSName postScriptName(const PSName& family, const PSName& subfamily) {
+    static PSName createPostScriptName(const PSName& family, const PSName& subfamily) {
         const char* fam = family.c_str();
         const char* sub = subfamily.c_str();
 
@@ -70,25 +73,14 @@ namespace waavs {
 
 namespace waavs {
 
-    struct FontMetadata {
-        PSName postscriptName; // interned, lowercase
-        PSName familyName;     // interned, lowercase
-        PSName subfamily;      // interned, lowercase
-        PSName path;           // interned (optional: lowercase)
-        uint32_t weight = BL_FONT_WEIGHT_NORMAL;
-        uint32_t stretch = BL_FONT_STRETCH_NORMAL;
-        uint32_t style = BL_FONT_STYLE_NORMAL;
-        std::shared_ptr<BLFontFace> fFace;
-    };
 
     class FontMonger {
     public:
-        using Predicate = std::function<bool(const FontMetadata&)>;
+        using Predicate = std::function<bool(const PSFontFaceHandle)>;
 
     private:
-        std::vector<FontMetadata> fMeta;
-        PSDictionaryHandle fPostScriptIndex;    // maps postscript name to index in fMeta
-        PSDictionaryHandle fontFacesByName;     // maps postscript name to PSFontFaceHandle 
+        //std::vector<PSFontFaceHandle> fMeta;
+        //PSDictionaryHandle fontFacesByName;     // maps postscript name to PSFontFaceHandle 
 
         static const char* toLowerIntern(const BLString& str) {
             std::string temp(static_cast<const char*>(str.data()), str.size());
@@ -104,50 +96,111 @@ namespace waavs {
 
     public:
         FontMonger() {
-            fPostScriptIndex = PSDictionary::create();
-            fontFacesByName = PSDictionary::create();
+            //fontFacesByName = PSDictionary::create();
         }
 
         // return how many entries in the metadata table
-        size_t count() const { return fMeta.size(); }
+        //size_t count() const { return fMeta.size(); }
 
         // return the metadata at index i
-        const FontMetadata& at(size_t i) const { return fMeta[i]; }
+        //const PSFontFaceHandle& at(size_t i) const { return fMeta[i]; }
 
+        // FontName         PostScript name of the font face (a literal name object)
+        // FontType         Integer indicating the type of font (1 for Type 1, 2 for TrueType, etc.)
+        // FontMatrix       6-element array (matrix) mapping glyph space to user space
+        // FontBBox         4-element array specifying bounding box in glyph space [llx, lly, urx, ury]
+        // Encoding         Array of 256 names (usually glyph names), indexed by character code
+        // CharStrings      Dictionary mapping glyph names to charstring definitions (Type 1)
+        // PaintType        For Type 3 fonts, specifies paint type (0 for fill, 1 for stroke)
+        // Private          Dictionary for font-specific data (Type 1 and Type 3 fonts)
+        // BuildChar        Procedure for building glyphs on demand (Type 3 fonts)
+        // BuildGlyph       Alternative procedure for building glyphs (Type 3 fonts)
         // Scan a font file and extract metadata.
         // Returns true if the font was successfully scanned and metadata extracted.
-        bool scanFontFile(const char* path) {
+        bool loadFontResource(PSVirtualMachine &vm) {
             BLFontFace face;
-            if (face.createFromFile(path) != BL_SUCCESS || !face.isValid())
+
+            auto& s = vm.opStack();
+
+            // pop the path from the stack
+            if (s.size() < 1) {
+                vm.error("loadFontResource: stackunderflow");
                 return false;
+            }
+
+            PSObject pathObj = s.pop();
+            if (!pathObj.isString()) {
+                vm.error("loadFontResource: typecheck; Expected a string on the stack for font path");
+                return false;
+            }
+
+            auto filePathStr = pathObj.asString().toString();
+            const char *filePath = filePathStr.c_str();
+            if (face.createFromFile(filePath) != BL_SUCCESS || !face.isValid())
+                return vm.error("createFromFile error");
+
+
+            const BLFontDesignMetrics &dm = face.designMetrics();
+
+            // bounding box is an array of 4 reals: [llx, lly, urx, ury]
+            auto arr = PSArray::create();
+            arr->append(PSObject::fromReal(dm.glyphBoundingBox.x0)); // llx
+            arr->append(PSObject::fromReal(dm.glyphBoundingBox.y0)); // lly
+            arr->append(PSObject::fromReal(dm.glyphBoundingBox.x1)); // urx
+            arr->append(PSObject::fromReal(dm.glyphBoundingBox.y1)); // ury
+
+            // FontMatrix can be built from unitsPerEm, which is what's in the
+            // design metrics
+            PSMatrix fontMatrix(1.0/dm.unitsPerEm, 0.0, 0.0, 1.0/dm.unitsPerEm, 0.0, 0.0);
 
             const char* psName = toLowerIntern(face.postScriptName());
             const char* famName = toLowerIntern(face.familyName());
             const char* subfamName = toLowerIntern(face.subfamilyName());
-            const char* pathName = PSNameTable::INTERN(path); // no need to lowercase path
 
-            FontMetadata meta{};
-            meta.postscriptName = psName;
-            meta.familyName = famName;
-            meta.subfamily = subfamName;
-            meta.path = pathName;
+            auto psface = PSFontFace::create();
+            psface->set("FontFile", pathObj);
+            psface->set("FontName", PSObject::fromName(PSName(psName)));
+            psface->set("FamilyName", PSObject::fromName(PSName(famName)));
+            psface->set("SubfamilyName", PSObject::fromName(PSName(subfamName)));
 
-            meta.weight = face.weight();
-            meta.stretch = face.stretch();
-            meta.style = face.style();
+            psface->set("Weight", PSObject::fromInt(face.weight()));
+            psface->set("Stretch", PSObject::fromInt(face.stretch()));
+            psface->set("Style", PSObject::fromInt(face.style()));
+
+            psface->set("FontBBox", PSObject::fromArray(arr));
+            psface->set("UnitsPerEm", PSObject::fromInt(face.unitsPerEm()));
+            psface->set("FontMatrix", PSObject::fromMatrix(fontMatrix));
+            //psface->set("FontType", PSObject::fromInt(face.fontType()));
 
             //printf("Family: %-16s, SubFamily: %-16s PostScript: %20s, Path: %s\n", 
             //    meta.familyName, meta.subfamily, meta.postscriptName, meta.path);
 
-            size_t index = fMeta.size();
-            fMeta.push_back(meta);
-            fPostScriptIndex->put(psName, PSObject::fromInt(index));
+            // We want to save the font into the ResourceDirectory.  We'll use the 
+            // already available 'defineresource' operator to do this.
+            // Key: PostScript name (interned, lowercase)
+            // Value: font face handle 
+            // Category: Font Category
+            // key value category defineresource
+            s.push(PSObject::fromName(PSName(psName)));
+            s.push(PSObject::fromFontFace(psface));
+            s.push(PSObject::fromName(PSName("Font")));
+            PSObject defineResource = PSObject::fromExecName(PSName("defineresource"));
+            //defineResource.setExecutable(true);
 
+            vm.execName(defineResource);
+
+            // value left on stack, so pop that, we don't need it
+            s.pop();
+
+            // add to thearray of faces
+            // this is now redundant, because fonts are added as resources
+            //fMeta.push_back(psface);
+ 
             return true;
         }
 
 
-
+        /*
         // Find metadata by a predicate function.
         // This allows you to use any algorithm to select a font based on the 
         // available metadata.
@@ -155,7 +208,7 @@ namespace waavs {
         // Return: 
         //      false if nothing found, or at end of entries
         //      true if found, and meta data is filled in
-        bool findFontMetaNext(Predicate pred, FontMetadata& metaOut, uint32_t& cookie) const {
+        bool findFontMetaNext(Predicate pred, PSFontFaceHandle& metaOut, uint32_t& cookie) const {
             size_t i = static_cast<size_t>(cookie);
             while (i < fMeta.size()) {
                 if (pred(fMeta[i])) {
@@ -168,23 +221,29 @@ namespace waavs {
             return false;
         }
 
-        bool findFontMetaFirst(Predicate pred, FontMetadata& metaOut) const {
+        bool findFontMetaFirst(Predicate pred, PSFontFaceHandle& metaOut) const {
             uint32_t cookie = 0;
             return findFontMetaNext(pred, metaOut, cookie);
         }
 
-        bool FontMonger::findFontMetaByName(const PSName & name, FontMetadata& metaOut) const {
+        bool FontMonger::findFontMetaByName(const PSName & name, PSFontFaceHandle& metaOut) const {
             // Normalize the name by interning the lowercased version
             //const char* interned = PSNameTable::INTERN(name);  // should already be lowercase if preprocessed
             uint32_t cookie = 0;
 
-            auto matchByPostscriptName = [=](const FontMetadata& m) {
-                return m.postscriptName == name;
+            auto matchByPostscriptName = [=](const PSFontFaceHandle& m) {
+                // If it doesn't have a FontName, skip it
+                PSObject nameObj;
+                if (!m->get("FontName", nameObj))
+                    return false;
+
+                return nameObj.isName() &&
+                    nameObj.asName() == name;
                 };
 
             return findFontMetaNext(matchByPostscriptName, metaOut, cookie);
         }
-
+        */
 
         /*
         //======================================================================
@@ -222,40 +281,39 @@ namespace waavs {
             return true;
         }
         */
-
+        /*
         bool findFontFaceByName(const PSName &name, PSObject& out) 
-        {
-            //const char* internedName = PSNameTable::INTERN(name);
-            
+        {            
             // Check if already cached, then just return that
             if (fontFacesByName->get(name, out)) {
                 return true;
             }
 
-
-            FontMetadata meta;
+            // If not already cached, we need to load the BLFontFace again
+            // and hold onto it in the PSFontFaceHandle
+            PSFontFaceHandle meta;
             if (!findFontMetaByName(name, meta))
                 return false;
 
 
             // Attempt to load font face
-            meta.fFace = std::make_shared<BLFontFace>();
-            BLResult result = meta.fFace.get()->createFromFile(meta.path.c_str());
-            if (result != BL_SUCCESS || !meta.fFace->isValid())
+            BLFontFace* fFace = new BLFontFace();
+
+
+            PSObject fontPath;
+            meta->get("FontFile", fontPath);
+            const char* path = fontPath.asString().toString().c_str();
+            BLResult result = fFace->createFromFile(path);
+            if (result != BL_SUCCESS || !fFace->isValid())
                 return false;
 
-            // Construct and register PSFontFace
-            // Create handle that will ultimately be returned
-            auto handle = std::make_shared<PSFontFace>();
-            //handle->fName = meta.postscriptName;
-            //handle->fDefaultMatrix.reset();
-            handle->set("FontName", PSObject::fromName(meta.postscriptName));
-            //handle->fDict->copyEntryFrom("FontMatrix", );
-            handle->set("FontFile", PSObject::fromName(meta.path));
+            meta->setSystemHandle(fFace);
 
             // Cache it
-            out.resetFromFontFace(handle);
-            fontFacesByName->put(meta.postscriptName,out);
+            out.resetFromFontFace(meta);
+            PSObject psNameObj;
+            meta->get("FontName", psNameObj);
+            fontFacesByName->put(psNameObj.asName(), out);
 
             return true;
         }
@@ -263,16 +321,21 @@ namespace waavs {
         // Use a predicate, find a font face
         bool findFont(Predicate pred, PSObject& outObj) {
             uint32_t cookie = 0;
-            FontMetadata meta;
-            if (!findFontMetaNext(pred, meta, cookie))
-                return false;
+            PSFontFaceHandle meta;
+            if (findFontMetaNext(pred, meta, cookie))
+                return true;
 
-            return findFontFaceByName(meta.postscriptName, outObj);
+            return false;
         }
+        */
 
-        static FontMonger& instance() {
-            static FontMonger instance;
-            return instance;
+        static FontMonger* instance() {
+            static std::unique_ptr<FontMonger> gInstance;
+            if (gInstance == nullptr) {
+                gInstance = std::unique_ptr<FontMonger>(new FontMonger);
+            } 
+            
+            return gInstance.get();
         }
     };
 

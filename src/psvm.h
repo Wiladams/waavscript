@@ -37,8 +37,11 @@ namespace waavs
 
         PSDictionaryHandle systemdict;
         PSDictionaryHandle userdict;
+        PSDictionaryHandle systemResourceDirectory;
 
         std::shared_ptr<PSFile> fCurrentFile; // Current file being processed, if any
+
+        PSDictionaryStack fResourceStack; // Stack of resource dictionaries, if needed
 
     public:
         PSDictionaryStack dictionaryStack;
@@ -51,12 +54,30 @@ namespace waavs
         {
             systemdict = PSDictionary::create();
             userdict = PSDictionary::create();
+            systemResourceDirectory = PSDictionary::create();
 
             // Set up dictionary stack (bottom to top):
             dictionaryStack.push(systemdict); // Lowest priority
             dictionaryStack.push(userdict);   // Highest priority
 
+            fResourceStack.push(systemResourceDirectory);
         }
+
+        // Access to properties and state
+        PSDictionaryStack& getDictionaryStack() { return dictionaryStack; }
+        const PSDictionaryStack& getDictionaryStack() const { return dictionaryStack; }
+        PSDictionaryHandle getSystemDict() const { return systemdict; }
+        PSDictionaryHandle getUserDict() const { return userdict; }
+        PSDictionaryHandle setUserDict(PSDictionaryHandle dict)
+        {
+            userdict = dict;
+            return userdict;
+        }
+
+        PSDictionaryHandle getSystemResourceDirectory() const { return systemResourceDirectory; }
+        PSDictionaryStack& getResourceStack() { return fResourceStack; }
+        const PSDictionaryStack& getResourceStack() const { return fResourceStack; }
+
 
         // Meta Information
         int languageLevel() const { return fLanguageLevel; }
@@ -77,13 +98,7 @@ namespace waavs
         PSGraphicsContext* graphics() { return graphicsContext_.get(); }
         inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) { graphicsContext_ = std::move(ctx);}
 
-        PSDictionaryHandle getSystemDict() const { return systemdict; }
-        PSDictionaryHandle getUserDict() const { return userdict; }
-        PSDictionaryHandle setUserDict(PSDictionaryHandle dict)
-        {
-            userdict = dict;
-            return userdict;
-        }
+
 
 		//=====================================================================
 		// REGISTERING OPERATORS
@@ -126,7 +141,7 @@ namespace waavs
         bool isStopRequested() const { return stopRequested; }
         void clearStopRequest() { stopRequested = false; }
 
-
+        /*
         // Start running whatever is currently on the 
         // execution stack
         bool run()
@@ -158,7 +173,7 @@ namespace waavs
 
             return true;
         }
-
+        */
         
         bool execOperator(const PSObject& obj)
         {
@@ -185,8 +200,9 @@ namespace waavs
 
             auto arr = proc.asArray();
             for (const auto& obj : arr->elements) {
-                //if (!execObject(obj)) 
-                if (!interpretObject(obj))
+                //if (!interpretObject(obj))
+
+                if (!execObject(obj)) 
                     return false;
 
                 if (isExitRequested()) break;
@@ -252,6 +268,17 @@ namespace waavs
 
 
         // --- Execute a single PSObject
+        // The interpreter is working at the highest level of input.  
+        // The behavior here is to execute executable names immediately
+        // everything else goes onto the operand stack of the vm, and
+        // that's all it does.  Takes the stream of objects, and executes
+        // them one by one.
+        //
+        // We're not concerned with creating procedure bodies.  That either
+        // happens at the scanner level, or in the case of an array, as
+        // regular operators.
+        //
+
         bool execObject(const PSObject& obj)
         {
             //writeObjectDeep(obj); printf("\n");
@@ -270,6 +297,7 @@ namespace waavs
                 case PSObjectType::File:
                 case PSObjectType::Font:
                 case PSObjectType::FontFace:
+                case PSObjectType::Array:
                 default:
                     opStack().push(obj);
                     return true;
@@ -282,77 +310,18 @@ namespace waavs
                     return execName(obj); // Execute the name directly
                 }
 
-                case PSObjectType::Array: {
-                    auto arr = obj.asArray();
-                    if (!arr)
-                        return error("execute::Array null array");
-
-
-                    opStack().push(obj); // treat it as a literal, for later execution
-                        return true;
-                }
-
             }
 
             return true;
         }
  
-        // The interpreter is working at the highest level of input.  
-        // The behavior here is to execute executable names immediately
-        // everything else goes onto the operand stack of the vm, and
-        // that's all it does.  Takes the stream of objects, and executes
-        // them one by one.
-        //
-        // We're not concerned with creating procedure bodies.  That either
-        // happens at the scanner level, or in the case of an array, as
-        // regular operators.
-        //
-
-        bool interpretObject(const PSObject& obj)
+        // exec
+        // Pop a single item off the stack and execute it.
+        bool exec()
         {
-
-
-            // if is name, then see if it's an executable name
-            // if it is, then execute it immediately.
-            // if not executable name, then push it onto the operand stack.
-            //if (obj.isName())
-            //{
-            //    return execName(obj); // Execute the name directly
-            //}
-            //else if (obj.isOperator()) {
-            //    return execObject(obj); // Execute the operator directly
-            //}
-            //else {
-            //    return opStack().push(obj); // Push literal object onto operand stack
-            //}
-
-            
-            if (obj.isExecutable())
-            {
-                if (obj.isExecutableName())
-                {
-                    return execName(obj);
-                }
-                else if (obj.isOperator())
-                {
-                    return execOperator(obj); // Execute the operator directly
-                }
-                else
-                {
-                    // Any other Executable type
-                    return opStack().push(obj);
-                }
-            }
-            else
-            {
-                // Literal object → push to operand stack
-                opStack().push(obj);
-                return true;
-            }
-            
-
-           // printf("PSVirtualMachine::interpret - unhandled object type: %d\n", obj.type);
-            return error("interpret: unknown object type"); // Should not reach here
+            PSObject obj = opStack().pop();
+            //writeObjectDeep(obj); printf("\n");
+            return execObject(obj);
         }
 
         // This is a shim.  Mainly it needs to convert systemNamed objects
@@ -386,7 +355,6 @@ namespace waavs
 
         bool interpret(PSObjectGenerator& objGen)
         {
-
             while (true)
             {
                 PSObject obj;
@@ -397,7 +365,7 @@ namespace waavs
                 if (!genNextObject(objGen, obj))
                     break; //  error("END of Object stream");
 
-				if (!interpretObject(obj)) 
+                if (!execObject(obj))
                     return false;
 
                 if (isExitRequested()) {

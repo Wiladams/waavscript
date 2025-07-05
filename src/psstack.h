@@ -33,12 +33,27 @@ namespace waavs
             return true;
 		}
 
+        // make a bunch of convenience functions for pushing and popping
         bool push(const T& value) 
         {
             _data.push_back(value);
             return true;
         }
 
+        bool pushBool(bool value) { return push(PSObject::fromBool(value)); }
+        bool pushInt(int32_t value) { return push(PSObject::fromInt(value)); }
+        bool pushReal(double value) {return push(PSObject::fromReal(value));}
+        bool pushName(const PSName aname){ return push(PSObject::fromName(aname));}
+        bool pushExecName(const PSName aname) { return push(PSObject::fromExecName(aname)); }
+        bool pushString(const PSString& str) { return push(PSObject::fromString(str)); }
+        bool pushArray(const PSArrayHandle value) { return push(PSObject::fromArray(value)); }
+        bool pushDict(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }
+        bool pushFile(const PSFileHandle value) { return push(PSObject::fromFile(value)); }
+        bool pushFontFace(const PSFontFaceHandle value) { return push(PSObject::fromFontFace(value)); }
+        bool pushFont(const PSFontHandle value) { return push(PSObject::fromFont(value)); }
+        bool pushOperator(PSOperator value) { return push(PSObject::fromOperator(value)); }
+        bool pushMark(const PSMark& value) { return push(PSObject::fromMark(value)); }
+        
         template<typename... Args>
         bool pushn(Args&&... args) {
             (_data.push_back(std::forward<Args>(args)), ...);

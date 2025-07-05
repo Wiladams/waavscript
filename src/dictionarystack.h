@@ -28,6 +28,9 @@ namespace waavs {
         }
 
         PSDictionaryHandle currentdict() const {
+            if (stack.empty())
+                return nullptr;
+
             return stack.back();
         }
 
@@ -43,6 +46,13 @@ namespace waavs {
             }
             return out;
         }
+
+        void setStack(const std::vector<PSDictionaryHandle>& newStack)
+        {
+            stack = newStack;
+        }
+
+
         bool define(const PSName &key, const PSObject& value) 
         {
             if (stack.empty())
@@ -100,6 +110,16 @@ namespace waavs {
             }
             return false;
         }
+
+        template <typename Fn>
+        void forEachFromTop(Fn&& fn) const
+        {
+            for (size_t i = stack.size(); i-- > 0; )
+            {
+                if (!fn(stack[i])) break;
+            }
+        }
+
 
     };
 }

@@ -217,9 +217,21 @@ namespace waavs {
         }
 
         // Font related methods
-        bool findFont(const PSName& name, PSObject& outObj) override
+        bool findFont(PSVirtualMachine &vm, const PSName& faceName, PSObject& outObj) override
         {
-            return FontMonger::instance().findFontFaceByName(name, outObj);
+            auto& s = vm.opStack();
+
+            s.pushName(faceName);
+            s.pushName("Font");
+            s.pushExecName("findresource");
+
+
+            if (!vm.exec())
+                return false;
+
+            s.pop(outObj);
+            
+            return true;
         }
 
         // Painting - filling and stroking paths

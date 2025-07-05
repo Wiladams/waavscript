@@ -59,7 +59,7 @@ namespace waavs {
 
 
         // get
-        // Retrieve the value for the key.
+        // Retrieve the value for the key, if it exists.
         bool get(PSName key, PSObject& outValue) const noexcept
         {
             size_t slot;
@@ -71,6 +71,24 @@ namespace waavs {
             
             return true;
         }
+
+        // remove
+        // Remove the entry for the key, if it exists.
+        // Creates empty slot, and reduces the count.
+        bool remove(PSName key) noexcept
+        {
+            size_t slot;
+            if (!findKey(key, slot))
+                return false;
+
+            // clear the slot
+            fEntries[slot].key = PSName();
+            fEntries[slot].value.reset();
+
+            fCount--;  // adjust count
+            return true;
+        }
+
 
         // Find the slot of the key.
         // return true if it's found, and slot == the slot
@@ -231,6 +249,10 @@ namespace waavs {
         }
         bool get(const PSName& key, PSObject& out) const {
             return fEntries.get(key, out);
+        }
+
+        bool remove(const PSName& key) {
+            return fEntries.remove(key);
         }
 
         bool copyEntryFrom(const PSDictionary& other, const PSName& key) {
