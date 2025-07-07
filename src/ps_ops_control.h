@@ -7,77 +7,95 @@
 namespace waavs {
 
     // ( proc -- ) Executes a procedure
-    inline bool op_exec(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.empty())
-            return vm.error("exec::stackunderflow");
+    inline bool op_exec(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.empty())
+            return vm.error("op_exec: stackunderflow");
 
         PSObject proc;
-        s.pop(proc);
+        ostk.pop(proc);
 
         if (!proc.isArray() || !proc.isExecutable())
-            return vm.error("exec::typecheck: expected procedure (array)");
+            return vm.error("op_exec: typecheck; expected procedure (array)");
 
-        return vm.execProc(proc);
+
+        return vm.runProc(proc);
     }
 
     // ( bool proc -- ) If condition is true, execute procedure
-    inline bool op_if(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 2)
-            return vm.error("stackunderflow");
+    inline bool op_if(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.size() < 2)
+            return vm.error("op_if: stackunderflow");
 
         PSObject proc, cond;
-        s.pop(proc);
-        s.pop(cond);
+        ostk.pop(proc);
+        ostk.pop(cond);
 
         if (!cond.isBool())
-            return vm.error("typecheck: expected boolean");
+            return vm.error("op_if: typecheck; expected boolean");
 
         if (cond.asBool())
-            return vm.execProc(proc);
+        {
+            return vm.runProc(proc);
+        }
 
         return true;
     }
 
     // ( bool proc_true proc_false -- ) Conditional execution
-    inline bool op_ifelse(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 3)
-            return vm.error("stackunderflow");
+    inline bool op_ifelse(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.size() < 3)
+            return vm.error("op_ifelse: stackunderflow");
 
         PSObject procFalse, procTrue, cond;
-        s.pop(procFalse);
-        s.pop(procTrue);
-        s.pop(cond);
+        ostk.pop(procFalse);
+        ostk.pop(procTrue);
+        ostk.pop(cond);
 
         if (!cond.isBool())
-            return vm.error("typecheck: expected boolean");
+            return vm.error("op_ifelse: typecheck; expected boolean");
 
         PSObject proc = cond.asBool() ? procTrue : procFalse;
-        return vm.execProc(proc);
+
+        if (!proc.isArray() || !proc.isExecutable())
+            return vm.error("op_ifelse: typecheck; expected procedure (array)");
+
+        return vm.runProc(proc);
     }
 
     // ( count proc -- ) Repeat execution
     inline bool op_repeat(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 2)
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.size() < 2)
             return vm.error("stackunderflow");
 
         PSObject proc, count;
-        s.pop(proc);
-        s.pop(count);
+        ostk.pop(proc);
+        ostk.pop(count);
 
         if (!count.isInt())
             return vm.error("typecheck: expected integer");
 
         int n = count.asInt();
         for (int i = 0; i < n; ++i) {
-            if (!vm.execProc(proc))
-                return vm.error("repeat:: execProc() failed");
+            if (!vm.runProc(proc))
+                return vm.error("repeat:: run() failed");
 
             if (vm.isExitRequested()) {
-                vm.clearExitRequest();
+                //vm.clearExitRequest();
                 break;
             }
             if (vm.isStopRequested()) {
@@ -91,16 +109,21 @@ namespace waavs {
 
     // ( proc -- ) Infinite loop execution
     inline bool op_loop(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.empty())
-            return vm.error("stackunderflow");
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.empty())
+            return vm.error("op_loop: stackunderflow");
 
         PSObject proc;
-        s.pop(proc);
+        ostk.pop(proc);
+
+        if (!proc.isArray() || !proc.isExecutable())
+            return vm.error("op_loop: typecheck: expected procedure (array)");
 
         while (true) {
-            if (!vm.execProc(proc)) {
-                return vm.error("op_loop:: execProc() failed");
+            if (!vm.runProc(proc)) {
+                return vm.error("op_loop:: run() failed");
 			}
 
             if (vm.isExitRequested()) {
@@ -119,29 +142,36 @@ namespace waavs {
     }
 
     // ( initial increment limit proc -- ) Numeric for-loop
-    inline bool op_for(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 4)
-            return vm.error("stackunderflow");
+    inline bool op_for(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+    
+        if (ostk.size() < 4)
+            return vm.error("op_for: stackunderflow");
 
         PSObject proc, limit, increment, initial;
-        s.pop(proc);
-        s.pop(limit);
-        s.pop(increment);
-        s.pop(initial);
+        ostk.pop(proc);
+        ostk.pop(limit);
+        ostk.pop(increment);
+        ostk.pop(initial);
 
         if (!initial.isNumber() || !increment.isNumber() || !limit.isNumber())
-            return vm.error("typecheck: expected numbers");
+            return vm.error("op_for: typecheck; expected numbers");
+
+        if (!proc.isArray() || !proc.isExecutable())
+            return vm.error("op_for: typecheck; expected procedure (array)");
 
         double i = initial.asReal();
         double inc = increment.asReal();
         double lim = limit.asReal();
 
-        while ((inc > 0 && i <= lim) || (inc < 0 && i >= lim)) {
-            vm.opStack().push(PSObject::fromReal(i));
+        while ((inc > 0 && i <= lim) || (inc < 0 && i >= lim)) 
+        {
+            ostk.pushReal(i);
 
-            if (!vm.execProc(proc))
-                return false;
+            if (!vm.runProc(proc))
+                return vm.error("op_for: run failed");
 
             if (vm.isExitRequested()) {
                 vm.clearExitRequest();
@@ -154,27 +184,30 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_forall(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 2)
+    inline bool op_forall(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.size() < 2)
             return vm.error("forall: stackunderflow");
 
         PSObject proc, container;
-        s.pop(proc);
-        s.pop(container);
+        ostk.pop(proc);
+        ostk.pop(container);
 
 
         auto apply = [&](const PSObject& val1, const PSObject* val2 = nullptr) -> bool {
-            if (val2) s.push(*val2);
-            s.push(val1);
+            if (val2) ostk.push(*val2);
+            ostk.push(val1);
 
-            if (!vm.execProc(proc)) {
-                return vm.error("forall: failed to run procedure");
+            if (!vm.runProc(proc)) {
+                return vm.error("op_forall: run() failed");
             }
 
             if (vm.isExitRequested()) {
                 vm.clearExitRequest();
-                return false; // exit terminates loop early
+                return true; // exit terminates loop early
             }
             return true;
             };
@@ -201,16 +234,17 @@ namespace waavs {
 
         case PSObjectType::Dictionary: {
             auto applyToDict = [&](const PSName& keyName, const PSObject& val2) -> bool {
-                s.push(val2);
-                s.push(PSObject::fromName(keyName));
+                ostk.pushName(keyName);
+                ostk.push(val2);
 
-                if (!vm.execProc(proc)) {
+                estk.push(proc);
+                if (!vm.run()) {
                     return vm.error("forall: failed to run procedure");
                 }
 
                 if (vm.isExitRequested()) {
                     vm.clearExitRequest();
-                    return false; // exit terminates loop early
+                    return true; // exit terminates loop early
                 }
                 return true;
                 };
@@ -231,16 +265,19 @@ namespace waavs {
     }
 
     // ( proc -- bool ) Execute procedure with stop protection
-    inline bool op_stopped(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.empty())
-            return vm.error("stackunderflow");
+    inline bool op_stopped(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto& estk = vm.execStack();
+
+        if (ostk.empty())
+            return vm.error("op_stopped: stackunderflow");
 
         PSObject proc;
-        s.pop(proc);
+        ostk.pop(proc);
 
         if (!proc.isArray() || !proc.isExecutable())
-            return vm.error("typecheck");
+            return vm.error("op_stopped: typecheck");
 
         auto arr = proc.asArray();
         if (!arr)
@@ -249,7 +286,7 @@ namespace waavs {
         bool prevStop = vm.isStopRequested();
         vm.clearStopRequest();
 
-        if (!vm.execProc(proc))
+        if (!vm.runProc(proc))
             return false;
 
         bool stopOccurred = vm.isStopRequested();
@@ -259,7 +296,7 @@ namespace waavs {
         else
             vm.clearStopRequest();
 
-        s.push(PSObject::fromBool(stopOccurred));
+        ostk.pushBool(stopOccurred);
         return true;
     }
 

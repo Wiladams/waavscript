@@ -11,7 +11,9 @@ namespace waavs {
 
     static bool op_def(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        
+        if (s.size() < 2)
+            return vm.error("op_def: stackunderflow");
 
         PSObject value;
         PSObject key;
@@ -20,23 +22,30 @@ namespace waavs {
         s.pop(key);
 
         if (!key.isLiteralName())
+        {
+            writeObjectDeep(value);
             return vm.error("op_def:typecheck: def expects a literal name");
+        }
 
         vm.dictionaryStack.define(key.asName(), value);
+
         return true;
     }
 
     static bool op_dict(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        
+        if (s.empty())
+            return vm.error("op_dict: stackunderflow");
 
         PSObject sizeObj;
         s.pop(sizeObj);
 
-        if (!sizeObj.isInt()) return false;
+        if (!sizeObj.isInt())
+            return vm.error("op_dict: typecheck; expected int");
 
         auto d = PSDictionary::create(sizeObj.asInt());
-        s.push(PSObject::fromDictionary(d));
+        s.pushDictionary(d);
 
         return true;
     }
@@ -45,29 +54,25 @@ namespace waavs {
 
     static bool op_maxlength(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+
+        if (s.empty()) 
+            return vm.error("op_maxlength: stackunderflow");
 
         PSObject dictObj;
         s.pop(dictObj);
 
-        if (!dictObj.isDictionary()) return false;
+        if (!dictObj.isDictionary()) 
+            return vm.error("op_maxlength: typecheck; expected dictionary");
 
         // PostScript allows arbitrary max size, but we return a placeholder.
-        s.push(PSObject::fromInt(999));
+        s.pushInt(999);
         return true;
     }
 
-
-
-
-
-
-
-
-
     static bool op_known(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return vm.error("op_known: stackunderflow");
 
         PSObject key;
         PSObject dictObj;
@@ -75,21 +80,25 @@ namespace waavs {
         s.pop(key);
         s.pop(dictObj);
 
-        if (!key.isName() || !dictObj.isDictionary()) return false;
+        if (!key.isName() || !dictObj.isDictionary()) 
+            return vm.error("op_known: typecheck");
 
         auto dict = dictObj.asDictionary();
-        if (!dict) return false;
+        if (!dict) 
+            return vm.error("op_known: typecheck; expected dictionary");
 
         bool exists = dict->contains(key.asName());
-        s.push(PSObject::fromBool(exists));
+        s.pushBool(exists);
+
         return true;
     }
 
 
-
     // From '<<' to '>>', these operators are used for dictionary literals.
-    static bool op_dictbegin(PSVirtualMachine& vm) {
-        return vm.opStack().push(PSObject::fromMark(PSMark("dictbegin")));
+    static bool op_dictbegin(PSVirtualMachine& vm) 
+    {
+        auto& s = vm.opStack();
+        return s.pushMark(PSMark("dictbegin"));
     }
 
     static bool op_dictend(PSVirtualMachine& vm) {
@@ -98,26 +107,30 @@ namespace waavs {
         s.countToMark(count);
 
         if (count < 0)
-            return vm.error("dictend: unmatched >> with no mark");
+            return vm.error("op_dictend: unmatched >> with no mark");
 
         if ((count % 2) != 0)
-            return vm.error("dictend: odd number of items in dictionary literal");
+            return vm.error("op_dictend: odd number of items in dictionary literal");
 
         auto dict = PSDictionary::create();
 
         for (int i = 0; i < count / 2; ++i) {
-            PSObject val = s.pop();
-            PSObject key = s.pop();
+            PSObject val;
+            PSObject key;
+
+            s.pop(val);
+            s.pop(key);
 
             if (!key.isLiteralName())
-                return vm.error("dictend: key must be a literal name");
+                return vm.error("op_dictend: key must be a literal name");
 
             dict->put(key.asName(), val);
         }
 
-        s.pop(); // pop the mark
+        PSObject top;
+        s.pop(top); // pop the mark
 
-        return s.push(PSObject::fromDictionary(dict));
+        return s.pushDictionary(dict);
     }
 
     // --- Operator Map ---

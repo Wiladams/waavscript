@@ -89,7 +89,7 @@ namespace waavs
 			// Register built-in operations
 			PSVMFactory::registerCoreOps(vm.get());
 			PSVMFactory::registerExtensionOps(vm.get());
-			PSVMFactory::registerResources(vm.get());
+			//PSVMFactory::registerResources(vm.get());
 
 			return vm;
 		}

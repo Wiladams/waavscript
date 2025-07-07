@@ -40,19 +40,6 @@ namespace waavs
             return true;
         }
 
-        bool pushBool(bool value) { return push(PSObject::fromBool(value)); }
-        bool pushInt(int32_t value) { return push(PSObject::fromInt(value)); }
-        bool pushReal(double value) {return push(PSObject::fromReal(value));}
-        bool pushName(const PSName aname){ return push(PSObject::fromName(aname));}
-        bool pushExecName(const PSName aname) { return push(PSObject::fromExecName(aname)); }
-        bool pushString(const PSString& str) { return push(PSObject::fromString(str)); }
-        bool pushArray(const PSArrayHandle value) { return push(PSObject::fromArray(value)); }
-        bool pushDict(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }
-        bool pushFile(const PSFileHandle value) { return push(PSObject::fromFile(value)); }
-        bool pushFontFace(const PSFontFaceHandle value) { return push(PSObject::fromFontFace(value)); }
-        bool pushFont(const PSFontHandle value) { return push(PSObject::fromFont(value)); }
-        bool pushOperator(PSOperator value) { return push(PSObject::fromOperator(value)); }
-        bool pushMark(const PSMark& value) { return push(PSObject::fromMark(value)); }
         
         template<typename... Args>
         bool pushn(Args&&... args) {
@@ -62,13 +49,13 @@ namespace waavs
 
         // convenience functions, assuming size() > 0
         // very risky, since we don't throw exceptions
-        T pop() {
+        //T pop() {
 
-            T value = std::move(_data.back());
-            _data.pop_back();
+        //    T value = std::move(_data.back());
+        //    _data.pop_back();
 
-            return value;
-        }
+        //    return value;
+        //}
 
         bool pop(T& out)
         {
@@ -111,15 +98,6 @@ namespace waavs
             return true;
         }
 
-        bool roll(int n, int j) {
-            if ((size_t)n > _data.size()) return false;
-            if (n <= 0 || j == 0) return true;
-
-            j = ((j % n) + n) % n; // normalize
-            auto first = _data.end() - n;
-            std::rotate(first, first + (n - j), _data.end());
-            return true;
-        }
 
         const T& top() const { return _data.back(); }
 
@@ -135,13 +113,39 @@ namespace waavs
             return true;
         }
 
+        /*
+bool roll(int n, int j) {
+    if ((size_t)n > _data.size()) return false;
+    if (n <= 0 || j == 0) return true;
 
+    j = ((j % n) + n) % n; // normalize
+    auto first = _data.end() - n;
+    std::rotate(first, first + (n - j), _data.end());
+    return true;
+}
+*/
+        bool roll(int count, int shift)
+        {
+            if (count <= 0 || (size_t)count > this->size())
+                return false;
 
+            shift = ((shift % count) + count) % count;  // normalize shift to [0, count)
+            auto first = this->_data.end() - count;
+            std::rotate(first, first + (count - shift), this->_data.end());
+            return true;
+        }
 
 
         typename std::vector<T>::const_iterator begin() const { return _data.begin(); }
         typename std::vector<T>::const_iterator end() const { return _data.end(); }
     };
+
+
+    //=============================================================================
+    // PSObjectStack is a stack specifically for PSObject types, which includes
+    // various PostScript data types like integers, strings, arrays, etc.
+    // It provides methods to manipulate the stack in a way that is specific to PostScript operations.
+    //=============================================================================
 
     struct PSObjectStack : public PSStack<PSObject>
     {
@@ -162,8 +166,40 @@ namespace waavs
             }
             return false;  // No mark found
         }
+
+        // Count number of objects above the most recent mark (from top of stack downward)
+        bool countToMark(int& out) const
+        {
+            out = 0;
+            for (size_t i = size(); i-- > 0;) {
+                const auto& obj = _data[i];
+                if (obj.type == PSObjectType::Mark)
+                    return true;
+                ++out;
+            }
+            return false; // Mark not found
+        }
+
+
+
+        bool pushBool(bool value) { return push(PSObject::fromBool(value)); }
+        bool pushInt(int32_t value) { return push(PSObject::fromInt(value)); }
+        bool pushReal(double value) { return push(PSObject::fromReal(value)); }
+        bool pushName(const PSName aname) { return push(PSObject::fromName(aname)); }
+        bool pushExecName(const PSName aname) { return push(PSObject::fromExecName(aname)); }
+        bool pushString(const PSString& str) { return push(PSObject::fromString(str)); }
+        bool pushArray(const PSArrayHandle value) { return push(PSObject::fromArray(value)); }
+        bool pushDictionary(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }
+        bool pushFile(const PSFileHandle value) { return push(PSObject::fromFile(value)); }
+        bool pushFontFace(const PSFontFaceHandle value) { return push(PSObject::fromFontFace(value)); }
+        bool pushFont(const PSFontHandle value) { return push(PSObject::fromFont(value)); }
+        bool pushOperator(PSOperator value) { return push(PSObject::fromOperator(value)); }
+        bool pushMark(const PSMark& value) { return push(PSObject::fromMark(value)); }
+
+
 	};
 
+    /*
     struct PSExecutionStack : public PSStack<PSObject>
     {
         // Push a mark object onto the execution stack
@@ -185,8 +221,8 @@ namespace waavs
             return false;  // No mark found
         }
 	};
-
-
+    */
+    /*
     struct PSOperandStack : public PSStack<PSObject>
     {
         bool mark() 
@@ -223,16 +259,7 @@ namespace waavs
             return false; // Mark not found
         }
 
-        bool roll(int count, int shift) 
-        {
-            if (count <= 0 || (size_t)count > this->size())
-                return false;
 
-            shift = ((shift % count) + count) % count;  // normalize shift to [0, count)
-            auto first = this->_data.end() - count;
-            std::rotate(first, first + (count - shift), this->_data.end());
-            return true;
-        }
     };
-
+    */
 }

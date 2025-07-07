@@ -219,17 +219,18 @@ namespace waavs {
         // Font related methods
         bool findFont(PSVirtualMachine &vm, const PSName& faceName, PSObject& outObj) override
         {
-            auto& s = vm.opStack();
+            auto& ostk = vm.opStack();
+            auto& estk = vm.execStack();
 
-            s.pushName(faceName);
-            s.pushName("Font");
-            s.pushExecName("findresource");
+            ostk.pushName(faceName);
+            ostk.pushName("Font");
+            estk.pushExecName("findresource");
 
 
-            if (!vm.exec())
+            if (!vm.run())
                 return false;
 
-            s.pop(outObj);
+            ostk.pop(outObj);
             
             return true;
         }

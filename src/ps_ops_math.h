@@ -140,7 +140,8 @@ namespace waavs {
         if (s.empty())
             return vm.error("stackunderflow");
 
-        PSObject top = s.pop();
+        PSObject top;
+        s.pop(top);
 
         if (!top.isNumber())
             return vm.error("typecheck: cvi requires a numeric operand");

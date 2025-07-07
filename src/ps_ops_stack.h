@@ -88,10 +88,13 @@ namespace waavs {
 
         auto arr = PSArray::create(count);
         for (int i = count - 1; i >= 0; --i) {
-            arr->put(i, s.pop());
+            PSObject top;
+            s.pop(top);
+            arr->put(i, top);
         }
 
-        s.pop(); // pop the mark
+        PSObject markObj;
+        s.pop(markObj); // pop the mark
 
         return s.push(PSObject::fromArray(arr));
     }

@@ -197,7 +197,6 @@ static void test_procedure()
     runPostscript("true { { (Nested procedure executed) = } exec }  if");
 	runPostscript("3 { { (Hello) = } exec } repeat                 % Should print (Hello) 3 times");
     runPostscript("3 { (Hello) = } repeat                          % Should print (Hello) 3 times");
-
     runPostscript("true { true { (Both conditions met) = } if } if          % Should printf (Both conditions met)");
 }
 
@@ -463,7 +462,10 @@ dup =
     const char* test_s5 = R"||(
 % Compose translation and scaling
 10 0 matrix translate
+dup =
 2 2 matrix scale
+dup =
+matrix
 concatmatrix
 dup =
 % Expected: [2 0 0 2 10 0]
@@ -496,14 +498,14 @@ transform = =
 )||";
 
 
-    runPostscript(test_s1);
-	runPostscript(test_s2);
-    runPostscript(test_s3);
-    runPostscript(test_s4);
+    //runPostscript(test_s1);
+	//runPostscript(test_s2);
+    //runPostscript(test_s3);
+    //runPostscript(test_s4);
     runPostscript(test_s5);
-    runPostscript(test_s6);
-    runPostscript(test_s7);
-    runPostscript(test_s8);
+    //runPostscript(test_s6);
+    //runPostscript(test_s7);
+    //runPostscript(test_s8);
 
 }
 
@@ -690,10 +692,10 @@ static void test_core()
 	printf("== Core Tests ==\n");
     //test_meta();
     //test_arithmetic_ops();
-    //test_stack_ops();
-    //test_control_flow();
+    test_stack_ops();
+    test_control_flow();
     //test_debug_ops();
-    //test_loop_op();
+    test_loop_op();
     //test_forall();
     //test_logic();
     //test_procedure();
@@ -703,13 +705,13 @@ static void test_core()
     //test_op_stopped();
     //test_operator_def();
     //test_op_dict();
-	//test_matrix_ops();
+	test_matrix_ops();
     //test_unimplemented_op();
     //test_dictionary_inline();
     //test_numeric();
     //test_resources();
     //test_encodings();
-    test_encodings2();
+    //test_encodings2();
 }
 
 static void test_idioms()

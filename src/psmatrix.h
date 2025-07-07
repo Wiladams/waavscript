@@ -70,6 +70,24 @@ namespace waavs {
             return true;
         }
 
+        /*
+        // The ChatGPT way
+        constexpr PSMatrix& preMultiply(const PSMatrix& other) {
+            double a = other.m[0] * m[0] + other.m[1] * m[2];
+            double b = other.m[0] * m[1] + other.m[1] * m[3];
+            double c = other.m[2] * m[0] + other.m[3] * m[2];
+            double d = other.m[2] * m[1] + other.m[3] * m[3];
+            double tx = other.m[0] * m[4] + other.m[1] * m[5] + other.m[4];
+            double ty = other.m[2] * m[4] + other.m[3] * m[5] + other.m[5];
+
+            m[0] = a; m[1] = b; m[2] = c;
+            m[3] = d; m[4] = tx; m[5] = ty;
+
+            return *this;
+        }
+        */
+
+        
         constexpr PSMatrix& preMultiply(const PSMatrix& other) {
             double a = other.m[0] * m[0] + other.m[1] * m[2];
             double b = other.m[0] * m[1] + other.m[1] * m[3];
@@ -83,6 +101,7 @@ namespace waavs {
 
             return *this;
         }
+        
 
 		//=============================================
 		// Transformations

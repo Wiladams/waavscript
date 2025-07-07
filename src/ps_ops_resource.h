@@ -48,26 +48,29 @@ namespace waavs
         return true;
     }
 
-
+    // key category value  defineresource
     inline bool op_defineresource(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
         auto& rs = vm.getResourceStack();
 
         // stack: key value category
+        PSObject keyObj;
         PSObject categoryObj;
         PSObject valueObj;
-        PSObject keyObj;
 
-        if (!s.pop(categoryObj))
-            return vm.error("defineresource: missing category");
+
 
         if (!s.pop(valueObj))
             return vm.error("defineresource: missing value");
 
+        if (!s.pop(categoryObj))
+            return vm.error("defineresource: missing category");
+
         if (!s.pop(keyObj))
             return vm.error("defineresource: missing key");
 
+        // Validate types
         if (!categoryObj.isName())
             return vm.error("defineresource: category must be a name");
 
@@ -205,6 +208,7 @@ namespace waavs
     inline bool op_resourceforall(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
+        auto& estk = vm.execStack();
         auto& rs = vm.getResourceStack();
 
         // stack: category proc
@@ -242,8 +246,8 @@ namespace waavs
                         // push key, value, proc, exec
                         s.push(PSObject::fromName(key));
                         s.push(value);
-                        s.push(procObj);
-                        if (!vm.exec())
+                        estk.push(procObj);
+                        if (!vm.run())
                         {
                             // if exec fails, break everything
                             return false;

@@ -6,7 +6,8 @@ namespace waavs {
 
     bool op_languagelevel(PSVirtualMachine& vm) {
         // Push the current language level onto the stack
-        vm.opStack().push(PSObject::fromInt(vm.languageLevel()));
+        vm.opStack().pushInt(vm.languageLevel());
+
         return true;
 	}
 
@@ -25,21 +26,23 @@ namespace waavs {
 
         // Pop the saved state from the stack
         // and apply it to the VM
+        PSObject saveObj;
+        s.pop(saveObj);
 
         return true;
     }
 
     bool op_setpagedevice(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
 
-        if (s.empty())
+        if (ostk.empty())
             return vm.error("setpagedevice: operand stack is empty");
 
         PSObject dictObj;
-        s.pop(dictObj);
+        ostk.pop(dictObj);
 
         if (!dictObj.isDictionary())
-            return vm.error("setpagedevice: expected dictionary");
+            return vm.error("op_setpagedevice: expected dictionary");
 
         auto dict = dictObj.asDictionary();
 
@@ -50,20 +53,13 @@ namespace waavs {
         if (!pageSizeObj.isArray())
             return vm.error("setpagedevice: PageSize must be an array");
 
-        // Execute the array to resolve any procedure-based values
-        if (!vm.execProc(pageSizeObj))
-            return vm.error("setpagedevice: failed to evaluate PageSize array");
+        auto pageSizeArray = pageSizeObj.asArray();
+        PSObject widthObj;
+        PSObject heightObj;
+        pageSizeArray->get(0, widthObj);
+        pageSizeArray->get(1, heightObj);
 
-        // Retrieve evaluated results from operand stack (height on top)
-        PSObject heightObj, widthObj;
-        if (!s.pop(heightObj) || !s.pop(widthObj))
-            return vm.error("setpagedevice: stackunderflow while retrieving PageSize values");
-
-        double width, height;
-        if (!widthObj.get(width) || !heightObj.get(height))
-            return vm.error("setpagedevice: PageSize must contain numeric values");
-
-        vm.graphics()->setPageSize(width, height);
+        vm.graphics()->setPageSize(widthObj.asReal(), heightObj.asReal());
         return true;
     }
 

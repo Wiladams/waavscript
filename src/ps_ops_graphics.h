@@ -17,25 +17,39 @@ namespace waavs {
     }
 
     inline bool op_setlinewidth(PSVirtualMachine& vm) {
+        auto& ostk = vm.opStack();
         auto& ctm = vm.graphics()->getCTM();
 
-        PSObject obj;
-        if (!vm.opStack().pop(obj) || !obj.isNumber())
-            return vm.error("typecheck: expected number");
+        if (ostk.empty())
+            return vm.error("op_setlinewidth: stackunderflow");    
+
+        PSObject widthObj;
+        ostk.pop(widthObj);
+
+        if (!widthObj.isNumber())
+            return vm.error("op_setlinewidth:typecheck; expected number");
 
         double width, dwidth;
-        ctm.dtransform(obj.asReal(), 0.0, width, dwidth);
 
-        //vm.graphics()->setLineWidth(width);
-        vm.graphics()->setLineWidth(obj.asReal());
+        ctm.dtransform(widthObj.asReal(), 0.0, width, dwidth);
+
+        vm.graphics()->setLineWidth(width);
+
+        //vm.graphics()->setLineWidth(widthObj.asReal());
 
         return true;
     }
 
-    inline bool op_setlinecap(PSVirtualMachine& vm) {
+    inline bool op_setlinecap(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+
+        if (ostk.empty())
+            return vm.error("op_setlinecap: stackunderflow");
+
         PSObject obj;
         if (!vm.opStack().pop(obj) || !obj.isInt())
-            return vm.error("typecheck: expected int");
+            return vm.error("op_setlinecap: typecheck; expected int");
 
         int val = obj.asInt();
         if (val < 0 || val > 2)
@@ -45,9 +59,14 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_setlinejoin(PSVirtualMachine& vm) {
+    inline bool op_setlinejoin(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_setlinejoin: stackunderflow");
+
         PSObject obj;
-        if (!vm.opStack().pop(obj) || !obj.isInt())
+        if (!ostk.pop(obj) || !obj.isInt())
             return vm.error("typecheck: expected int");
 
         int val = obj.asInt();
@@ -59,9 +78,14 @@ namespace waavs {
     }
 
     // setmiterlimit
-    inline bool op_setmiterlimit(PSVirtualMachine& vm) {
+    inline bool op_setmiterlimit(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_setmiterlimit: stackunderflow");    
+
         PSObject limit;
-        if (!vm.opStack().pop(limit))
+        if (!ostk.pop(limit))
             return vm.error("op_setmiterlimit: stackunderflow");
 
         if (!limit.isNumber())
@@ -78,9 +102,14 @@ namespace waavs {
 
     // setflat
     // 
-    inline bool op_setflat(PSVirtualMachine& vm) {
+    inline bool op_setflat(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_setflat: stackunderflow");
+
         PSObject obj;
-        if (!vm.opStack().pop(obj))
+        if (!ostk.pop(obj))
             return vm.error("stackunderflow");
 
         if (!obj.isNumber())
@@ -96,20 +125,29 @@ namespace waavs {
 
     // currentflat
     // Returns the current flatness setting
-    inline bool op_currentflat(PSVirtualMachine& vm) {
+    inline bool op_currentflat(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+
         double flatness = vm.graphics()->getFlatness();
-        vm.opStack().push(PSObject::fromReal(flatness));
+        ostk.pushReal(flatness);
+
         return true;
     }
 
-    inline bool op_setdash(PSVirtualMachine& vm) {
+    inline bool op_setdash(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.size() < 2)
+            return vm.error("op_setdash: stackunderflow");
+
         PSObject offsetObj, patternObj;
 
-        if (!vm.opStack().pop(offsetObj) || !vm.opStack().pop(patternObj))
-            return vm.error("stackunderflow");
+        if (!ostk.pop(offsetObj) || !ostk.pop(patternObj))
+            return vm.error("op_setdash: stackunderflow");
 
         if (!patternObj.isArray() || !offsetObj.isNumber())
-            return vm.error("typecheck");
+            return vm.error("op_setdash: typecheck");
 
         const auto arr = patternObj.asArray();
         std::vector<double> dashPattern;
@@ -137,18 +175,20 @@ namespace waavs {
     // Path building operations
     //=================================================
 
-    inline bool op_clippath(PSVirtualMachine& vm) {
+    inline bool op_clippath(PSVirtualMachine& vm) 
+    {
         PSPath clipPath = vm.graphics()->getClipPath();  // Retrieves a copy
         vm.opStack().push(PSObject::fromPath(std::move(clipPath)));
         return true;
     }
 
-    inline bool op_pathbbox(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+    inline bool op_pathbbox(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
         PSPath path;
 
         PSObject topper;
-        if (s.top(topper) && topper.isPath())
+        if (ostk.top(topper) && topper.isPath())
         {
             path = topper.asPath();
             //s.pop();
@@ -163,10 +203,11 @@ namespace waavs {
             minX = minY = maxX = maxY = 0.0;
         }
 
-        vm.opStack().push(PSObject::fromReal(minX));
-        vm.opStack().push(PSObject::fromReal(minY));
-        vm.opStack().push(PSObject::fromReal(maxX));
-        vm.opStack().push(PSObject::fromReal(maxY));
+        ostk.push(PSObject::fromReal(minX));
+        ostk.push(PSObject::fromReal(minY));
+        ostk.push(PSObject::fromReal(maxX));
+        ostk.push(PSObject::fromReal(maxY));
+
         return true;
     }
 
@@ -186,40 +227,42 @@ namespace waavs {
     }
 
     inline bool op_currentpoint(PSVirtualMachine& vm) {
-        //auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         
         double x = 0.0, y = 0.0;
         if (!path.getCurrentPoint(x, y))
-            return vm.error("currentpoint:nocurrentpoint");
+            return vm.error("op_currentpoint:currentpoint, none available");
 
-        return vm.opStack().push(PSObject::fromReal(x)) && vm.opStack().push(PSObject::fromReal(y));
+        return ostk.pushReal(x) && ostk.pushReal(y);
     }
 
     inline bool op_moveto(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         auto& ctm = vm.graphics()->getCTM();
 
+        if (ostk.size() < 2)
+            return vm.error("op_moveto: stackunderflow; expected two numbers");
 
         PSObject objy, objx;
-        if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
+        if (!ostk.pop(objy) || !ostk.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("op_moveto:typecheck; expected two numbers");
 
         if (!path.moveto(ctm, objx.asReal(), objy.asReal()))
-            return vm.error("op_moveto:currentpatherror");
+            return vm.error("op_moveto: path.moveto() error");
 
         return true;
     }
 
     inline bool op_rmoveto(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         auto& ctm = vm.graphics()->getCTM();
 
         PSObject objdy, objdx;
 
-        if (!s.pop(objdy) || !s.pop(objdx) || !objdx.isNumber() || !objdy.isNumber())
+        if (!ostk.pop(objdy) || !ostk.pop(objdx) || !objdx.isNumber() || !objdy.isNumber())
             return vm.error("op_moveto:typecheck; expected two numbers");
 
 
@@ -234,12 +277,15 @@ namespace waavs {
     }
 
     inline bool op_lineto(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         auto& ctm = vm.graphics()->getCTM();
 
+        if (ostk.size() < 2)
+            return vm.error("op_lineto: stackunderflow; expected two numbers");
+
         PSObject objy, objx;
-        if (!s.pop(objy) || !s.pop(objx) || !objx.isNumber() || !objy.isNumber())
+        if (!ostk.pop(objy) || !ostk.pop(objx) || !objx.isNumber() || !objy.isNumber())
             return vm.error("typecheck: expected two numbers");
 
         return path.lineto(ctm, objx.asReal(), objy.asReal());
@@ -267,22 +313,22 @@ namespace waavs {
     // x y width height -- path
     //
     inline bool op_rectpath(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         auto& path = vm.graphics()->currentPath();
         auto& ctm = vm.graphics()->getCTM();
 
-        if (s.size() < 4)
+        if (ostk.size() < 4)
             return vm.error("rectpath: stackunderflow");
 
         PSObject heightObj, widthObj, yObj, xObj;
-        s.pop(heightObj);
-        s.pop(widthObj);
-        s.pop(yObj);
-        s.pop(xObj);
+        ostk.pop(heightObj);
+        ostk.pop(widthObj);
+        ostk.pop(yObj);
+        ostk.pop(xObj);
 
         if (!xObj.isNumber() || !yObj.isNumber() ||
             !widthObj.isNumber() || !heightObj.isNumber())
-            return vm.error("rectpath: typecheck");
+            return vm.error("op_rectpath: typecheck");
 
         double x = xObj.asReal();
         double y = yObj.asReal();
@@ -681,7 +727,7 @@ namespace waavs {
             return vm.error("typecheck: expected array or matrix object");
 
         // Execute the data source procedure
-        if (!vm.execProc(procObj))
+        if (!vm.runProc(procObj))
             return vm.error("exec: failed to execute image data procedure");
 
         if (s.empty())

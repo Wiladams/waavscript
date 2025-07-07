@@ -182,7 +182,7 @@ namespace waavs
         if (top.isInt()) {
             int32_t n = top.asInt();
 
-			s.pop(); // pop the top item
+			s.pop(top); // pop the top item
 
             if (n < 0 || static_cast<size_t>(n) > s.size() )
                 return false; // vm.error("stackunderflow");
@@ -192,7 +192,8 @@ namespace waavs
         }
 
 		// the next two forms MUST have at least two items on the stack
-        if (s.size() < 2) return false; // Need at least two strings
+        if (s.size() < 2) 
+            return vm.error("op_copy: stackunderflow"); // Need at least two strings
 
         PSObject destObject;
         PSObject srcObject;
@@ -217,9 +218,7 @@ namespace waavs
                 dest->elements[i] = src->elements[i];
 
             // push destination back onto stack
-			s.push(destObject); // push updated dest
-            
-            return true;
+			return s.push(destObject); // push updated dest
         }
 
         // 3. String form: string1 string2 copy

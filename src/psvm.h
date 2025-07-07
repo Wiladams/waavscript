@@ -30,8 +30,8 @@ namespace waavs
     private:
 		int fLanguageLevel = 2; // Default language level
         std::unique_ptr<PSGraphicsContext> graphicsContext_;
-        PSOperandStack operandStack_;
-        PSExecutionStack executionStack_;
+        PSObjectStack operandStack_;
+        PSObjectStack executionStack_;
 		bool stopRequested = false;
         bool exitRequested = false;
 
@@ -88,11 +88,11 @@ namespace waavs
         void setCurrentFile(std::shared_ptr<PSFile> file) { fCurrentFile = file; }
 
         // stack access
-        inline PSOperandStack& opStack() { return operandStack_; }
-        inline const PSOperandStack& opStack() const { return operandStack_; }
+        inline PSObjectStack& opStack() { return operandStack_; }
+        inline const PSObjectStack& opStack() const { return operandStack_; }
 
-        inline PSExecutionStack& execStack() { return executionStack_; }
-        inline const PSExecutionStack& execStack() const { return executionStack_; }
+        inline PSObjectStack& execStack() { return executionStack_; }
+        inline const PSObjectStack& execStack() const { return executionStack_; }
 
         // Graphics context access
         PSGraphicsContext* graphics() { return graphicsContext_.get(); }
@@ -141,39 +141,7 @@ namespace waavs
         bool isStopRequested() const { return stopRequested; }
         void clearStopRequest() { stopRequested = false; }
 
-        /*
-        // Start running whatever is currently on the 
-        // execution stack
-        bool run()
-        {
-            while (!execStack().empty()) {
-                PSObject obj = execStack().pop();
 
-                // Treat executable arrays (procedures) specially
-                if (obj.isExecutable() && obj.isArray()) {
-                    auto arr = obj.asArray();
-
-                    // Push elements of procedure onto the exec stack, back to front
-                    for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
-                        execStack().push(*it);
-
-                    // Continue loop — next thing to execute is now top element of proc
-                    continue;
-                }
-
-                // Otherwise, just execute the object normally
-                if (!execObject(obj))
-                    return false;
-
-                if (isExitRequested())
-                    break;
-                if (isStopRequested())
-                    break;
-            }
-
-            return true;
-        }
-        */
         
         bool execOperator(const PSObject& obj)
         {
@@ -187,33 +155,29 @@ namespace waavs
 
             return error("PSVirtualMachine::execOperator - invalid operator", op.name.c_str());
         }
-
+        /*
+        private:
         // This is a critical function, as it dictates how procedures are executed,
         // whether we get tail recursion, etc.
         bool execProc(PSObject& proc)
         {
-            if (!proc.isArray())
+            if (!proc.isArray() || !proc.isExecutable())
                 return error("execProc - typecheck, NOT ARRAY");
 
-            // Push the procedure frame (visible to execstack/countexecstack)
-            execStack().push(proc);  // Optionally wrap in a frame marker
+            // Push the endProc frame marker onto the execution stack
+            execStack().mark();
 
+            // push elements in reverse order
             auto arr = proc.asArray();
-            for (const auto& obj : arr->elements) {
-                //if (!interpretObject(obj))
-
-                if (!execObject(obj)) 
-                    return false;
-
-                if (isExitRequested()) break;
-                if (isStopRequested()) break;
+            for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+            {
+                execStack().push(*it);
             }
 
-            execStack().pop();  // Remove procedure frame
-            return true;
+            return true; // Successfully executed the procedure
         }
-
- 
+        */
+ public:
         // This is meant to run executable names
         bool execName(const PSObject& obj)
         {
@@ -245,20 +209,12 @@ namespace waavs
 
             if (resolved.isOperator()) {
                 return execOperator(resolved);
-                //auto op = resolved.asOperator();
-
-                // Run the operator if it's valid, otherwise return false
-                //if (op.isValid()) {
-                //    return op.func(*this);
-                //} 
-                
-                //return error("operator not valid", op.name.c_str());
-
             }
 
             // 3. Name resolves to a procedure?  auto-exec
             if (resolved.isArray() && resolved.isExecutable()) {
-                return execProc(resolved);
+                //execProc(resolved);
+                return runProc(resolved);
             }
 
             // 4. Otherwise, it's a literal value, push to operand stack
@@ -315,13 +271,76 @@ namespace waavs
             return true;
         }
  
-        // exec
-        // Pop a single item off the stack and execute it.
-        bool exec()
+        // run
+        // 
+        // Run items off the execution stack until it is empty or an exit/stop request is made.
+        // As these can be nested, we will also return after hitting a procedure end marker.
+        //
+        bool run()
         {
-            PSObject obj = opStack().pop();
-            //writeObjectDeep(obj); printf("\n");
-            return execObject(obj);
+            while (!execStack().empty()) 
+            {
+                if (isExitRequested())
+                    break;
+                if (isStopRequested())
+                    break;
+
+                PSObject obj;
+                if (!execStack().pop(obj))
+                    return error("run(): stackunderflow");
+                //writeObjectDeep(obj); printf("\n");
+
+                // Handle marker for proc end
+                if (obj.isMark()) {
+                    // If it's a mark, pop the stack to the mark
+                    //execStack().clearToMark();
+                    break; // Successfully cleared to mark
+                }
+
+
+
+                // executable names, procedures, operators
+                if (obj.isExecutable()) {
+                    if (obj.isArray())
+                        opStack().push(obj);
+                    else if (obj.isName() || obj.isOperator())
+                    {
+                        execObject(obj);
+                    }
+                    else
+                        return error("run(): typecheck, unknown executable type");
+                } else
+                    opStack().push(obj); // Otherwise, push it back to the operand stack
+
+                if (isExitRequested())
+                    break;
+                if (isStopRequested())
+                    break;
+            }
+
+            return true;
+        }
+
+        bool runProc(PSObject& proc)
+        {
+            // If the procedure is not executable, return an error
+            //if (!proc.isArray() || !proc.isExecutable())
+            //    return error("runProc: typecheck, NOT ARRAY or NOT EXECUTABLE");
+            if (!proc.isArray())
+                return error("runProc: typecheck, NOT ARRAY");
+
+            // Push the endProc frame marker onto the execution stack
+            execStack().mark();
+
+            // push elements in reverse order
+            auto arr = proc.asArray();
+            for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
+            {
+                execStack().push(*it);
+            }
+
+
+            return run(); // Run the procedure
         }
 
         // This is a shim.  Mainly it needs to convert systemNamed objects
@@ -353,6 +372,9 @@ namespace waavs
             return true;
         }
 
+        // interpret
+        // deals with the stream of objects from the object generator
+        //
         bool interpret(PSObjectGenerator& objGen)
         {
             while (true)
@@ -365,8 +387,23 @@ namespace waavs
                 if (!genNextObject(objGen, obj))
                     break; //  error("END of Object stream");
 
-                if (!execObject(obj))
-                    return false;
+                if (obj.isExecutable())
+                {
+                    if (obj.isArray())
+                    {
+                        if (!opStack().push(obj))
+                            return error("interpreter: stack overflow while pushing executable array");
+                    }
+                    else {
+                        execStack().push(obj); // Push executable objects onto the execution stack
+                        if (!run())
+                            return error("interpreter: run failed on executable object");
+                    }
+                }
+                else {
+                    if (!opStack().push(obj))
+                        return error("interpreter: stack overflow while pushing non-executable object");
+                }
 
                 if (isExitRequested()) {
                     break;

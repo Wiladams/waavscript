@@ -198,6 +198,7 @@
     <ClInclude Include="..\..\src\psmatrix.h" />
     <ClInclude Include="..\..\src\psname.h" />
     <ClInclude Include="..\..\src\pspath.h" />
+    <ClInclude Include="..\..\src\psstack.h" />
     <ClInclude Include="..\..\src\psstring.h" />
     <ClInclude Include="..\..\src\psvm.h" />
     <ClInclude Include="..\..\src\psvmfactory.h" />

@@ -121,6 +121,7 @@ namespace waavs {
             BLFontFace face;
 
             auto& s = vm.opStack();
+            auto& estk = vm.execStack();
 
             // pop the path from the stack
             if (s.size() < 1) {
@@ -128,7 +129,9 @@ namespace waavs {
                 return false;
             }
 
-            PSObject pathObj = s.pop();
+            PSObject pathObj;
+            s.pop(pathObj);
+            
             if (!pathObj.isString()) {
                 vm.error("loadFontResource: typecheck; Expected a string on the stack for font path");
                 return false;
@@ -172,30 +175,26 @@ namespace waavs {
             psface->set("FontMatrix", PSObject::fromMatrix(fontMatrix));
             //psface->set("FontType", PSObject::fromInt(face.fontType()));
 
-            //printf("Family: %-16s, SubFamily: %-16s PostScript: %20s, Path: %s\n", 
-            //    meta.familyName, meta.subfamily, meta.postscriptName, meta.path);
-
             // We want to save the font into the ResourceDirectory.  We'll use the 
             // already available 'defineresource' operator to do this.
             // Key: PostScript name (interned, lowercase)
             // Value: font face handle 
             // Category: Font Category
-            // key value category defineresource
-            s.push(PSObject::fromName(PSName(psName)));
+            // key category value  defineresource
+            s.pushName(psName);
+            s.pushName("Font");
             s.push(PSObject::fromFontFace(psface));
-            s.push(PSObject::fromName(PSName("Font")));
-            PSObject defineResource = PSObject::fromExecName(PSName("defineresource"));
-            //defineResource.setExecutable(true);
 
-            vm.execName(defineResource);
+            estk.pushExecName("defineresource");
+
+            vm.run();
+
 
             // value left on stack, so pop that, we don't need it
-            s.pop();
+            PSObject resObj;
+            if (!s.pop(resObj))
+                return vm.error("loadFontResource: stackunderflow");
 
-            // add to thearray of faces
-            // this is now redundant, because fonts are added as resources
-            //fMeta.push_back(psface);
- 
             return true;
         }
 

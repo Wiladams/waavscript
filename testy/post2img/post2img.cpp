@@ -34,7 +34,7 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 		return;
 	}
 
-	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(612, 792);	// US Letter size in points (8.5 x 11 inches)
+	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(1700, 2200);	// US Letter size in points (8.5 x 11 inches, 200dpi)
 	ctx->initGraphics();
 	vm->setGraphicsContext(std::move(ctx));
 
