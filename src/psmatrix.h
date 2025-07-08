@@ -1,8 +1,9 @@
 #pragma once
 
-#pragma once
 #include <cmath>
 #include <cstdio>
+#include <memory>
+
 
 namespace waavs {
     //
@@ -50,12 +51,15 @@ namespace waavs {
             return PSMatrix(m[0], m[1], m[2], m[3], m[4], m[5]);
         }
 
+        // determinant
+        // Needed to create the inverse
         constexpr double determinant() const {
             return m[0] * m[3] - m[1] * m[2];
         }
 
         // Create the inverse of this matrix, and put it into 'out'.
-        bool inverse(PSMatrix& out) const {
+        bool inverse(PSMatrix& out) const 
+        {
             double d = determinant();
             if (d == 0.0) return false;
 
@@ -71,7 +75,7 @@ namespace waavs {
         }
 
         /*
-        // The ChatGPT way
+        // The ChatGPT way - which is not correct, how it handles the translation part is wrong.
         constexpr PSMatrix& preMultiply(const PSMatrix& other) {
             double a = other.m[0] * m[0] + other.m[1] * m[2];
             double b = other.m[0] * m[1] + other.m[1] * m[3];
@@ -160,6 +164,11 @@ namespace waavs {
             double cosA = std::cos(rad);
             double sinA = std::sin(rad);
             return PSMatrix(cosA, sinA, -sinA, cosA, 0, 0);
+        }
+
+        static std::shared_ptr<PSMatrix> create() 
+        {
+            return std::shared_ptr<PSMatrix>(new PSMatrix());
         }
     };
 

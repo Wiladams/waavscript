@@ -36,20 +36,23 @@ namespace waavs {
 
     // countdictstack
     // Count the number of dictionaries in the dictionary stack, including the userdict and systemdict.
-    static bool op_countdictstack(PSVirtualMachine& vm) {
-        size_t count = 0;
-        vm.dictionaryStack.getCount(count);
-        vm.opStack().push(PSObject::fromInt(static_cast<int>(count)));
+    static bool op_countdictstack(PSVirtualMachine& vm) 
+    {
+        size_t count = vm.dictionaryStack.size();
+        vm.opStack().pushInt(static_cast<int>(count));
 
         return true;
     }
 
     // Create an array from all the items in the dictionary stack
     // and push that array onto the operand stack
-    inline bool op_dictstack(PSVirtualMachine& vm) {
+    inline bool op_dictstack(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+
         auto arr = vm.dictionaryStack.getStack();
         
-        vm.opStack().push(PSObject::fromArray(arr));
+        ostk.pushArray(arr);
 
         return true;
     }
@@ -59,7 +62,7 @@ namespace waavs {
     // on top of the stack, but empty it, or just create a new empty dictionary as the topmost
     // dictionary on the stack.
     inline bool op_cleardictstack(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
 
         vm.dictionaryStack.clear();
 
@@ -69,7 +72,7 @@ namespace waavs {
         vm.setUserDict(userDict);
 
         // Push an empty dictionary onto the stack
-        s.push(PSObject::fromDictionary(vm.getUserDict()));
+        ostk.push(PSObject::fromDictionary(vm.getUserDict()));
         return true;
     }
 
@@ -96,18 +99,21 @@ namespace waavs {
         return true;
     }
 
-    static bool op_load(PSVirtualMachine& vm) {
+    static bool op_load(PSVirtualMachine& vm) 
+    {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        if (s.empty())
+            return vm.error("op_load: stack underflow");
 
         PSObject name;
         s.pop(name);
 
-        if (!name.isName()) return false;
+        if (!name.isName())
+            return vm.error("op_load: typecheck");
 
         PSObject value;
         if (!vm.dictionaryStack.load(name.asName(), value))
-            return false;
+            return vm.error("op_load: value; failed to find value in stack; ", name.asName().c_str());
 
         s.push(value);
         return true;
@@ -115,7 +121,9 @@ namespace waavs {
 
     static bool op_store(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        
+        if (s.size() < 2) 
+            return vm.error("op_store: stackunderflow");
 
         PSObject value;
         PSObject key;
@@ -132,9 +140,12 @@ namespace waavs {
         return true;
     }
 
-    static bool op_begin(PSVirtualMachine& vm) {
+    static bool op_begin(PSVirtualMachine& vm) 
+    {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        
+        if (s.empty())
+            return vm.error("op_begin: stackunderflow");
 
         PSObject dictObj;
         s.pop(dictObj);
@@ -143,10 +154,12 @@ namespace waavs {
             return vm.error("op_begin: typecheck");
 
         vm.dictionaryStack.push(dictObj.asDictionary());
+
         return true;
     }
 
-    static bool op_end(PSVirtualMachine& vm) {
+    static bool op_end(PSVirtualMachine& vm) 
+    {
         vm.dictionaryStack.pop();
         return true;
     }

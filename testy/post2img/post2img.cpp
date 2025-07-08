@@ -17,12 +17,22 @@ using namespace waavs;
 #define CAN_HEIGHT 600
 
 
+size_t loadFontsInDirectory(PSVirtualMachine* vm, const char* dirpath) {
+	namespace fs = std::filesystem;
+	size_t count = 0;
+	for (const auto& entry : fs::directory_iterator(dirpath)) {
+		if (!entry.is_regular_file()) continue;
 
-static void setupFonts()
-{
-	//loadFontDirectory("c:\\Windows\\Fonts");
+		auto ext = entry.path().extension().string();
+		if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
+			PSObject pathObj = PSObject::fromString(entry.path().string().c_str());
+			vm->opStack().push(pathObj);
+			if (FontMonger::instance()->loadFontResource(*vm))
+				++count;
+		}
+	}
+	return count;
 }
-
 
 // Utility to wrap input and run interpreter
 static void runPostscript(OctetCursor input, const char *outfilename) 
@@ -37,6 +47,7 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(1700, 2200);	// US Letter size in points (8.5 x 11 inches, 200dpi)
 	ctx->initGraphics();
 	vm->setGraphicsContext(std::move(ctx));
+	loadFontsInDirectory(vm.get(), "c:/windows/fonts");
 
 	// Run the interpreter
 	//PSInterpreter interp(*vm);
@@ -62,6 +73,8 @@ std::string defaultOutputFilename(const std::string& inputFilename) {
 	return output;
 }
 
+
+
 int main(int argc, char** argv)
 {
 
@@ -70,8 +83,6 @@ int main(int argc, char** argv)
 		printf("Usage: post2img <postscript file>  [output file]\n");
 		return 1;
 	}
-
-	setupFonts();
 
 	// create an mmap for the specified file
 	const char* filename = argv[1];

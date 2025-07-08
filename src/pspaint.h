@@ -11,7 +11,7 @@ namespace waavs {
         PSPaintKind  kind{ PSPaintKind::RGB };
 
         union {
-            struct { double r, g, b; };
+            struct { double r, g, b, a; };
             struct { double gray; };
             struct { double c, m, y, k; };
         };
@@ -20,11 +20,19 @@ namespace waavs {
         bool isGray() const { return kind == PSPaintKind::GRAY; }
         bool isCMYK() const { return kind == PSPaintKind::CMYK; }
 
-        static PSPaint fromRGB(double r, double g, double b) {
+        static PSPaint fromRGBA(double r, double g, double b, double a) {
             PSPaint p;
             p.kind = PSPaintKind::RGB;
-            p.r = r; p.g = g; p.b = b;
+            p.r = r; 
+            p.g = g; 
+            p.b = b; 
+            p.a = a;
+
             return p;
+        }
+
+        static PSPaint fromRGB(double r, double g, double b) {
+            return fromRGBA(r, g, b, 1.0);
         }
 
         static PSPaint fromGray(double gray) {

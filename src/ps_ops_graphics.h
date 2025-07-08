@@ -633,6 +633,37 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_setrgbacolor(PSVirtualMachine& vm) {
+        auto& ostk = vm.opStack();
+        auto* grph = vm.graphics();
+
+        if (ostk.size() < 4)
+            return vm.error("op_setrgbacolor: stackunderflow; expected 4 numbers");
+
+        PSObject aObj, bObj, gObj, rObj;
+
+        vm.opStack().pop(aObj);
+        vm.opStack().pop(bObj);
+        vm.opStack().pop(gObj);
+        vm.opStack().pop(rObj);
+
+
+
+        if (!rObj.isNumber() || !gObj.isNumber() || !bObj.isNumber() || !aObj.isNumber())
+            return vm.error("op_setrgbacolor: typecheck; expected 4 numbers");
+
+        double a = aObj.asReal();
+        double b = bObj.asReal();
+        double g = gObj.asReal();
+        double r = rObj.asReal();
+
+        grph->currentState()->strokePaint = PSPaint::fromRGBA(r, g, b, a);
+        grph->currentState()->fillPaint = PSPaint::fromRGBA(r, g, b, a);
+
+
+        return true;
+    }
+
     inline bool op_setcmykcolor(PSVirtualMachine& vm) {
         PSObject k, y, m, c;
         if (!vm.opStack().pop(k) || !vm.opStack().pop(y) || !vm.opStack().pop(m) || !vm.opStack().pop(c) ||
@@ -773,6 +804,7 @@ namespace waavs {
             // Color setting
             { "setgray",       op_setgray },
             { "setrgbcolor",   op_setrgbcolor },
+            { "setrgbacolor",  op_setrgbacolor },
             { "setcmykcolor",  op_setcmykcolor },
             { "sethsbcolor",   op_sethsbcolor },
             { "currentrgbcolor", op_currentrgbcolor },

@@ -79,8 +79,6 @@ namespace waavs {
         using Predicate = std::function<bool(const PSFontFaceHandle)>;
 
     private:
-        //std::vector<PSFontFaceHandle> fMeta;
-        //PSDictionaryHandle fontFacesByName;     // maps postscript name to PSFontFaceHandle 
 
         static const char* toLowerIntern(const BLString& str) {
             std::string temp(static_cast<const char*>(str.data()), str.size());
@@ -99,11 +97,6 @@ namespace waavs {
             //fontFacesByName = PSDictionary::create();
         }
 
-        // return how many entries in the metadata table
-        //size_t count() const { return fMeta.size(); }
-
-        // return the metadata at index i
-        //const PSFontFaceHandle& at(size_t i) const { return fMeta[i]; }
 
         // FontName         PostScript name of the font face (a literal name object)
         // FontType         Integer indicating the type of font (1 for Type 1, 2 for TrueType, etc.)
@@ -196,6 +189,53 @@ namespace waavs {
                 return vm.error("loadFontResource: stackunderflow");
 
             return true;
+        }
+
+        static bool createFont(const PSObject &faceObj, float sz, PSObject &fontObj)
+        {
+            // get the FontFile out of the face dictionary
+            // create a BLFontFace from it
+            auto face = faceObj.asFontFace();
+            if (!face) {
+                return false; // Error: Not a valid font face object
+            }
+
+            //writeObjectDeep(faceObj);
+
+            PSObject fontFileObj;
+            if (!face->get("FontFile", fontFileObj) || !fontFileObj.isString()) {
+                return false; // Error: FontFile not found or not a string
+            }
+
+            PSString fontFileStr = fontFileObj.asString();
+            auto fontFileName = fontFileStr.toString();
+            const char* fontFilePath = fontFileName.c_str();
+            //const char* fontFilePath = fontFileObj.asString().toString().c_str();
+
+            BLFontFace fFace;
+            BLResult result = fFace.createFromFile(fontFilePath);
+
+            if (result != BL_SUCCESS || !fFace.isValid()) {
+                //delete fFace; // Clean up if creation failed
+                return false; // Error: Failed to create BLFontFace
+            }
+
+
+            BLFont* font = new BLFont();
+
+            result = font->createFromFace(fFace, sz); // Create a font from the face at the specified size
+
+            if (result != BL_SUCCESS || !font->isValid()) {
+                delete font; // Clean up if creation failed
+                return false; // Error: Failed to create BLFont
+            }
+            
+            PSFontHandle fontHandle = PSFont::create(font);
+
+            fontObj.resetFromFont(fontHandle);
+
+            return true;
+
         }
 
 

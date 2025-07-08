@@ -113,6 +113,7 @@ namespace waavs {
             }
             return false;
         }
+
         virtual void setRGB(double r, double g, double b) {
             currentState()->strokePaint = PSPaint::fromRGB(r, g, b);
             currentState()->fillPaint = PSPaint::fromRGB(r, g, b);
@@ -195,6 +196,8 @@ namespace waavs {
                 return false;
             }
             currentState()->fCurrentFont.resetFromFont(fh);
+            
+            return true;
         }
 
         virtual PSFontHandle currentFont()
@@ -226,6 +229,11 @@ namespace waavs {
         virtual bool image(PSImage& img)
         {
             printf("PSGraphicsContext::image() [not implemented]\n");
+            return false;
+        }
+
+        virtual bool showText(const PSString& text) {
+            printf("PSGraphicsContext::showText() [not implemented]\n");
             return false;
         }
     };

@@ -143,41 +143,22 @@ namespace waavs
 
 
         
+
+
+ public:
+
         bool execOperator(const PSObject& obj)
         {
             auto op = obj.asOperator();
 
             //printf("DBG: execOperator - executing operator: %s\n", op.name.c_str());
 
-            if (op.isValid()) {
-                return op.func(*this);
-            }
+            if (!op.exec(*this))
+                return error("execOperator: op.exec() failed; ", op.name().c_str());
 
-            return error("PSVirtualMachine::execOperator - invalid operator", op.name.c_str());
+            return true;
         }
-        /*
-        private:
-        // This is a critical function, as it dictates how procedures are executed,
-        // whether we get tail recursion, etc.
-        bool execProc(PSObject& proc)
-        {
-            if (!proc.isArray() || !proc.isExecutable())
-                return error("execProc - typecheck, NOT ARRAY");
 
-            // Push the endProc frame marker onto the execution stack
-            execStack().mark();
-
-            // push elements in reverse order
-            auto arr = proc.asArray();
-            for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
-            {
-                execStack().push(*it);
-            }
-
-            return true; // Successfully executed the procedure
-        }
-        */
- public:
         // This is meant to run executable names
         bool execName(const PSObject& obj)
         {

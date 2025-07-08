@@ -74,6 +74,7 @@ namespace waavs {
         PSLineJoin getLineJoin() const { return lineJoin; }
         const std::vector<double>& getDashArray() const { return dashArray; }
         double getDashOffset() const { return dashOffset; }
+        PSFontHandle getFont() const { return fCurrentFont.asFont(); }
     };
 
 

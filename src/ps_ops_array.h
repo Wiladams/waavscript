@@ -8,7 +8,8 @@ namespace waavs {
 	// ( int -- array )
 	inline bool op_array(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
-		if (s.empty()) return false;
+		if (s.empty()) 
+			return vm.error("op_array: stackunderflow");
 
 		PSObject lenObj;
 		s.pop(lenObj);
@@ -23,7 +24,9 @@ namespace waavs {
 	// ( array -- ... elements ... array )
 	inline bool op_aload(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
-		if (s.empty()) return false;
+		if (s.empty()) 
+			return vm.error("op_aload: stackunderflow");
+
 
 		PSObject arrObj;
 		s.pop(arrObj);
@@ -39,7 +42,8 @@ namespace waavs {
 	// ( ... elements ... array -- array )
 	inline bool op_astore(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
-		if (s.empty()) return false;
+		if (s.empty()) 
+			return vm.error("op_astore: stackunderflow");
 
 		PSObject arrObj;
 		s.pop(arrObj);
@@ -61,7 +65,8 @@ namespace waavs {
 	// ( array index count -- subarray )
 	inline bool op_getinterval(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
-		if (s.size() < 3) return false;
+		if (s.size() < 3) 
+			return vm.error("op_getinterval: stackunderflow");
 
 		PSObject countObj, indexObj, arrObj;
 		s.pop(countObj);
@@ -91,22 +96,27 @@ namespace waavs {
 	// ( destArray index srcArray -- )
 	inline bool op_putinterval(PSVirtualMachine& vm) {
 		auto& s = vm.opStack();
-		if (s.size() < 3) return false;
+		if (s.size() < 3) 
+			return vm.error("op_putinterval: stackunderflow");
+
 
 		PSObject srcArrObj, indexObj, destArrObj;
 		s.pop(srcArrObj);
 		s.pop(indexObj);
 		s.pop(destArrObj);
 
-		if (!destArrObj.isArray() || !indexObj.isInt() || !srcArrObj.isArray())
-			return false;
+		if (!destArrObj.isArray() ||  !srcArrObj.isArray())
+			return vm.error("op_putinterval: typecheck; dest or src not array");
+
+		if (!indexObj.isInt())
+            return vm.error("op_putinterval: typecheck; index not int");
 
 		auto dest = destArrObj.asArray();
 		auto src = srcArrObj.asArray();
 		int index = indexObj.asInt();
 
 		if (index < 0 || static_cast<size_t>(index + src->size()) > dest->size())
-			return false;
+			return vm.error("op_putinterval: rangecheck");
 
 		for (size_t i = 0; i < src->size(); ++i) {
 			dest->elements[index + i] = src->elements[i];

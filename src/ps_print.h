@@ -111,9 +111,19 @@ namespace waavs {
             writeObjectShallow(obj, os);
             break;
 
-        case PSObjectType::String:
-            os << "(" << obj.asString().toString() << ")";
+        case PSObjectType::String: {
+            auto& strPs = obj.asString();
 
+            os << "(";
+            if (strPs.length() == 0) {
+                os << strPs.capacity();
+            }
+            else {
+                os << strPs.toString();
+            }
+
+                os << ")";
+            }
             break;
 
         case PSObjectType::Array:
@@ -132,7 +142,7 @@ namespace waavs {
 
         case PSObjectType::Operator: {
             auto op = obj.asOperator();
-            os << "--OP:" << (op.name.isValid() ? op.name.c_str() : "UNKNOWN") << "--";
+            os << "--OP:" << (op.name().isValid() ? op.name().c_str() : "UNKNOWN") << "--";
         }
                                    break;
 

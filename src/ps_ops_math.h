@@ -15,11 +15,13 @@ namespace waavs {
     template <typename Func>
     inline bool unaryMathOp(PSVirtualMachine& vm, Func func) {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
+        if (s.empty()) 
+            return vm.error("unaryMathOp: stackunderflow");
 
         PSObject a;
         s.pop(a);
-        if (!a.isNumber()) return false;
+        if (!a.isNumber()) 
+            return vm.error("unaryMathOp: typecheck");
 
         double result = func(a.asReal());
         s.push(PSObject::fromReal(result));
@@ -30,13 +32,13 @@ namespace waavs {
     inline bool binaryMathOp(PSVirtualMachine& vm, Func func) {
         auto& s = vm.opStack();
         if (s.size() < 2) 
-            return false;
+            return vm.error("binaryMathOp: stackunderflow");
 
         PSObject b, a;
         s.pop(b); s.pop(a);
 
         if (!a.isNumber() || !b.isNumber()) 
-            return false;
+            return vm.error("binaryMathOp: typecheck");
 
         double result = func(a.asReal(), b.asReal());
         s.push(PSObject::fromReal(result));
@@ -58,21 +60,37 @@ namespace waavs {
 
     inline bool op_idiv(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return vm.error("op_idiv: stackunderflow");
         PSObject b, a;
-        s.pop(b); s.pop(a);
-        if (!a.isInt() || !b.isInt() || b.asInt() == 0) return false;
+        s.pop(b); 
+        s.pop(a);
+        
+        if (!a.isInt() || !b.isInt())
+            return vm.error("op_idiv: typecheck");
+
+        if (b.asInt() == 0) 
+            return vm.error("op_idiv: divisor == 0");
+
         s.push(PSObject::fromInt(a.asInt() / b.asInt()));
         return true;
     }
 
     inline bool op_mod(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return vm.error("op_mod: stackunderflow");
+
         PSObject b, a;
-        s.pop(b); s.pop(a);
-        if (!a.isInt() || !b.isInt() || b.asInt() == 0) 
-            return false;
+        s.pop(b);
+        s.pop(a);
+        
+        if (!a.isInt() || !b.isInt())
+            return vm.error("op_mod: typecheck");
+
+        if (b.asInt() == 0) 
+            return vm.error("op_mod: dividend == 0");
+        
         int modValue = a.asInt() % b.asInt();
         s.push(PSObject::fromInt(modValue));
 
@@ -94,10 +112,14 @@ namespace waavs {
 
     inline bool op_atan(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+        if (s.size() < 2) 
+            return vm.error("op_atan: stackunderflow");
+        
         PSObject dx, dy;
         s.pop(dx); s.pop(dy);
-        if (!dx.isNumber() || !dy.isNumber()) return false;
+        if (!dx.isNumber() || !dy.isNumber()) 
+            return vm.error("op_atan: typecheck");
+
         double angle = std::atan2(dy.asReal(), dx.asReal()) * 180.0 / PI;
         s.push(PSObject::fromReal(angle));
         return true;
@@ -112,7 +134,8 @@ namespace waavs {
     inline bool op_rand(PSVirtualMachine& vm) {
         vm.randSeed = (1103515245 * vm.randSeed + 12345) & 0x7FFFFFFF;
         int randomValue = vm.randSeed;
-        vm.opStack().push(PSObject::fromInt(randomValue));
+        vm.opStack().pushInt(randomValue);
+
         return true;
     }
 
@@ -125,6 +148,7 @@ namespace waavs {
         s.pop(obj);
         if (!obj.isInt())
             return vm.error("op_srand: typecheck");
+
         vm.randSeed = obj.asInt() & 0x7FFFFFFF;
 
         return true;

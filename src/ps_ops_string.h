@@ -7,7 +7,8 @@
 namespace waavs {
     inline bool op_cvs(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return vm.error("stackunderflow");
+        if (s.size() < 2) 
+            return vm.error("stackunderflow");
 
         PSObject strObj;
         PSObject valObj;
@@ -15,11 +16,12 @@ namespace waavs {
         s.pop(strObj);
         s.pop(valObj);
 
-        if (!strObj.isString()) return vm.error("typecheck");
+        if (!strObj.isString()) 
+            return vm.error("op_cvs: typecheck");
 
-        auto buf = strObj.asString();
+        auto &buf = strObj.asMutableString();
         char* dst = reinterpret_cast<char*>(buf.data());
-        size_t maxLen = buf.capacity();
+        size_t maxLen = buf.capacity()+1;
 
         int len = 0;
 
@@ -43,7 +45,8 @@ namespace waavs {
 
         // Ensure length is valid and clamped to capacity
         if (len < 0) len = 0;
-        if (static_cast<size_t>(len) > maxLen) len = static_cast<int>(maxLen);
+        if (static_cast<size_t>(len) > maxLen) 
+            len = static_cast<int>(maxLen);
         buf.setLength(len);
 
         return s.push(strObj);
@@ -75,15 +78,17 @@ namespace waavs {
         auto& s = vm.opStack();
 
         // Check that there's at least one item
-        if (s.empty()) return vm.error("stackunderflow");
+        if (s.empty()) return vm.error("op_string: stackunderflow");
 
         PSObject lenObj;
         s.pop(lenObj);
 
-        if (!lenObj.isInt()) return vm.error("typecheck");
+        if (!lenObj.isInt()) 
+            return vm.error("op_string: typecheck");
 
         int len = lenObj.asInt();
-        if (len < 0) return vm.error("rangecheck");
+        if (len < 0) 
+            return vm.error("op_string: rangecheck");
 
         // Allocate string
         PSString psStr(static_cast<size_t>(len));
@@ -91,6 +96,7 @@ namespace waavs {
 
         // Push onto stack
         s.push(PSObject::fromString(psStr));
+
         return true;
     }
 

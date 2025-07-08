@@ -14,6 +14,77 @@ namespace waavs {
     };
 
     struct PSVMEncodings {
+        const char* fontMapPS = R"||(
+/FontMap <<
+  % Times family
+  /Times-Roman             /timesnewromanpsmt
+  /Times-Bold              /timesnewromanps-boldmt
+  /Times-Italic            /timesnewromanps-italicmt
+  /Times-BoldItalic        /timesnewromanps-bolditalicmt
+
+  % Helvetica family mapped to Arial
+  /Arial              /arialmt  
+  /Helvetica               /arialmt
+  /Helvetica-Bold          /arial-boldmt
+  /Helvetica-Oblique       /arial-italicmt
+  /Helvetica-BoldOblique   /arial-bolditalicmt
+
+  % Courier family
+  /Courier                 /couriernewpsmt
+  /Courier-Bold            /couriernewps-boldmt
+  /Courier-Oblique         /couriernewps-italicmt
+  /Courier-BoldOblique     /couriernewps-bolditalicmt
+
+  % Symbol
+  /Symbol                  /symbolmt
+
+  % ZapfDingbats substitute
+  /ZapfDingbats            /wingdings-regular       % reasonable decorative symbol fallback
+
+  
+
+  % AvantGarde family substitute using Century Gothic-like feellMT is a good substitute for AvantGarde fonts
+
+  /AvantGarde-Book         /arialmt
+  /AvantGarde-BookOblique  /arial-italicmt
+  /AvantGarde-Demi         /arial-boldmt
+  /AvantGarde-DemiOblique  /arial-bolditalicmt
+
+  % Bookman substitute using Georgia
+  /Bookman-Light           /georgia
+  /Bookman-LightItalic     /georgia-italic
+  /Bookman-Demi            /georgia-bold
+  /Bookman-DemiItalic      /georgia-bolditalic
+
+  % Helvetica Narrow substitute with Calibri
+  /Helvetica-Narrow            /calibri
+  /Helvetica-Narrow-Bold       /calibri-bold
+  /Helvetica-Narrow-Oblique    /calibri-italic
+  /Helvetica-Narrow-BoldOblique /calibri-bolditalic
+
+  % New Century Schoolbook substitute with Cambria
+  /NewCenturySchlbk-Roman      /cambria
+  /NewCenturySchlbk-Italic     /cambria-italic
+  /NewCenturySchlbk-Bold       /cambria-bold
+  /NewCenturySchlbk-BoldItalic /cambria-bolditalic
+
+  % Palatino family
+  /Palatino-Roman          /palatinolinotype-roman
+  /Palatino-Italic         /palatinolinotype-italic
+  /Palatino-Bold           /palatinolinotype-bold
+  /Palatino-BoldItalic     /palatinolinotype-bolditalic
+>> def
+
+/FindSystemFont
+{
+    dup FontMap exch known
+    {
+        FontMap exch get
+    } if
+    findfont
+} def
+
+)||";
 
         const char* standardEncodingPS = R"||(
 /StandardEncoding [

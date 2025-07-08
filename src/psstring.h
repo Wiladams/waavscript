@@ -20,23 +20,29 @@ namespace waavs {
         std::unique_ptr<uint8_t[]> fData;
         uint32_t fLength = 0;
         uint32_t fCapacity = 0;
+        //uint32_t fAllocCap{ 0 }
 
     public:
         PSString() = default;
 
         explicit PSString(size_t cap)
-            : fData(new uint8_t[cap]()), fLength(0), fCapacity(static_cast<uint32_t>(cap)) {
+            : fData(new uint8_t[cap+1]())
+            , fLength(0)
+            , fCapacity(static_cast<uint32_t>(cap+1)) 
+        {
         }
 
         PSString(const uint8_t* src, size_t len)
-            : fData(new uint8_t[len]), fLength(static_cast<uint32_t>(len)), fCapacity(static_cast<uint32_t>(len)) {
+            : fData(new uint8_t[len+1])
+            , fLength(static_cast<uint32_t>(len))
+            , fCapacity(static_cast<uint32_t>(len)) {
             std::memcpy(fData.get(), src, len);
         }
 
         PSString(const char* cstr) {
             if (cstr) {
                 size_t len = std::strlen(cstr);
-                fData = std::unique_ptr<uint8_t[]>(new uint8_t[len]);
+                fData = std::unique_ptr<uint8_t[]>(new uint8_t[len+1]);
                 std::memcpy(fData.get(), cstr, len);
                 fLength = fCapacity = static_cast<uint32_t>(len);
             }
@@ -44,16 +50,17 @@ namespace waavs {
 
         // Copy constructor
         PSString(const PSString& other)
-            : fData(new uint8_t[other.fCapacity])
+            : fData(new uint8_t[other.fCapacity+1])
             , fLength(other.fLength)
-            , fCapacity(other.fCapacity) {
+            , fCapacity(other.fCapacity) 
+        {
             std::memcpy(fData.get(), other.fData.get(), fLength);
         }
 
         // Copy assignment
         PSString& operator=(const PSString& other) {
             if (this != &other) {
-                fData.reset(new uint8_t[other.fCapacity]);
+                fData.reset(new uint8_t[other.fCapacity+1]);
                 fLength = other.fLength;
                 fCapacity = other.fCapacity;
                 std::memcpy(fData.get(), other.fData.get(), fLength);

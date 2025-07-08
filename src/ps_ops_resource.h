@@ -33,7 +33,7 @@ namespace waavs
         PSObject obj;
         PSDictionaryHandle categoryDict;
         if (!rs.load(categoryName, obj))
-            return vm.error("findresource: category not found");
+            return vm.error("findresource: category not found", categoryName.c_str());
 
         if (!obj.isDictionary())
             return vm.error("findresource: category is not a dictionary");
@@ -42,7 +42,7 @@ namespace waavs
         
         PSObject foundResource;
         if (!categoryDict->get(resourceKey, foundResource))
-            return vm.error("findresource: resource not found");
+            return vm.error("findresource: resource not found", resourceKey.c_str());
 
         s.push(foundResource);
         return true;
@@ -80,7 +80,7 @@ namespace waavs
         auto categoryName = categoryObj.asName();
         auto resourceKey = keyObj.asName();
 
-        printf("defineresource: category=%s, key=%s\n", categoryName.c_str(), resourceKey.c_str());
+        //printf("defineresource: category=%s, key=%s\n", categoryName.c_str(), resourceKey.c_str());
 
         //
         // get top of the resource stack

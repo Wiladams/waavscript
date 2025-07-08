@@ -2,30 +2,49 @@
 
 #include "pscore.h"
 #include "psvm.h"
+#include "fontmonger.h"
+
 
 namespace waavs {
 
+
     inline bool op_findfont(PSVirtualMachine& vm) {
-        auto *g = vm.graphics();
+        auto* g = vm.graphics();
         auto& s = vm.opStack();
 
         PSObject param;
         if (!s.pop(param))
-            return vm.error("stackunderflow");
-        
+            return vm.error("of_findfont: stackunderflow");
+
         // There are two cases for findfont:
         // 1. A name is on the stack (e.g., "Helvetica")
         // 2. A dictionary is on the stack (e.g., a font dictionary)
 
         // For now, we'll only deal with the first case
-
         if (!param.isName())
             return vm.error("typecheck: expected name for findfont");
 
+        PSName faceName = param.asName();
+
+        // First, lookup the name in the FontMap to see if we have
+        // a mapping of the name to a system postscript name
+        // a) get the FontMap dictionary from the system
+        PSObject fontMapObj;
+        if (vm.dictionaryStack.load("FontMap", fontMapObj))
+        {
+            // try to lookup the systemname
+            PSObject systemNameObj;
+            if (fontMapObj.asDictionary()->get(param.asName(), systemNameObj))
+            {
+                if (systemNameObj.isName())
+                    faceName = systemNameObj.asName();
+            }
+        }
+
         // Query FontMonger for the fonthandle associated with the name
         PSObject fontFace;
-        if (!g->findFont(vm, param.asName(), fontFace))
-            return vm.error("failed to find font");
+        if (!g->findFont(vm, faceName, fontFace))
+            return vm.error("failed to find font", faceName.c_str());
 
         // Push the font object onto the stack
         return s.push(fontFace);
@@ -33,7 +52,12 @@ namespace waavs {
 
     inline bool op_scalefont(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        PSObject sizeObj, faceObj;
+
+        if (s.empty())
+            return vm.error("op_scalefont: stackunderflow;");
+
+        PSObject sizeObj;
+        PSObject faceObj;
 
         if (!s.pop(sizeObj) || !sizeObj.isNumber())
             return vm.error("typecheck: expected number");
@@ -44,23 +68,12 @@ namespace waavs {
         double size = sizeObj.asReal();
         auto face = faceObj.asFontFace();
 
-        // 1. Get the base matrix
-        //PSObject baseMatrixObj;
-        //PSMatrix baseMatrix;
-        //face->get("FontMatrix", baseMatrixObj);
 
-        // 2. Scale it (equivalent to [size 0 0 size 0 0] * baseMatrix)
-        //PSMatrix scaledMatrix = baseMatrix;
-        //scaledMatrix.scale(size, size);
+        PSObject fontObj;
+        if (!FontMonger::createFont(faceObj, size, fontObj))
+            return vm.error("op_scalefont: createFont failed");
 
-        // 3. Construct a font (PSFont) from face and scaledMatrix
-        auto font = PSFont::createFromSize(face, size);
-
-
-        if (!font)
-            return vm.error("invalidfont: failed to scale font");
-
-        return s.push(PSObject::fromFont(font));
+        return s.push(fontObj);
     }
 
 
@@ -77,12 +90,16 @@ namespace waavs {
     }
 
     inline bool op_setfont(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        PSObject font;
-        if (!s.pop(font) || !font.isFont())
-            return vm.error("typecheck: expected font");
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_setfont: stackunderflow;");
 
-        vm.graphics()->setFont(font.asFont());
+        PSObject fontObj;
+        if (!ostk.pop(fontObj) || !fontObj.isFont())
+            return vm.error("op_setfont: typecheck; expected font");
+
+        vm.graphics()->setFont(fontObj.asFont());
+
         return true;
     }
 
@@ -129,11 +146,12 @@ namespace waavs {
         if (!g->findFont(vm, name.asName(), fontFace))
             return vm.error("invalidfont: failed to find font");
 
-        auto fontHandle = PSFont::createFromSize(fontFace.asFontFace(), size.asReal());
-        if (!fontHandle)
+        PSObject fontObj;
+        if (!FontMonger::createFont(fontFace, size.asReal(), fontObj))
             return vm.error("invalidfont: failed to scale font");
 
-        g->setFont(fontHandle);
+        g->setFont(fontObj.asFont());
+
         return true;
     }
 

@@ -334,6 +334,67 @@ namespace waavs {
             return true;
         }
 
+        void strokeAxis(BLRgba32 xColor, BLRgba32 yColor)
+        {
+            // Draw postscript axes as they currently sit
+            BLPath xAxisPath, yAxisPath;
+            xAxisPath.moveTo(0, 0);
+            xAxisPath.lineTo(300, 0);
+            yAxisPath.moveTo(0, 0);
+            yAxisPath.lineTo(0, 300);
+
+            ctx.strokePath(xAxisPath, xColor);
+            ctx.strokePath(yAxisPath, yColor);
+
+        }
+
+        bool showText(const PSString& text) override
+        {
+            // select the current font
+            // encode the string
+            // draw it
+            auto fontHandle =  currentState()->getFont();
+            BLFont* font = (BLFont *)fontHandle->fSystemHandle;
+            double x, y;
+            currentState()->fCurrentPath.getCurrentPoint(x, y);
+
+            ctx.save();
+
+            // DEBUG - Postscript axis before anything else
+            //ctx.setStrokeWidth(12.0);
+            //strokeAxis(BLRgba32(0xff0000ff), BLRgba32(0xffff0000));
+
+
+            // Apply CTM matrix before the coordinates of the text
+            PSMatrix ctm = currentState()->ctm;
+            BLMatrix2D bctm(ctm.m[0], ctm.m[1], ctm.m[2], ctm.m[3], ctm.m[4], ctm.m[5]);
+            ctx.applyTransform(bctm);
+
+            // Finally, get into the right coordinate space 
+            // To draw the text
+            ctx.translate(x, y);
+
+            // draw translated axis
+            //ctx.setStrokeWidth(3.0);
+            //strokeAxis(BLRgba32(0xff0000ff), BLRgba32(0xffff0000));
+
+            // flip the y-axis
+            ctx.scale(1, -1);
+
+            // draw final flipped axes
+            //ctx.setStrokeWidth(1.0);
+            //strokeAxis(BLRgba32(0xff000000), BLRgba32(0xffff00ff));
+
+            // Finally, draw the actual text
+            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
+            ctx.setFillStyle(fillColor);
+            ctx.fillUtf8Text(BLPoint(0, 0), *font, (const char *)text.data(), text.length());
+            
+            ctx.restore();
+
+            return false;
+        }
+
     private:
 
 
@@ -347,7 +408,7 @@ namespace waavs {
             case PSPaintKind::GRAY:
                 return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
             case PSPaintKind::RGB:
-                return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255));
+                return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
             case PSPaintKind::CMYK: {
                 auto clamp01 = [](double x) { return std::min(std::max(x, 0.0), 1.0); };
                 double r = 1.0 - clamp01(p.c + p.k);

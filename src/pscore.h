@@ -44,6 +44,7 @@ namespace waavs {
     using PSFileHandle = std::shared_ptr<PSFile>;
     using PSFontFaceHandle = std::shared_ptr<PSFontFace>;
     using PSFontHandle = std::shared_ptr<PSFont>;
+    using PSMatrixHandle = std::shared_ptr<PSMatrix>;
 }
 
 // Define this custom hash function here, because we need it
@@ -71,41 +72,54 @@ namespace waavs
             : fName(PSNameTable::INTERN(name)) {
         }
 
-        PSName name() const noexcept {
+        const PSName& name() const noexcept {
             return fName;
         }
     };
+
+
     // --------------------
     // PSOperator
     // --------------------
     // These definitions are used for builtin operators that are known at compile time
     using PSOperatorFunc = bool(*)(PSVirtualMachine&);
-    //using PSOperatorFuncMap = std::unordered_map<const char *, PSOperatorFunc>;
     using PSOperatorFuncMap = std::unordered_map<PSName, PSOperatorFunc>;
 
-    struct PSOperator {
-        PSName name;       // Always interned and stable
-        PSOperatorFunc func = nullptr;
+    struct PSOperator 
+    {
+    private:
+        PSName fName;       // Always interned and stable
+        PSOperatorFunc fFunc = nullptr;
 
+    public:
         PSOperator() = default;
 
-        PSOperator(const PSName& opName, PSOperatorFunc f) noexcept
-            : name(opName), func(f) {
+        constexpr PSOperator(const PSName& opName, PSOperatorFunc f) noexcept
+            : fName(opName)
+            , fFunc(f) {
         }
 
-        // an operator() overload to call the function
-        bool operator()(PSVirtualMachine& vm) {
-            if (func) {
-                return func(vm);
+        const PSName & name() const noexcept { return fName; }
+
+        bool exec(PSVirtualMachine& vm) const
+        {
+            if (fFunc != nullptr) {
+                return fFunc(vm);
             }
-            return false; // or throw an error
+            return false; // No function to execute
         }
+        /*
+        // an operator() overload to call the function
+        bool operator()(PSVirtualMachine& vm) const
+        {
+            if (fFunc != nullptr) {
+                return fFunc(vm);
+            }
 
-        // Check if the operator is valid
-        bool isValid() const noexcept {
-            return func != nullptr;
+            return false; 
         }
-
+        */
+        constexpr bool isValid() const noexcept { return fFunc != nullptr;}
 
     };
 }
@@ -148,21 +162,21 @@ namespace waavs {
     struct PSObject {
     private:
         using Variant = std::variant<
-            std::monostate,                      // INVALID
-            int32_t,                             // Int
-            double,                              // Real
-            bool,                                // Bool
-            PSName,                         // Name (interned)
-            PSOperator,                          // Operator
-            PSMatrix,                            // Matrix
-            PSPath,                              // Path
-            PSString,                            // String
-            PSArrayHandle,                       // Array
-            PSDictionaryHandle,                  // Dictionary
-            PSFileHandle,                        // File
-            PSFontFaceHandle,                    // FontFace
-            PSFontHandle,                        // Font
-            PSMark                               // Mark
+            std::monostate,                     // INVALID
+            int32_t,                            // Int
+            double,                             // Real
+            bool,                               // Bool
+            PSName,                             // Name (interned)
+            PSOperator,                         // Operator
+            PSMatrix,                           // Matrix
+            PSPath,                             // Path
+            PSString,                           // String
+            PSArrayHandle,                      // Array
+            PSDictionaryHandle,                 // Dictionary
+            PSFileHandle,                       // File
+            PSFontFaceHandle,                   // FontFace
+            PSFontHandle,                       // Font
+            PSMark                              // Mark
         >;
 
         uint32_t fFlags{ PS_OBJ_FLAG_NONE };
@@ -185,9 +199,11 @@ namespace waavs {
         bool resetFromInt(int32_t v) {
             reset(); type = PSObjectType::Int; fValue = v; return true;
         }
+        
         bool resetFromReal(double v) {
             reset(); type = PSObjectType::Real; fValue = v; return true;
         }
+        
         bool resetFromBool(bool v) {
             reset(); type = PSObjectType::Bool; fValue = v; return true;
         }
@@ -195,22 +211,15 @@ namespace waavs {
         bool resetFromName(const PSName& n) {
             reset(); type = PSObjectType::Name; fValue = n; return true;
         }
-
-        //bool resetFromInternedName(const char* interned) {
-        //    reset(); type = PSObjectType::Name; fValue = PSName(interned); return true;
-        //}
-        //bool resetFromName(const char* cstr) {
-        //	return resetFromInternedName(PSNameTable::INTERN(cstr));
-        //}
-        //bool resetFromName(const OctetCursor& oc) {
-        //    return resetFromInternedName(PSNameTable::INTERN(oc));
-        //}
+        
         bool resetFromString(PSString s) {
             reset(); type = PSObjectType::String; fValue = s; return true;
         }
+        
         bool resetFromArray(PSArrayHandle a) {
             reset(); type = PSObjectType::Array; fValue = a; return true;
         }
+        
         bool resetFromDictionary(PSDictionaryHandle d) {
             reset(); type = PSObjectType::Dictionary; fValue = d; return true;
         }
@@ -292,7 +301,13 @@ namespace waavs {
         bool asBool() const { return as<bool>(); }
         PSName asName() const { return as<PSName>(); }
         const char* asNameCStr() const { return as<PSName>().c_str(); }
-        PSString asString() const { return as<PSString>(); }
+        
+        const PSString& asString() const { return std::get<PSString>(fValue); }
+        PSString& asMutableString() {
+            return std::get<PSString>(fValue);
+        }
+
+
         PSArrayHandle asArray() const { return as<PSArrayHandle>(); }
         PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
         PSFileHandle asFile() const { return as<PSFileHandle>(); }
@@ -354,7 +369,6 @@ namespace waavs {
     struct PSArray {
     public:
         std::vector<PSObject> elements;
-        //bool fIsProcedure = false;
 
         // Constructors
         PSArray() = default;
@@ -371,9 +385,6 @@ namespace waavs {
 
         // Size and flags
         size_t size() const { return elements.size(); }
-
-        //constexpr bool isProcedure() const noexcept { return fIsProcedure; }
-        //void setIsProcedure(bool flag) noexcept { fIsProcedure = flag; }
 
         // Element access
         bool get(size_t index, PSObject& out) const {

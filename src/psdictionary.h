@@ -16,20 +16,26 @@ namespace waavs {
         }
     };
 
-    class PSDictTable {
-        PSDictTable() = delete;
+    class PSDictionary {
+        PSDictionary() = delete;
 
     public:
         // Create entries, with a minimum initial capacity
-        PSDictTable(size_t initialCapacity)
+        PSDictionary(size_t initialCapacity)
             : fCapacity(std::max(size_t(4), initialCapacity))
             , fCount(0)
         {
             fEntries = new PSDictEntry[fCapacity](); // zero-initialized
         }
 
-        ~PSDictTable() {
+        ~PSDictionary() {
             delete[] fEntries;
+        }
+
+        static std::shared_ptr<PSDictionary> create(size_t initialSize = 32) {
+            auto ptr = std::shared_ptr<PSDictionary>(new PSDictionary(initialSize));
+
+            return ptr;
         }
 
         constexpr size_t size() const noexcept { return fCount; }
@@ -54,6 +60,7 @@ namespace waavs {
             }
             fEntries[slot].key = key;
             fEntries[slot].value = value;
+
             return true;
         }
 
@@ -89,6 +96,17 @@ namespace waavs {
             return true;
         }
 
+        bool copyEntryFrom(const PSDictionary* other, const PSName& key) 
+        {
+            if (!other) return false; // no other dictionary
+
+            PSObject value;
+            if (!other->get(key, value)) return false;
+
+            put(key, value);
+            
+            return true;
+        }
 
         // Find the slot of the key.
         // return true if it's found, and slot == the slot
@@ -220,6 +238,7 @@ namespace waavs {
 
     };
 
+    /*
     // --------------------
     // PSDictionary
     // --------------------
@@ -278,5 +297,7 @@ namespace waavs {
             return true;
         }
     };
+    */
+
 } // namespace waavs
 

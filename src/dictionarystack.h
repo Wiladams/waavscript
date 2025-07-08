@@ -34,11 +34,13 @@ namespace waavs {
             return stack.back();
         }
 
+        size_t size() { return stack.size(); }
+        /*
         bool getCount(size_t& count) const {
             count = stack.size();
             return true;
         }
-
+        */
         PSArrayHandle getStack() const {
             PSArrayHandle out = PSArray::create(stack.size());
             for (size_t i = 0; i < stack.size(); ++i) {
