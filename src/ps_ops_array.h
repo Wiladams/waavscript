@@ -68,29 +68,44 @@ namespace waavs {
 		if (s.size() < 3) 
 			return vm.error("op_getinterval: stackunderflow");
 
-		PSObject countObj, indexObj, arrObj;
+		PSObject countObj, indexObj, containerObj;
 		s.pop(countObj);
 		s.pop(indexObj);
-		s.pop(arrObj);
+		s.pop(containerObj);
 
-		if (!arrObj.isArray() || !indexObj.isInt() || !countObj.isInt())
-			return false;
+		if (!containerObj.isArray() && !containerObj.isString())
+            return vm.error("op_getinterval: typecheck; container not array ir strubg");
+			
+		if (!indexObj.isInt() || !countObj.isInt())
+			return vm.error("op_getinterval: typecheck; index or count not an int");
 
-		auto src = arrObj.asArray();
 		int start = indexObj.asInt();
 		int count = countObj.asInt();
+		PSObject intervalObj;
 
-		if (start < 0 || count < 0 || static_cast<size_t>(start + count) > src->elements.size())
-			return false;
+		if (containerObj.isArray())
+		{
+			auto arr = containerObj.asArray();
 
-		auto sub = PSArray::create();
-		sub->elements.insert(
-			sub->elements.begin(),
-			src->elements.begin() + start,
-			src->elements.begin() + start + count
-		);
+			if (start < 0 || count < 0 || static_cast<size_t>(start + count) > arr->elements.size())
+				return vm.error("op_getinterval: rangecheck; array");
 
-		return s.push(PSObject::fromArray(sub));
+			auto sub = PSArray::create();
+			sub->elements.insert(
+				sub->elements.begin(),
+				arr->elements.begin() + start,
+				arr->elements.begin() + start + count
+			);
+
+            intervalObj.resetFromArray(sub);
+		} else if (containerObj.isString())
+		{
+			auto &str = containerObj.asString();
+            auto subStr = str.getInterval(start, count);
+			intervalObj.resetFromString(subStr);
+        }
+
+		return s.push(intervalObj);
 	}
 
 	// ( destArray index srcArray -- )

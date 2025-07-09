@@ -103,6 +103,42 @@ namespace waavs {
         return true;
     }
 
+    // fontname size selectfont -- font
+    // fontname matrix selectfont -- font
+    inline bool op_selectfont(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.size() < 2)
+            return vm.error("op_selectfont: stackunderflow;");
+
+        PSObject sizeObj;
+        PSObject fontNameObj;
+
+        if (!ostk.pop(sizeObj) || !sizeObj.isNumber())
+            return vm.error("op_selectfont: typecheck; expected number for size");
+
+        if (!ostk.pop(fontNameObj) || !fontNameObj.isName())
+            return vm.error("op_selectfont: typecheck; expected font name");
+
+        // try to find font by name
+        ostk.push(fontNameObj); // push name back for findfont
+        if (!op_findfont(vm))
+            return vm.error("op_selectfont: font not found - ", fontNameObj.asName().c_str());
+
+        PSObject faceObj;
+        ostk.pop(faceObj);
+
+        // Now do scale font
+        PSObject fontObj;
+        if (!FontMonger::createFont(faceObj, sizeObj.asReal(), fontObj))
+            return vm.error("op_selectfont: createFont failed");
+
+        // and last, do setfont
+        vm.graphics()->setFont(fontObj.asFont());
+
+        return true;
+    }
+
     inline bool op_currentfont(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         s.push(PSObject::fromFont(vm.graphics()->currentFont()));
@@ -133,28 +169,38 @@ namespace waavs {
         return vm.error("undefinefont not implemented");
     }
 
-    inline bool op_selectfont(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        PSObject size, name;
-        if (!s.pop(size) || !size.isNumber())
-            return vm.error("typecheck: expected number");
-        if (!s.pop(name) || !name.isName())
-            return vm.error("typecheck: expected name");
+    inline bool op_stringwidth(PSVirtualMachine &vm) {
+        auto& ostk = vm.opStack();
+        auto* grph = vm.graphics();
+        auto& ctm = grph->getCTM();
 
-        auto* g = vm.graphics();
-        PSObject fontFace;
-        if (!g->findFont(vm, name.asName(), fontFace))
-            return vm.error("invalidfont: failed to find font");
+        if (ostk.size() < 1)
+            return vm.error("op_stringwidth: stackunderflow;");
+        
+        PSObject fontObj, stringObj;
+        if (!ostk.pop(stringObj) || !stringObj.isString())
+            return vm.error("op_stringwidth: typecheck; expected string");
+        
+        auto fontHandle = vm.graphics()->currentFont(); // Ensure current font is set
+        if (fontHandle == nullptr)
+            return vm.error("op_stringwidth: no current font set");
 
-        PSObject fontObj;
-        if (!FontMonger::createFont(fontFace, size.asReal(), fontObj))
-            return vm.error("invalidfont: failed to scale font");
+        // ask the graphics sub-system to tell us the string width
+        double dx = 0.0, dy = 0.0;
+        grph->getStringWidth(fontHandle, stringObj.asString(), dx, dy);
 
-        g->setFont(fontObj.asFont());
+        // Update the current path's current position, using non-transformed coordinates
+        grph->currentPath().fCurrentX += dx;
+        grph->currentPath().fCurrentY += dy;
 
+        // transform by ctm, and return that
+        ctm.dtransform(dx, dy, dx, dy);
+
+        ostk.pushReal(dx);
+        ostk.pushReal(dy);
+        
         return true;
     }
-
 
 
     // --- Font Operator Registration ---
@@ -168,7 +214,8 @@ namespace waavs {
             { "currentfont",  op_currentfont },
             { "definefont",   op_definefont },
             { "undefinefont", op_undefinefont },
-            { "selectfont",   op_selectfont }
+            { "selectfont",   op_selectfont },
+            { "stringwidth",  op_stringwidth}
         };
         return table;
     }

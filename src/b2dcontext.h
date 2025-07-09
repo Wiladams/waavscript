@@ -395,6 +395,28 @@ namespace waavs {
             return false;
         }
 
+        bool getStringWidth(PSFontHandle fontHandle, const PSString& str, double& dx, double& dy) const override
+        {
+            dx = 0;
+            dy = 0;
+
+            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
+            PSMatrix ctm = currentState()->ctm;
+
+            BLTextMetrics tm;
+            BLGlyphBuffer gb;
+            BLFontMetrics fm = font->metrics();
+
+            gb.setUtf8Text(str.data(), str.length());
+            font->shape(gb);
+            font->getTextMetrics(gb, tm);
+
+            dx = tm.boundingBox.x1 - tm.boundingBox.x0;
+            dy = 0.0;
+
+            return true;
+        }
+
     private:
 
 

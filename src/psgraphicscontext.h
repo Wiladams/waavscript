@@ -209,6 +209,16 @@ namespace waavs {
             return currentState()->fCurrentFont;
         }
 
+        virtual bool getStringWidth(PSFontHandle fontHandle, const PSString &stringObj, double &dx, double &dy) const
+        {
+            dx = 0;
+            dy = 0;
+
+            printf("PSGraphicsContext::getStringWidth: Not implemented\n");
+
+            return true;
+        }
+
         // --- Drawing operations (stubs) ---
         virtual bool stroke() {
             printf("stroke: %zu path segments\n", currentPath().segments.size());
