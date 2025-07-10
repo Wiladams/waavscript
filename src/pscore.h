@@ -130,32 +130,34 @@ namespace waavs {
     // PSObject Type Enum
     // --------------------
     enum struct PSObjectType : char {
-        Null = 'z'       // Null type, represents a null object
-        , Int = 'i'       // Integer type, represents a 32-bit signed integer
-        , Real = 'r'       // Real type, represents a double-precision floating-point number
-        , Bool = 'b'       // Boolean type, represents a true or false value
-        , Name = 'n'       // Name type, represents an interned name (string)
-        , String = 's'       // String type, represents a PSString object
-        , Array = 'a'
-        , Dictionary = 'd'
-        , Operator = 'O'
-        , Path = 'p'       // Path type, represents a drawing path
-        , File = 'L'       // File type, represents a file object
-        , Font = 'f'       // Font type, represents a font object
-        , FontFace = 'F'       // FontFace type, represents a font face object
-        , Mark = 'm'
-        , Matrix = 'x'
-        , Invalid = '?'       // Invalid type, used for uninitialized objects
-        , Any = '*'       // Any type, used for generic operations
-        , Save = 'S'       // VM Save state
+          Null      = 'z'       // Null type, represents a null object
+        , Invalid   = '?'       // Invalid type, used for uninitialized objects
+        , Any       = '*'       // Any type, used for generic operations
+        , Int       = 'i'       // Integer type, represents a 32-bit signed integer
+        , Float     = 'r'       // single precision floating-point number
+        , Real      = 'R'        // double precision floating-point number
+        , Bool      = 'b'       // Boolean type, represents a true or false value
+        , Pointer   = 'V'       // Pointer type, represents a pointer to an object
+        , Name      = 'n'       // Name type, represents an interned name (string)
+        , String    = 's'       // String type, represents a PSString object
+        , Array     = 'a'       // Sequence of entries
+        , Dictionary = 'd'  // Associative array (key-value pairs)
+        , Operator  = 'O'    // Operator type, represents a function or procedure
+        , Path      = 'p'        // Path type, represents a drawing path
+        , File      = 'L'        // File type, represents a file object
+        , Font      = 'f'        // Font type, represents a font object
+        , FontFace  = 'F'    // FontFace type, represents a font face object
+        , Mark      = 'm'
+        , Matrix    = 'x'
+        , Save      = 'S'       // VM Save state
     };
 
     enum PSObjectFlags : uint32_t {
-        PS_OBJ_FLAG_NONE = 0,
-        PS_OBJ_FLAG_EXECUTABLE = 1 << 0,
-        PS_OBJ_FLAG_READABLE = 1 << 1,
-        PS_OBJ_FLAG_WRITABLE = 1 << 2,
-        PS_OBJ_FLAG_SYSTEM_OP = 1 << 3,
+        PS_OBJ_FLAG_NONE        = 0,
+        PS_OBJ_FLAG_EXECUTABLE  = 1 << 0,
+        PS_OBJ_FLAG_READABLE    = 1 << 1,
+        PS_OBJ_FLAG_WRITABLE    = 1 << 2,
+        PS_OBJ_FLAG_SYSTEM_OP   = 1 << 3,
         // Future bits here (like `CONST`, `PROTECTED`, `FROM_ROM`, etc.)
     };
 
@@ -164,8 +166,10 @@ namespace waavs {
         using Variant = std::variant<
             std::monostate,                     // INVALID
             int32_t,                            // Int
-            double,                             // Real
+            float,                              // Float (single precision)
+            double,                             // Real (double precision)
             bool,                               // Bool
+            void*,                              // Pointer
             PSName,                             // Name (interned)
             PSOperator,                         // Operator
             PSMatrix,                           // Matrix

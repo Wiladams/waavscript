@@ -39,6 +39,7 @@ namespace waavs {
         }
 
         constexpr size_t size() const noexcept { return fCount; }
+        constexpr bool empty() const noexcept { return fCount == 0; }   
 
         // put
         // Place the value into the table 

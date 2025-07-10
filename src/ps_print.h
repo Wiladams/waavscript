@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pscore.h"
+#include "psfont.h"
 
 namespace waavs {
     static void writeObjectShallow(const PSObject& obj, std::ostream& os = std::cout)

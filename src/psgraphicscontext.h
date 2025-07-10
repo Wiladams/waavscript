@@ -216,7 +216,14 @@ namespace waavs {
 
             printf("PSGraphicsContext::getStringWidth: Not implemented\n");
 
-            return true;
+            return false;
+        }
+
+        virtual bool getCharPath(PSFontHandle fontHandle, const PSMatrix &ctm, const PSString& str, PSPath& outPSPath) const
+        {
+            printf("PSGraphicsContext::getCharPath: Not implemented\n");
+            outPSPath.reset(); // Clear output path
+            return false;
         }
 
         // --- Drawing operations (stubs) ---

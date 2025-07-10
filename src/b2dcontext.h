@@ -10,9 +10,9 @@
 
 
 namespace waavs {
-    //static inline BLMatrix2D blTransform(const PSMatrix& m) {
-    //    return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
-    //}
+    static inline BLMatrix2D blTransform(const PSMatrix& m) {
+        return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
+    }
 
     static inline BLStrokeJoin convertLineJoin(PSLineJoin join) {
         switch (join) {
@@ -24,6 +24,25 @@ namespace waavs {
             return BLStrokeJoin::BL_STROKE_JOIN_BEVEL;
         default:
             return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP; // Default to miter
+        }
+    }
+
+
+    static inline BLRgba32 convertPaint(const PSPaint& p)  {
+        switch (p.kind) {
+        case PSPaintKind::GRAY:
+            return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
+        case PSPaintKind::RGB:
+            return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
+        case PSPaintKind::CMYK: {
+            auto clamp01 = [](double x) { return std::min(std::max(x, 0.0), 1.0); };
+            double r = 1.0 - clamp01(p.c + p.k);
+            double g = 1.0 - clamp01(p.m + p.k);
+            double b = 1.0 - clamp01(p.y + p.k);
+            return BLRgba32(uint8_t(r * 255), uint8_t(g * 255), uint8_t(b * 255));
+        }
+        default:
+            return BLRgba32(0, 0, 0, 255); // fallback to black
         }
     }
 
@@ -170,6 +189,77 @@ namespace waavs {
 
         return true;
     }
+
+    bool convertBLPathToPSPath(const BLPath& inPath, const PSMatrix& ctm, PSPath& outPSPath)
+    {
+        const uint8_t* cmds = inPath.commandData();
+        const BLPoint* pts = inPath.vertexData();
+        size_t cmdCount = inPath.size();
+
+        for (size_t i = 0; i < cmdCount; ++i)
+        {
+            BLPathCmd cmd = (BLPathCmd)cmds[i];
+            switch (cmd) {
+            case BLPathCmd::BL_PATH_CMD_MOVE:
+                outPSPath.moveto(ctm, pts[i].x, pts[i].y);
+                break;
+
+            case BLPathCmd::BL_PATH_CMD_ON:
+                outPSPath.lineto(ctm, pts[i].x, pts[i].y);
+                break;
+
+
+
+            case BL_PATH_CMD_QUAD:
+            {
+                const BLPoint& p0 = outPSPath.hasCurrentPoint()
+                    ? BLPoint(outPSPath.fCurrentX, outPSPath.fCurrentY)
+                    : pts[i];  // fallback if no current point (unlikely for charpath)
+
+                const BLPoint& p1 = pts[i + 0]; // control
+                const BLPoint& p2 = pts[i + 1]; // end
+
+                // Convert quad to cubic
+                BLPoint c1 = BLPoint(
+                    p0.x + (2.0 / 3.0) * (p1.x - p0.x),
+                    p0.y + (2.0 / 3.0) * (p1.y - p0.y)
+                );
+
+                BLPoint c2 = BLPoint(
+                    p2.x + (2.0 / 3.0) * (p1.x - p2.x),
+                    p2.y + (2.0 / 3.0) * (p1.y - p2.y)
+                );
+
+                // Emit as cubic
+                outPSPath.curveto(ctm, c1.x, c1.y, c2.x, c2.y, p2.x, p2.y);
+                i++;
+                break;
+            }
+
+            case BLPathCmd::BL_PATH_CMD_CUBIC:
+                outPSPath.curveto(
+                    ctm,
+                    pts[i + 0].x, pts[i + 0].y,
+                    pts[i + 1].x, pts[i + 1].y,
+                    pts[i + 2].x, pts[i + 2].y
+                );
+                i += 2;
+                break;
+
+            case BL_PATH_CMD_CLOSE:
+                outPSPath.close();
+                break;
+
+            default:
+                // Skip unsupported/unknown commands
+                printf("UNKNOWN COMMAND: %d\n", cmd);
+                break;
+            }
+        }
+
+        return true;
+    }
+
 
     // Use blend2d library to do actual rendering
     class Blend2DGraphicsContext : public PSGraphicsContext {
@@ -417,6 +507,30 @@ namespace waavs {
             return true;
         }
 
+        bool getCharPath(PSFontHandle fontHandle, const PSMatrix& ctm, const PSString& str, PSPath &outPSPath) const // override 
+        {
+            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
+
+            BLGlyphBuffer gb;
+            gb.setUtf8Text(str.data(), str.length());
+            font->shape(gb);
+
+            const BLGlyphRun& grun = gb.glyphRun();
+
+            BLPath glyphPath{};
+            font->getGlyphRunOutlines(grun, glyphPath);
+
+            // Now turn the BLPath into a PSPath
+            //double h = fCanvas.height();
+            PSMatrix tmat = ctm;
+            tmat.scale(1, -1);
+
+            bool success = convertBLPathToPSPath(glyphPath, tmat, outPSPath);
+
+            return success;
+        }
+
+
     private:
 
 
@@ -425,23 +539,6 @@ namespace waavs {
 
 
 
-        BLRgba32 convertPaint(const PSPaint& p) const {
-            switch (p.kind) {
-            case PSPaintKind::GRAY:
-                return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
-            case PSPaintKind::RGB:
-                return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
-            case PSPaintKind::CMYK: {
-                auto clamp01 = [](double x) { return std::min(std::max(x, 0.0), 1.0); };
-                double r = 1.0 - clamp01(p.c + p.k);
-                double g = 1.0 - clamp01(p.m + p.k);
-                double b = 1.0 - clamp01(p.y + p.k);
-                return BLRgba32(uint8_t(r * 255), uint8_t(g * 255), uint8_t(b * 255));
-            }
-            default:
-                return BLRgba32(0, 0, 0, 255); // fallback to black
-            }
-        }
     };
 
 } // namespace waavs

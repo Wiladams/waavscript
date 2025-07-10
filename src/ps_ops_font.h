@@ -202,7 +202,54 @@ namespace waavs {
         return true;
     }
 
+    bool op_charpath(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        auto* grph = vm.graphics();
+        PSMatrix ctm = grph->getCTM();
+        auto& currentPath = grph->currentPath();
 
+        if (ostk.size() < 2)
+            return vm.error("op_charpath: stackunderflow;");
+
+        // Ensure current font is set
+        auto fontHandle = grph->currentFont(); 
+        if (fontHandle == nullptr)
+            return vm.error("op_charpath: no current font set");
+
+        PSObject posAsPrintedObj;
+        PSObject strObj;
+
+        ostk.pop(posAsPrintedObj);
+        ostk.pop(strObj);
+
+        if (!posAsPrintedObj.isBool())
+            return vm.error("op_charpath: typecheck; expected boolean for position as printed");
+
+        if (!strObj.isString())
+            return vm.error("op_charpath: typecheck; expected string for charpath");
+
+
+        bool success = grph->getCharPath(fontHandle, ctm, strObj.asString(), currentPath);
+
+        return success;
+    }
+
+    //
+    // BL_API BLResult BL_CDECL blFontGetGlyphOutlines(const BLFontCore* self, BLGlyphId glyphId, const BLMatrix2D* userTransform, BLPathCore* out, BLPathSinkFunc sink, void* userData) BL_NOEXCEPT_C;
+    // BL_API BLResult BL_CDECL blFontGetGlyphRunOutlines(const BLFontCore* self, const BLGlyphRun* glyphRun, const BLMatrix2D* userTransform, BLPathCore* out, BLPathSinkFunc sink, void* userData) BL_NOEXCEPT_C;
+    //
+    // BL_INLINE_NODEBUG BLResult getGlyphOutlines(BLGlyphId glyphId, const BLMatrix2D& userTransform, BLPathCore& out, BLPathSinkFunc sink = nullptr, void* userData = nullptr) const noexcept 
+    // {
+    //   return blFontGetGlyphOutlines(this, glyphId, &userTransform, &out, sink, userData);
+    // }
+
+    // BL_INLINE_NODEBUG BLResult getGlyphRunOutlines(const BLGlyphRun& glyphRun, BLPathCore& out, BLPathSinkFunc sink = nullptr, void* userData = nullptr) const noexcept 
+    // {
+    //   return blFontGetGlyphRunOutlines(this, &glyphRun, nullptr, &out, sink, userData);
+    // }
+    // 
+    
     // --- Font Operator Registration ---
 
     inline const PSOperatorFuncMap& getFontOps() {
@@ -215,7 +262,8 @@ namespace waavs {
             { "definefont",   op_definefont },
             { "undefinefont", op_undefinefont },
             { "selectfont",   op_selectfont },
-            { "stringwidth",  op_stringwidth}
+            { "stringwidth",  op_stringwidth},
+            { "charpath",     op_charpath }
         };
         return table;
     }
