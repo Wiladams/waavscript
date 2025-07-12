@@ -22,6 +22,8 @@
 #include "ps_ops_vm.h"
 #include "ps_ops_resource.h"
 #include "ps_ops_text.h"
+#include "ps_ops_path.h"
+
 
 namespace waavs
 {
@@ -43,17 +45,24 @@ namespace waavs
 			//vm->interpret(extOps.op_code_min);
 		}
 
-		static inline void registerResources(PSVirtualMachine* vm)
+		static inline void registerEncodings(PSVirtualMachine* vm)
 		{
 			PSVMEncodings encodings;
 
 			vm->interpret(encodings.standardEncodingPS);
-            vm->interpret(encodings.expertEncodingPS);
+			vm->interpret(encodings.expertEncodingPS);
 			vm->interpret(encodings.isoLatin1EncodingPS);
 			vm->interpret(encodings.macRomanEncodingPS);
 			vm->interpret(encodings.symbolEncodingPS);
 			vm->interpret(encodings.winAnsiEncodingPS);
 			vm->interpret(encodings.zapfDingbatsEncodingPS);
+        }
+
+		static inline void registerResources(PSVirtualMachine* vm)
+		{
+            //registerEncodings(vm);
+
+			PSVMEncodings encodings;
 
 			vm->interpret(encodings.fontMapPS);
         }
@@ -78,6 +87,7 @@ namespace waavs
             vm->registerOps(getFontOps());
 			vm->registerOps(getResourceOperators());
 			vm->registerOps(getTextOps());
+			vm->registerOps(getPathOps());
 		}
 
 		// Create a new PSVM instance

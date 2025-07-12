@@ -6,37 +6,36 @@
 namespace waavs {
 
 	// ( int -- array )
-	inline bool op_array(PSVirtualMachine& vm) {
+	inline bool op_array(PSVirtualMachine& vm) 
+	{
 		auto& s = vm.opStack();
 		if (s.empty()) 
 			return vm.error("op_array: stackunderflow");
 
-		PSObject lenObj;
-		s.pop(lenObj);
-		if (!lenObj.isInt() || lenObj.asInt() < 0)
-			return false;
+		int32_t len;
+        if (!s.popInt(len))
+			return vm.error("op_array: typecheck");
 
 		auto arr = PSArray::create();
-		arr->elements.resize(static_cast<size_t>(lenObj.asInt()));
-		return s.push(PSObject::fromArray(arr));
+		arr->elements.resize(static_cast<size_t>(len));
+		return s.pushArray(arr);
 	}
 
 	// ( array -- ... elements ... array )
-	inline bool op_aload(PSVirtualMachine& vm) {
+	inline bool op_aload(PSVirtualMachine& vm) 
+	{
 		auto& s = vm.opStack();
 		if (s.empty()) 
 			return vm.error("op_aload: stackunderflow");
 
+		PSArrayHandle arr;
+		if (!s.popArray(arr))
+			return vm.error("op_load: typecheck");
 
-		PSObject arrObj;
-		s.pop(arrObj);
-		if (!arrObj.isArray()) return false;
-
-		auto arr = arrObj.asArray();
-		for (const PSObject& elem : arr->elements)
+		for (const auto& elem : arr->elements)
 			s.push(elem);
 
-		return s.push(arrObj); // push original array back
+		return s.pushArray(arr); // push original array back
 	}
 
 	// ( ... elements ... array -- array )
@@ -45,13 +44,13 @@ namespace waavs {
 		if (s.empty()) 
 			return vm.error("op_astore: stackunderflow");
 
-		PSObject arrObj;
-		s.pop(arrObj);
-		if (!arrObj.isArray()) return false;
+		PSArrayHandle arr;
+        if (!s.popArray(arr))
+			return vm.error("op_astore: typeckeck");
 
-		auto arr = arrObj.asArray();
 		size_t count = arr->size();
-		if (s.size() < count) return false;
+		if (s.size() < count) 
+			return false;
 
 		for (size_t i = 0; i < count; ++i) {
 			PSObject val;
@@ -59,7 +58,7 @@ namespace waavs {
 			arr->elements[count - 1 - i] = val;
 		}
 
-		return s.push(arrObj);
+		return s.pushArray(arr);
 	}
 
 	// ( array index count -- subarray )
@@ -68,19 +67,18 @@ namespace waavs {
 		if (s.size() < 3) 
 			return vm.error("op_getinterval: stackunderflow");
 
-		PSObject countObj, indexObj, containerObj;
-		s.pop(countObj);
-		s.pop(indexObj);
+		int32_t start;
+		int32_t count;
+        PSObject containerObj;
+
+		if (!s.popInt(count) ||	!s.popInt(start))
+			return vm.error("op_getinterval: typecheck, index or count not int");
+
 		s.pop(containerObj);
 
 		if (!containerObj.isArray() && !containerObj.isString())
-            return vm.error("op_getinterval: typecheck; container not array ir strubg");
-			
-		if (!indexObj.isInt() || !countObj.isInt())
-			return vm.error("op_getinterval: typecheck; index or count not an int");
+            return vm.error("op_getinterval: typecheck; container not array or string");
 
-		int start = indexObj.asInt();
-		int count = countObj.asInt();
 		PSObject intervalObj;
 
 		if (containerObj.isArray())
@@ -114,21 +112,20 @@ namespace waavs {
 		if (s.size() < 3) 
 			return vm.error("op_putinterval: stackunderflow");
 
+		int32_t index;
 
-		PSObject srcArrObj, indexObj, destArrObj;
+		PSObject srcArrObj, destArrObj;
 		s.pop(srcArrObj);
-		s.pop(indexObj);
+		if (!s.popInt(index))
+			return vm.error("op_putinterval: typecheck; index");
+
 		s.pop(destArrObj);
 
 		if (!destArrObj.isArray() ||  !srcArrObj.isArray())
 			return vm.error("op_putinterval: typecheck; dest or src not array");
 
-		if (!indexObj.isInt())
-            return vm.error("op_putinterval: typecheck; index not int");
-
 		auto dest = destArrObj.asArray();
 		auto src = srcArrObj.asArray();
-		int index = indexObj.asInt();
 
 		if (index < 0 || static_cast<size_t>(index + src->size()) > dest->size())
 			return vm.error("op_putinterval: rangecheck");
@@ -142,15 +139,14 @@ namespace waavs {
 
 
 	inline bool op_bind(PSVirtualMachine& vm) {
-		PSObject obj;
-		if (!vm.opStack().pop(obj)) return false;
+        auto& ostk = vm.opStack();
 
-		if (!obj.isArray())
-			return vm.error("op_bind: typecheck");
-
-		auto arr = obj.asArray();
-		if (!arr)
-			return vm.error("op_bind: valuecheck");
+        if (ostk.empty())
+            return vm.error("op_bind: stackunderflow");
+		
+		PSArrayHandle arr;
+		if (!ostk.popArray(arr))
+			return vm.error("op_bind: typecheck; not array");;
 
 		for (auto& elem : arr->elements) {
 			if (elem.isExecutableName()) {
@@ -162,12 +158,11 @@ namespace waavs {
 						elem.resetFromOperator(resolved.asOperator());
 					}
 				} 
-
 			}
 			// Do NOT recurse into nested procedures
 		}
 
-		vm.opStack().push(obj);
+		ostk.pushProcedure(arr);
 
 		return true;
 	}

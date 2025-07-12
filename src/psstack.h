@@ -185,10 +185,11 @@ bool roll(int n, int j) {
         bool pushBool(bool value) { return push(PSObject::fromBool(value)); }
         bool pushInt(int32_t value) { return push(PSObject::fromInt(value)); }
         bool pushReal(double value) { return push(PSObject::fromReal(value)); }
-        bool pushName(const PSName aname) { return push(PSObject::fromName(aname)); }
+        bool pushLiteralName(const PSName aname) { return push(PSObject::fromName(aname)); }
         bool pushExecName(const PSName aname) { return push(PSObject::fromExecName(aname)); }
         bool pushString(const PSString& str) { return push(PSObject::fromString(str)); }
         bool pushArray(const PSArrayHandle value) { return push(PSObject::fromArray(value)); }
+        bool pushProcedure(const PSArrayHandle value) { PSObject obj = PSObject::fromArray(value); obj.setExecutable(true); return push(obj); }
         bool pushDictionary(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }
         bool pushFile(const PSFileHandle value) { return push(PSObject::fromFile(value)); }
         bool pushFontFace(const PSFontFaceHandle value) { return push(PSObject::fromFontFace(value)); }
@@ -196,7 +197,116 @@ bool roll(int n, int j) {
         bool pushOperator(PSOperator value) { return push(PSObject::fromOperator(value)); }
         bool pushMark(const PSMark& value) { return push(PSObject::fromMark(value)); }
 
+        // Return unboxed values
+        // perform basic type check, return false on failure
+        bool popBool(bool& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isBool())
+                return false;
 
+            out = obj.asBool();
+            return true;
+        }
+
+        // will coerce real to int, if equivalent
+        bool popInt(int32_t& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isInt())
+                return false;
+            out = obj.asInt();
+            return true;
+        }
+
+        // will coerce int to real if necessary
+        bool popReal(double& out) {
+            if (empty())
+                return false;
+
+            PSObject obj;
+            if (!pop(obj))
+                return false;
+            
+            if (!obj.isNumber())
+                return false;
+            
+            out = obj.asReal();
+            
+            return true;
+        }
+
+        /*
+        bool popName(PSName& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isName())
+                return false;
+            out = obj.asName();
+            return true;
+        }
+        */
+
+        bool blString(PSString& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isString())
+                return false;
+            out = obj.asString();
+            return true;
+        }
+
+        bool popArray(PSArrayHandle& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isArray())
+                return false;
+            out = obj.asArray();
+            return true;
+        }
+
+        bool popDictionary(PSDictionaryHandle& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isDictionary())
+                return false;
+            out = obj.asDictionary();
+            return true;
+        }
+
+        bool popFile(PSFileHandle& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isFile())
+                return false;
+            out = obj.asFile();
+            return true;
+        }
+
+        bool popFontFace(PSFontFaceHandle& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isFontFace())
+                return false;
+            out = obj.asFontFace();
+            return true;
+        }
+
+        bool popFont(PSFontHandle& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isFont())
+                return false;
+            out = obj.asFont();
+            return true;
+        }
+
+        bool popOperator(PSOperator& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isOperator())
+                return false;
+            out = obj.asOperator();
+            return true;
+        }
+
+        bool popMark(PSMark& out) {
+            PSObject obj;
+            if (!pop(obj) || !obj.isMark())
+                return false;
+            out = obj.asMark();
+            return true;
+        }
 	};
 
     /*

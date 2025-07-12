@@ -6,12 +6,16 @@
 
 
 namespace waavs {
+
+    static constexpr double PI = 3.14159265358979323846;
+    static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
+    static constexpr double QUARTER_ARC = 3.14159265358979323846 / 2.0;
+
     //
 	// PSMatrix provides a 2D affine transformation matrix
     struct PSMatrix {
         // Where is the system level PI we can rely on?
-        static constexpr double PI = 3.14159265358979323846;
-        static constexpr double RADIANS_PER_DEGREE = PI / 180.0;
+
 
         // Postscript matrix representation is:
         // | m00 m01 0 |
@@ -160,7 +164,7 @@ namespace waavs {
         }
 
         static constexpr PSMatrix rotation(double angleDegrees) {
-            double rad = angleDegrees * RADIANS_PER_DEGREE;
+            double rad = angleDegrees * DEG_TO_RAD;
             double cosA = std::cos(rad);
             double sinA = std::sin(rad);
             return PSMatrix(cosA, sinA, -sinA, cosA, 0, 0);

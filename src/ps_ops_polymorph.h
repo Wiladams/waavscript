@@ -380,6 +380,100 @@ namespace waavs
 
 
 
+    inline bool op_rcheck(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+
+        if (ostk.empty())
+            return vm.error("op_rcheck: stackunderflow");
+
+        PSObject obj;
+        ostk.pop(obj);
+
+        ostk.push(obj);
+        ostk.push(PSObject::fromBool(obj.isAccessReadable()));
+
+        return true;
+    }
+
+    inline bool op_wcheck(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+
+        if (ostk.empty())
+            return vm.error("op_wcheck: stackunderflow");
+
+        PSObject obj;
+        ostk.pop(obj);
+
+        ostk.push(obj);
+        ostk.push(PSObject::fromBool(obj.isAccessWriteable()));
+
+        return true;
+    }
+
+    inline bool op_readonly(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_readonly: stackunderflow");
+
+        PSObject obj;
+        ostk.pop(obj);
+        obj.setAccessReadable(true);
+        obj.setAccessWriteable(false);
+        obj.setAccessExecutable(false);
+
+        ostk.push(obj);
+
+        return true;
+    }
+
+    inline bool op_writeonly(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_writeonly: stackunderflow");
+    
+        PSObject obj;
+        ostk.pop(obj);
+        obj.setAccessReadable(false);
+        obj.setAccessWriteable(true);
+        obj.setAccessExecutable(false);
+        ostk.push(obj);
+        
+        return true;
+    }
+
+    inline bool op_noaccess(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_noaccess: stackunderflow");
+    
+        PSObject obj;
+        ostk.pop(obj);
+        obj.setAccessReadable(false);
+        obj.setAccessWriteable(false);
+        obj.setAccessExecutable(false);
+        ostk.push(obj);
+        
+        return true;
+    }
+
+    inline bool op_executeonly(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        if (ostk.empty())
+            return vm.error("op_executeonly: stackunderflow");
+        PSObject obj;
+        ostk.pop(obj);
+        obj.setAccessReadable(false);
+        obj.setAccessWriteable(false);
+        obj.setAccessExecutable(true);
+        ostk.push(obj);
+        return true;
+    }
 
     static const PSOperatorFuncMap& getPolymorphOps()
     {
@@ -393,7 +487,14 @@ namespace waavs
             { "type",    op_type },
             { "cvlit",   op_cvlit },
             { "cvx",     op_cvx },
-            { "xcheck",  op_xcheck }
+            { "xcheck",  op_xcheck },
+            { "rcheck",  op_rcheck },
+            { "wcheck",  op_wcheck },
+            { "readonly", op_readonly },
+            { "writeonly", op_writeonly },
+            { "executeonly", op_executeonly },
+            { "noaccess", op_noaccess },
+            { "noaccess", op_noaccess},
         };
         return table;
     }

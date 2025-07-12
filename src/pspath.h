@@ -11,8 +11,8 @@ namespace waavs {
     enum class PSPathCommand : uint8_t {
         MoveTo,
         LineTo,
-        Arc,        // clockwise arc from start to end angle
-        ArcCCW, // counter-clockwise arc from start to end angle
+        //Arc,        // clockwise arc from start to end angle
+        //ArcCCW, // counter-clockwise arc from start to end angle
         EllipticArc,
         CurveTo,
         ClosePath
@@ -30,7 +30,7 @@ namespace waavs {
     };
 
     struct PSPath {
-        static constexpr double P_PI = 3.14159265358979323846; // Pi constant
+        //static constexpr double P_PI = 3.14159265358979323846; // Pi constant
 
         std::vector<PSPathSegment> segments;
 
@@ -87,6 +87,10 @@ namespace waavs {
 
             return true;
         }
+        bool moveto(double x, double y) {
+            PSMatrix identity; // Identity matrix for no transformation
+            return moveto(identity, x, y);
+        }
 
         bool lineto(const PSMatrix& ctm, double x, double y) {
 			if (!fHasCurrentPoint) return false;
@@ -104,7 +108,10 @@ namespace waavs {
 
             return true;
         }
-
+        bool lineto(double x, double y) {
+            PSMatrix identity; // Identity matrix for no transformation
+            return lineto(identity, x, y);
+        }
 
 
         // Arc command:
@@ -113,7 +120,7 @@ namespace waavs {
         //   startDeg-x3 = starting angle in degrees
         //   endDeg-y3 = ending angle in degrees
         // Note: Angles are in degrees, with 0 degrees pointing to the right (positive X axis)
-        
+        /*
         bool arc(const PSMatrix &ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
             static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
             static constexpr double RAD_TO_DEG = 180.0 / 3.14159265358979323846;
@@ -165,6 +172,7 @@ namespace waavs {
 
             return true;
         }
+        */
 
         bool ellipticArcTo(double radius,bool sweepFlag,double x2, double y2) {
 
@@ -185,6 +193,7 @@ namespace waavs {
             
             return true;
         }
+        
 
         bool arcto(const PSMatrix &ctm, double x0, double y0,
             double x1, double y1,
@@ -345,7 +354,7 @@ namespace waavs {
                     };
 
                 auto include = [&](double deg) {
-                    double rad = deg * (P_PI / 180.0);
+                    double rad = deg * (PI / 180.0);
                     double x = cx + r * std::cos(rad);
                     double y = cy + r * std::sin(rad);
                     includePoint(x, y);
@@ -377,6 +386,7 @@ namespace waavs {
                     }
                     break;
 
+                    /*
                 case PSPathCommand::Arc:
                 case PSPathCommand::ArcCCW: {
                     double cx = seg.x1;
@@ -401,6 +411,7 @@ namespace waavs {
                     includeArcBounds(cx, cy, r, startDeg, sweep);
                     break;
                 }
+                */
 
                 case PSPathCommand::EllipticArc: {
                     double cx = seg.x1;

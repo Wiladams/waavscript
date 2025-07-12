@@ -86,25 +86,39 @@ namespace waavs {
 
     bool op_initgraphics(PSVirtualMachine& vm) {
         auto& ctm = vm.graphics()->getCTM();
+        auto* grph = vm.graphics();
+
+        grph->initGraphics();
 
         //reset();              // Clear state stack
         ctm.reset();           // Identity CTM
-        //newpath();            // Clear current path
+        grph->currentPath().reset();            // Clear current path
+        
         //setRGB(0, 0, 0);      // Default black color
+        grph->currentState()->strokePaint = PSPaint::fromRGB(0, 0, 0);
+        grph->currentState()->fillPaint = PSPaint::fromRGB(0, 0, 0);
+
         //setLineWidth(1);      // Default line width
         //initClipPath();      // Default clip path
 
-        vm.graphics()->initGraphics();
         return true;
     }
 
     bool op_showpage(PSVirtualMachine& vm) {
-        vm.graphics()->showPage();
+        auto* grph = vm.graphics();
+
+        grph->showPage();
+        grph->currentPath().reset(); // Clear the current path after showing the page
+
         return true;
     }
 
-    bool op_erasepage(PSVirtualMachine& vm) {
-        vm.graphics()->erasePage();
+    bool op_erasepage(PSVirtualMachine& vm) 
+    {
+        auto* grph = vm.graphics();
+        grph->erasePage();
+        grph->currentPath().reset(); // Clear the current path after erasing the page
+
         return true;
     }
 

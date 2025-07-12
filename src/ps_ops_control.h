@@ -234,7 +234,7 @@ namespace waavs {
 
         case PSObjectType::Dictionary: {
             auto applyToDict = [&](const PSName& keyName, const PSObject& val2) -> bool {
-                ostk.pushName(keyName);
+                ostk.pushLiteralName(keyName);
                 ostk.push(val2);
 
                 estk.push(proc);

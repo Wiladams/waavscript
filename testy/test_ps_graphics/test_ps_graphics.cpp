@@ -418,8 +418,8 @@ static void truchet()
 	const char* test_s1 = R"||(
 %!PS-Adobe-3.0 EPSF-3.0 
 %%BoundingBox: 0 0 595 842 
-%2.835 dup scale 
-%5 4 translate 
+2.835 dup scale 
+5 4 translate 
 1 setlinecap 
 0 0 200 290 rectstroke 
 100 145 translate 
@@ -514,12 +514,12 @@ static void test_core()
 
 static void test_idioms()
 {
-    test_flower();
+    //test_flower();
 	//gridOfCircles();
     //radialLines();
     //scaledRectangles();
     //grid();
-    //truchet();
+    truchet();
     //pbourke_example9();
     //star();
 

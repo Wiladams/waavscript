@@ -21,8 +21,18 @@ namespace waavs {
         // 2. A dictionary is on the stack (e.g., a font dictionary)
 
         // For now, we'll only deal with the first case
-        if (!param.isName())
+        if (!param.isName() && !param.isString())
             return vm.error("typecheck: expected name for findfont");
+
+        if (param.isString())
+        {
+            auto psStr = param.asString();
+            const uint8_t* data = psStr.data();
+            size_t len = psStr.length();
+            OctetCursor oc(data, len);
+
+            param = PSObject::fromName(oc);
+        }
 
         PSName faceName = param.asName();
 

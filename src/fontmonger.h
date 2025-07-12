@@ -174,8 +174,8 @@ namespace waavs {
             // Value: font face handle 
             // Category: Font Category
             // key category value  defineresource
-            s.pushName(psName);
-            s.pushName("Font");
+            s.pushLiteralName(psName);
+            s.pushLiteralName("Font");
             s.push(PSObject::fromFontFace(psface));
 
             estk.pushExecName("defineresource");

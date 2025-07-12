@@ -47,19 +47,12 @@ namespace waavs {
         }
 
         // Do whatever is needed to show the page
-        virtual void onShowPage() {
-            //printf("onShowPage: show the current page\n", pageWidth, pageHeight);
-        }
-
         virtual void showPage() {
-            onShowPage();
             printf("showpage: flush and start new page (%gx%g)\n", pageWidth, pageHeight);
-            newpath();            // Clear current path
         }
 
         virtual void erasePage() {
             printf("erasepage: clear page content (%gx%g)\n", pageWidth, pageHeight);
-            newpath();            // Simulate clearing
         }
 
         // --- Stack operations ---
@@ -85,16 +78,13 @@ namespace waavs {
 
         virtual void initGraphics() {
             reset();              // Clear state stack
-            newpath();            // Clear current path
-            setRGB(0, 0, 0);      // Default black color
             setLineWidth(1);      // Default line width
             initClipPath();      // Default clip path
         }
 
 
-        virtual PSMatrix & getCTM()  {
-            return currentState()->ctm;
-        }
+        virtual PSMatrix & getCTM()  { return currentState()->ctm; }
+        virtual const PSMatrix& getCTM() const { return currentState()->ctm; }
 
 
         // Handling paint
@@ -173,9 +163,9 @@ namespace waavs {
         PSPath& currentPath() const { return currentState()->fCurrentPath; }
 
 
-        virtual bool newpath() {
-            return currentPath().reset();
-        }
+        //virtual bool newpath() {
+        //    return currentPath().reset();
+        //}
 
 
         virtual bool closepath() {

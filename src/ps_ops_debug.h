@@ -33,6 +33,16 @@ namespace waavs {
         return true;
     }
 
+    // =only
+    static bool op_eqonly(PSVirtualMachine& vm) {
+        if (vm.opStack().empty()) return false;
+        PSObject obj;
+        if (!vm.opStack().pop(obj)) return false;
+        writeObjectShallow(obj, std::cout);
+
+        return true;
+    }
+
     // print
     static bool op_print(PSVirtualMachine& vm) {
         if (vm.opStack().empty())
@@ -91,6 +101,7 @@ namespace waavs {
         static const PSOperatorFuncMap table = {
             { "==",         op_eqeq },
             { "=",          op_eq },
+            { "=only",      op_eqonly },
             { "print",      op_print },
             { "stack",      op_stack },
             { "pstack",     op_pstack },

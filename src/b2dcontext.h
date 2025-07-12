@@ -136,6 +136,7 @@ namespace waavs {
                 break;
 
 
+                /*
             case PSPathCommand::Arc: 
             case PSPathCommand::ArcCCW:
             {
@@ -170,7 +171,7 @@ namespace waavs {
                 }
                 break;
             }
-
+            */
             case PSPathCommand::EllipticArc: {
                 double x1 = seg.x2;
                 double y1 = seg.y2;
@@ -277,7 +278,6 @@ namespace waavs {
             ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
             ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-			//ctx.fillAll(BLRgba32(0xff, 0xff, 0xff, 255)); // Fill with white background
             ctx.fillAll(BLRgba32(0xff, 0xff, 0xff, 255)); // Fill with white background
 
 			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
@@ -301,8 +301,14 @@ namespace waavs {
 
         const BLImage& getImage() const { return fCanvas; }
 
-        void onShowPage() override {
+        void showPage() override {
             //printf("onShowPage: show the current page\n", pageWidth, pageHeight);
+            ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
+        }
+
+        void erasePage() override {
+            // Clear the canvas
+            ctx.clearAll();
             ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
         }
 
@@ -312,8 +318,8 @@ namespace waavs {
             auto& ostk = vm.opStack();
             auto& estk = vm.execStack();
 
-            ostk.pushName(faceName);
-            ostk.pushName("Font");
+            ostk.pushLiteralName(faceName);
+            ostk.pushLiteralName("Font");
             estk.pushExecName("findresource");
 
 
@@ -529,15 +535,6 @@ namespace waavs {
 
             return success;
         }
-
-
-    private:
-
-
-
-
-
-
 
     };
 

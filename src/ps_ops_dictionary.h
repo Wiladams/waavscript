@@ -9,25 +9,26 @@ namespace waavs {
 
     // --- Operator Implementations ---
 
-    static bool op_def(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+    static bool op_def(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
         
-        if (s.size() < 2)
+        if (ostk.size() < 2)
             return vm.error("op_def: stackunderflow");
 
         PSObject value;
-        PSObject key;
+        PSObject keyObj;
 
-        s.pop(value);
-        s.pop(key);
+        ostk.pop(value);
+        ostk.pop(keyObj);
 
-        if (!key.isLiteralName())
+        if (!keyObj.isLiteralName())
         {
             writeObjectDeep(value);
             return vm.error("op_def:typecheck: def expects a literal name");
         }
 
-        vm.dictionaryStack.define(key.asName(), value);
+        vm.dictionaryStack.define(keyObj.asName(), value);
 
         return true;
     }
@@ -38,13 +39,11 @@ namespace waavs {
         if (s.empty())
             return vm.error("op_dict: stackunderflow");
 
-        PSObject sizeObj;
-        s.pop(sizeObj);
-
-        if (!sizeObj.isInt())
+        int32_t sz{ 0 };
+        if (!s.popInt(sz))
             return vm.error("op_dict: typecheck; expected int");
 
-        auto d = PSDictionary::create(sizeObj.asInt());
+        auto d = PSDictionary::create(sz);
         s.pushDictionary(d);
 
         return true;
@@ -58,11 +57,9 @@ namespace waavs {
         if (s.empty()) 
             return vm.error("op_maxlength: stackunderflow");
 
-        PSObject dictObj;
-        s.pop(dictObj);
-
-        if (!dictObj.isDictionary()) 
-            return vm.error("op_maxlength: typecheck; expected dictionary");
+        PSDictionaryHandle dictHandle;
+        if (!s.popDictionary(dictHandle)) 
+            return vm.error("op_maxlength: typecheck; expected dictionary handle");
 
         // PostScript allows arbitrary max size, but we return a placeholder.
         s.pushInt(999);

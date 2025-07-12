@@ -6,12 +6,7 @@
 
 namespace waavs {
 
-#ifndef PI
-#  define PI 3.14159265358979323846
-#endif
-
     // ----- Reusable Templates -----
-
     template <typename Func>
     inline bool unaryMathOp(PSVirtualMachine& vm, Func func) {
         auto& s = vm.opStack();

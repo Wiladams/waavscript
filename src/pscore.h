@@ -155,9 +155,12 @@ namespace waavs {
     enum PSObjectFlags : uint32_t {
         PS_OBJ_FLAG_NONE        = 0,
         PS_OBJ_FLAG_EXECUTABLE  = 1 << 0,
-        PS_OBJ_FLAG_READABLE    = 1 << 1,
-        PS_OBJ_FLAG_WRITABLE    = 1 << 2,
-        PS_OBJ_FLAG_SYSTEM_OP   = 1 << 3,
+        PS_OBJ_FLAG_SYSTEM_OP = 1 << 1,
+
+        PS_OBJ_FLAG_ACCESS_READABLE    = 1 << 2,
+        PS_OBJ_FLAG_ACCESS_WRITABLE    = 1 << 3,
+        PS_OBJ_FLAG_ACCESS_EXECUTABLE = 1 << 4,
+
         // Future bits here (like `CONST`, `PROTECTED`, `FROM_ROM`, etc.)
     };
 
@@ -196,6 +199,10 @@ namespace waavs {
             fValue = std::monostate{};
             type = PSObjectType::Null;
             fFlags = PS_OBJ_FLAG_NONE;
+            setAccessReadable(true);
+            setAccessWriteable(true);
+            setAccessExecutable(true);
+
             return true;
         }
 
@@ -328,11 +335,20 @@ namespace waavs {
         inline void clearFlag(uint32_t flag) noexcept { fFlags &= ~flag; }
         inline bool hasFlag(uint32_t flag) const noexcept { return (fFlags & flag) != 0; }
 
-        inline bool isExecutable() const noexcept { return hasFlag(PS_OBJ_FLAG_EXECUTABLE); }
-        inline void setExecutable(bool val) noexcept {val ? setFlag(PS_OBJ_FLAG_EXECUTABLE) : clearFlag(PS_OBJ_FLAG_EXECUTABLE);}
-
         inline bool isSystemOp() const noexcept { return hasFlag(PS_OBJ_FLAG_SYSTEM_OP); }
+        inline bool isExecutable() const noexcept { return hasFlag(PS_OBJ_FLAG_EXECUTABLE); }
+
+        inline bool isAccessReadable() const noexcept { return hasFlag(PS_OBJ_FLAG_ACCESS_READABLE); }
+        inline bool isAccessWriteable() const noexcept { return hasFlag(PS_OBJ_FLAG_ACCESS_WRITABLE); }
+        inline bool isAccessExecutable() const noexcept { return hasFlag(PS_OBJ_FLAG_ACCESS_EXECUTABLE); }
+
+        inline void setExecutable(bool val) noexcept {val ? setFlag(PS_OBJ_FLAG_EXECUTABLE) : clearFlag(PS_OBJ_FLAG_EXECUTABLE);}
         inline void setSystemOp(bool val) noexcept { val ? setFlag(PS_OBJ_FLAG_SYSTEM_OP) : clearFlag(PS_OBJ_FLAG_SYSTEM_OP); }
+        
+        inline void setAccessReadable(bool val) noexcept { val ? setFlag(PS_OBJ_FLAG_ACCESS_READABLE) : clearFlag(PS_OBJ_FLAG_ACCESS_READABLE); }
+        inline void setAccessWriteable(bool val) noexcept { val ? setFlag(PS_OBJ_FLAG_ACCESS_WRITABLE) : clearFlag(PS_OBJ_FLAG_ACCESS_WRITABLE); }
+        inline void setAccessExecutable(bool val) noexcept { val ? setFlag(PS_OBJ_FLAG_ACCESS_EXECUTABLE) : clearFlag(PS_OBJ_FLAG_ACCESS_EXECUTABLE); }
+
 
         // Checking object type
         inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
@@ -462,13 +478,14 @@ namespace waavs {
 
 // Some helper functions
 namespace waavs {
-    inline bool matrixFromArray(const PSArray &h, PSMatrix& out) {
-        if ( h.size() != 6 || !h.allNumbers())
+    inline bool matrixFromArray(const PSArrayHandle h, PSMatrix& out) 
+    {
+        if ( h->size() != 6 || !h->allNumbers())
             return false;
 
         for (size_t i = 0; i < 6; ++i) {
             PSObject o;
-            if (!h.get(i, o)) return false;
+            if (!h->get(i, o)) return false;
             out.m[i] = o.asReal();
         }
 
@@ -476,13 +493,14 @@ namespace waavs {
     }
 
     // Helper: Extract matrix from object (matrix or numeric array)
-    inline bool extractMatrix(const PSObject& obj, PSMatrix& out) {
+    inline bool extractMatrix(const PSObject& obj, PSMatrix& out) 
+    {
         if (obj.isMatrix()) {
             out = obj.asMatrix();
             return true;
         }
         if (obj.isArray()) {
-            return matrixFromArray(*obj.asArray(), out);
+            return matrixFromArray(obj.asArray(), out);
         }
         return false;
     }
