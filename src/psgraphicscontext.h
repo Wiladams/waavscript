@@ -161,11 +161,11 @@ namespace waavs {
         }
 
         PSPath& currentPath() const { return currentState()->fCurrentPath; }
+        void setCurrentPath(const PSPath& path) const {
+            currentState()->fCurrentPath = path;
+        }
 
 
-        //virtual bool newpath() {
-        //    return currentPath().reset();
-        //}
 
 
         virtual bool closepath() {
@@ -239,7 +239,7 @@ namespace waavs {
             return false;
         }
 
-        virtual bool showText(const PSString& text) {
+        virtual bool showText(const PSMatrix &ctm, const PSString& text) {
             printf("PSGraphicsContext::showText() [not implemented]\n");
             return false;
         }

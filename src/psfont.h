@@ -118,41 +118,6 @@ namespace waavs {
             // Initialize with a system handle, if provided
         }
 
-        /*
-        PSFont(const PSFontFaceHandle face, double size) 
-            : fDict(PSDictionary::create())
-        {
-            if (!face) 
-                return; // Ensure face is valid
-
-            fDict->put("FontFace", PSObject::fromFontFace(face)); // Store the face reference
-            fDict->copyEntryFrom(face->getDictionary().get(), "FontName"); // Copy the font name from the face
-            fDict->put("PointSize", PSObject::fromReal(size)); // Store the point size
-
-            // scale face matrix by size
-            PSObject faceMatrixObj;
-            PSMatrix fontMatrix = PSMatrix(); // Default to identity matrix
-
-            if (face->get("FontMatrix", faceMatrixObj)) {
-                fontMatrix = faceMatrixObj.asMatrix();
-            }
-            fontMatrix.scale(size, size); // Scale the matrix by the point size
-
-            fDict->put("FontMatrix", PSObject::fromMatrix(fontMatrix));
-
-            auto faceDict = face->getDictionary();
-            
-            if (!faceDict) return;
-
-            // one of the fields in the face dictionary is 'FontFile'.
-            // Get that out, and load a BLFontFace object from it
-            PSObject fontFileObj;
-            if (!faceDict->get("FontFile", fontFileObj)) {
-                return; // No font file, cannot create font
-            }
-
-        }
-        */
 
         PSDictionaryHandle getDictionary() const { return fDict; }
         void* getSystemHandle() const { return fSystemHandle; }
@@ -174,25 +139,5 @@ namespace waavs {
             return std::shared_ptr<PSFont>(new PSFont(sysHandle));
         }
 
-        /*
-        static PSFontHandle createFromSize(const PSFontFaceHandle& face, double size) 
-        {
-            if (!face) 
-                return nullptr;
-
-            auto font = std::shared_ptr<PSFont>(new PSFont(face, size));
-
-            return font;
-        }
-
-
-        static PSFontHandle createFromMatrix(const PSFontFaceHandle& face, const PSMatrix& m) {
-            if (!face) return nullptr;
-
-            auto font = std::make_shared<PSFont>(face, m);
-
-            return font;
-        }
-        */
     };
 } // namespace waavs

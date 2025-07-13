@@ -276,11 +276,11 @@ namespace waavs {
             lineto(ctm, xt1, yt1);
             ellipticArcTo(r, sweepFlag, xt2, yt2);
             //moveto(xt2, yt2);
-            lineto(ctm, x2, y2);
+            //lineto(ctm, x2, y2);
 
 
-            fCurrentX = x2;
-            fCurrentY = y2;
+            fCurrentX = xt2;
+            fCurrentY = yt2;
             fHasCurrentPoint = true;
 
             return true;

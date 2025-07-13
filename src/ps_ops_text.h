@@ -35,7 +35,7 @@ namespace waavs {
         ostk.pop(strObj);
 
         // pop a string, then render it using current position and font
-        g->showText(strObj.asMutableString());
+        g->showText(ctm, strObj.asMutableString());
 
         return true;
     }

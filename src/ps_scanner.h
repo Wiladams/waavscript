@@ -15,6 +15,54 @@ namespace waavs
 {
 
 
+    static bool spanToString(OctetCursor oc, std::vector<uint8_t>& result)
+    {
+        const char* src = (const char *)oc.data();
+        size_t len = oc.size();
+
+        result.reserve(len); // worst case
+
+        for (size_t i = 0; i < len; ++i) {
+            char ch = src[i];
+            if (ch == '\\' && i + 1 < len) {
+                char next = src[++i];
+
+                switch (next) {
+                case 'n': result.push_back('\n'); break;
+                case 'r': result.push_back('\r'); break;
+                case 't': result.push_back('\t'); break;
+                case 'b': result.push_back('\b'); break;
+                case 'f': result.push_back('\f'); break;
+                case '\\': result.push_back('\\'); break;
+                case '(': result.push_back('('); break;
+                case ')': result.push_back(')'); break;
+                default:
+                    if (next >= '0' && next <= '7') {
+                        // Octal escape: up to 3 digits
+                        int val = next - '0';
+                        int count = 1;
+
+                        while (count < 3 && i + 1 < len && src[i + 1] >= '0' && src[i + 1] <= '7') {
+                            val = (val << 3) + (src[++i] - '0');
+                            ++count;
+                        }
+                        result.push_back(static_cast<uint8_t>(val));
+                    }
+                    else {
+                        // Unknown escape, just keep literal
+                        result.push_back(next);
+                    }
+                    break;
+                }
+            }
+            else {
+                result.push_back(static_cast<uint8_t>(ch));
+            }
+        }
+
+        return true;
+    }
+
 
     static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
     {
@@ -106,8 +154,12 @@ namespace waavs
         case PSLexType::String: {    // (abc)
             // BUGBUG - here we can do string decoding, or perhaps we leave
             // that to the PSString class?
-            PSString str = PSString::fromSpan(lex.span.data(), lex.span.size());
-            return obj.resetFromString(str);
+            std::vector<uint8_t> decoded;
+            if (!spanToString(lex.span, decoded)) {
+                return false; // Invalid string format
+            }
+
+            return obj.resetFromString(PSString::fromVector(decoded));
         }
 
         case PSLexType::HexString: { // <48656C6C6F>

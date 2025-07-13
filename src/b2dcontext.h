@@ -444,7 +444,7 @@ namespace waavs {
 
         }
 
-        bool showText(const PSString& text) override
+        bool showText(const PSMatrix& ctm, const PSString& text) override
         {
             // select the current font
             // encode the string
@@ -454,6 +454,9 @@ namespace waavs {
             double x, y;
             currentState()->fCurrentPath.getCurrentPoint(x, y);
 
+            double dx, dy;
+            getStringWidth(fontHandle, text, dx, dy); 
+
             ctx.save();
 
             // DEBUG - Postscript axis before anything else
@@ -462,7 +465,7 @@ namespace waavs {
 
 
             // Apply CTM matrix before the coordinates of the text
-            PSMatrix ctm = currentState()->ctm;
+           // PSMatrix ctm = currentState()->ctm;
             BLMatrix2D bctm(ctm.m[0], ctm.m[1], ctm.m[2], ctm.m[3], ctm.m[4], ctm.m[5]);
             ctx.applyTransform(bctm);
 
@@ -487,6 +490,10 @@ namespace waavs {
             ctx.fillUtf8Text(BLPoint(0, 0), *font, (const char *)text.data(), text.length());
             
             ctx.restore();
+
+            // Reset the current path after drawing text
+            currentState()->fCurrentPath.fCurrentX = x + dx; 
+            currentState()->fCurrentPath.fCurrentY = y + dy;
 
             return false;
         }

@@ -122,13 +122,13 @@ Legend:
 | Operator     | Description            | Status |
 | ------------ | ---------------------- | ------ |
 | `xcheck`     | Executable?            | ✅     |
-| `rcheck`     | Readable?              | ⬜     |
-| `wcheck`     | Writable?              | ⬜     |
-| `readonly`   | Make readonly          | ⬜     |
-| `executeonly`| Make execute-only      | ⬜     |
-| `noaccess`   | Make no-access         | ⬜     |
-| `writable`   | Make writable          | ⬜     |
-| `executable` | Make executable        | ⬜     |
+| `rcheck`     | Readable?              | ✅     |
+| `wcheck`     | Writable?              | ✅     |
+| `readonly`   | Make readonly          | ✅     |
+| `executeonly`| Make execute-only      | ✅     |
+| `noaccess`   | Make no-access         | ✅     |
+| `writable`   | Make writable          | ✅     |
+| `executable` | Make executable        | ✅     |
 
 ---
 
@@ -238,14 +238,15 @@ Legend:
 | `curveto`      | Draw Bézier curve        | ✅     |
 | `arc`          | Arc (CCW)                | ✅     |
 | `arcn`         | Arc (CW)                 | ✅     |
-| `arcto`        | Arc to tangent           | ✅     |
+| `arcto`        | Draw Arc to tangent      | ✅     |
+| `arct`         | Calculate Arc tangents   | ✅     |
 | `closepath`    | Close current subpath    | ✅     |
 | `stroke`       | Stroke path              | ✅     |
 | `fill`         | Fill path                | ✅     |
 | `eofill`       | Even-odd fill            | ✅     |
 | `clip`         | Set clip path            | ⬜     |
 | `eoclip`       | Even-odd clip            | ⬜     |
-| `initclip`     | Reset clip path          | ⬜     |
+| `initclip`     | Reset clip path          | ✅     |
 
 ---
 
@@ -271,9 +272,9 @@ Legend:
 
 | Operator     | Description             | Status |
 | ------------ | ----------------------- | ------ |
-| `show`       | Render string           | ⬜     |
-| `stringwidth`| Measure string width    | ⬜     |
-| `charpath`   | Append glyph path       | ⬜     |
+| `show`       | Render string           | ✅     |
+| `stringwidth`| Measure string width    | ✅     |
+| `charpath`   | Append glyph path       | ✅     |
 
 ---
 
@@ -281,10 +282,10 @@ Legend:
 
 | Operator      | Description             | Status |
 | ------------- | ----------------------- | ------ |
-| `flattenpath` | Flatten Béziers         | ⬜     |
+| `flattenpath` | Flatten Béziers         | ✅     |
 | `reversepath` | Reverse path segments   | ⬜     |
 | `pathbbox`    | Get bounding box        | ✅     |
-| `pathforall`  | Iterate over segments   | ⬜     |
+| `pathforall`  | Iterate over segments   | ✅     |
 
 ---
 

@@ -69,6 +69,7 @@ namespace waavs {
   /NewCenturySchlbk-BoldItalic /cambria-bolditalic
 
   % Palatino family
+  /Palatino                /palatinolinotype-roman
   /Palatino-Roman          /palatinolinotype-roman
   /Palatino-Italic         /palatinolinotype-italic
   /Palatino-Bold           /palatinolinotype-bold

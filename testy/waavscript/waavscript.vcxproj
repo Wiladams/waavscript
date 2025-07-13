@@ -221,6 +221,7 @@
     <ClInclude Include="..\..\src\ps_ops_vm.h" />
     <ClInclude Include="..\..\src\ps_print.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
+    <ClInclude Include="..\..\src\stopwatch.h" />
     <ClInclude Include="..\..\src\strutil.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
