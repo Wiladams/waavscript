@@ -100,10 +100,44 @@ namespace waavs {
 		return p;
 	}
 
-	// Turn a supposed hex ascii character into a byte value.
+    // Advance the cursor until the first occurence of the exact keyword is found.
+	inline bool skipUntilKeyword(OctetCursor& src, const OctetCursor& keyword) noexcept
+	{
+		size_t len = keyword.size();
+		if (len == 0 || src.size() < len)
+			return false;
+
+		const uint8_t* start = src.begin();
+		const uint8_t* end = src.end();
+		const uint8_t* key = keyword.begin();
+		uint8_t first = key[0];
+
+		while (start <= end - len) {
+			// Look for first matching byte
+			start = static_cast<const uint8_t*>(std::memchr(start, first, end - start));
+			if (!start)
+				return false;
+
+			// Compare remaining bytes
+			if (std::memcmp(start, key, len) == 0) {
+				src = OctetCursor(start, end - start); // Stop at keyword start
+				return true;
+			}
+
+			++start;
+		}
+
+		return false;
+	}
+
+
+	// hexToNibble
+	// 
+	// Turn a supposed hex ascii character into a nibble (4-bit) value.
 	// Returns true if the character was a valid hex digit, and out is set to the value.
 	// Returns false if the character was not a valid hex digit, and out is unchanged.
-	static inline constexpr bool  decodeHex(uint8_t c, uint8_t& out) noexcept
+	//
+	static inline constexpr bool  hexToNibble(uint8_t c, uint8_t& out) noexcept
 	{
 		if (c >= '0' && c <= '9') { out = (c - '0'); return true; }
 		if (c >= 'a' && c <= 'f') { out = (c - 'a') + 10; return true; }
@@ -135,6 +169,7 @@ namespace waavs
 		Comment,
         DSCComment,		// %%DSCKeyword value
 		Delimiter,
+        EexecSwitch,	// eexec switch
 		Eof
 	};
 
@@ -358,12 +393,43 @@ namespace waavs {
 		return true;
 	}
 
+	inline bool scanEncryptedBlock(OctetCursor& src, PSLexeme& lex) noexcept
+	{
+		static OctetCursor keyword = "cleartomark";
+		OctetCursor begin = src;
+		OctetCursor cursor = src;
+
+
+        // return false if the keyword is not found
+		if (!skipUntilKeyword(cursor, keyword))
+			return false;
+
+		// Set span from beginning to just before the match
+		lex.type = PSLexType::EexecSwitch;
+		lex.span = OctetCursor(begin.begin(), cursor.begin() - begin.begin());
+
+		// Advance *past* the matched keyword
+		cursor.skip(keyword.size());
+		src = cursor;
+
+		return true;
+	}
+
+
+
 	static bool scanNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
 	{
 		const uint8_t * start = src.begin();
 		skipWhile(src, PS_NAME_CHAR);
 		lex.type = PSLexType::Name;
 		lex.span = OctetCursor(start, src.begin() - start);
+
+		if (lex.span == "eexec") {
+            if (!scanEncryptedBlock(src, lex))
+				return false;
+
+        }
+
 		return true;
 	}
 
@@ -380,6 +446,10 @@ namespace waavs {
 
 		// Skip whitespace
 		skipWhile(src, PS_WHITESPACE);
+		// skip null bytes
+		while (!src.empty() && *src.begin() == 0) {
+			src.skip(1);
+        }
 
 		if (src.empty()) {
 			lex.type = PSLexType::Eof;
@@ -560,6 +630,9 @@ namespace waavs {
 		{
 			return nextPSLexeme(src, lex);
 		}
+
+		void setCursor(OctetCursor input)  { src = input;  }
+		bool getCursor(OctetCursor &out) const { out = src; return true;  }
 
 	};
 }

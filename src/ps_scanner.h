@@ -80,14 +80,36 @@ namespace waavs
             ++src;
 
             uint8_t hi, lo;
-            if (!decodeHex(hiChar, hi) || !decodeHex(loChar, lo))
+            if (!hexToNibble(hiChar, hi) || !hexToNibble(loChar, lo))
                 return false;
 
-            out.push_back((hi << 4) | lo);
+            uint8_t value = (hi << 4) | lo;
+            out.push_back(value);
         }
 
         return true;
     }
+
+    // Decrypt eexec-encrypted data
+    inline bool eexecDecrypt(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
+    {
+        constexpr uint16_t c1 = 52845u;
+        constexpr uint16_t c2 = 22719u;
+        constexpr uint16_t R = 55665;
+
+        out.resize(in.size());
+        uint16_t key = R;
+
+        for (size_t i = 0; i < in.size(); ++i) {
+            uint16_t cipher = in[i];
+            uint16_t plain = cipher ^ (key >> 8);
+            out[i] = plain;
+            key = static_cast<uint16_t>(((cipher + key) * c1 + c2) & 0xFFFF);
+        }
+
+        return true;
+    }
+
 
 
     static inline bool objectFromLex(PSLexeme lex, PSObject& obj)
@@ -252,18 +274,88 @@ namespace waavs
         return false;
     }
 
+    
     struct PSObjectGenerator
     {
         PSLexemeGenerator lexgen;
-        explicit PSObjectGenerator(const OctetCursor &oc) : lexgen(oc) {}
 
-        bool next(PSObject& obj) 
+
+        explicit PSObjectGenerator(const OctetCursor& oc)
+            : lexgen(oc)
+        {
+        }
+
+        bool next(PSObject& obj)
         {
             return nextPSObject(lexgen, obj);
         }
+    };
+    
 
+    /*
+    * This is for dealing with embedded type1 fonts
+    struct PSObjectGenerator
+    {
+        std::vector<PSLexemeGenerator> stack;
+        std::vector<uint8_t> decrypted;
 
-	};
+        explicit PSObjectGenerator(const OctetCursor& oc)
+        {
+            stack.emplace_back(oc);
+        }
+
+        bool next(PSObject& obj)
+        {
+
+            while (!stack.empty()) {
+                PSLexemeGenerator& top = stack.back();
+
+                PSLexeme lex;
+                if (!top.next(lex)) {
+                    stack.pop_back(); // finished current stream
+                    continue;
+                }
+
+                switch (lex.type)
+                {
+
+                case PSLexType::Eof:
+                    stack.pop_back(); // done with this generator
+                    continue;
+
+                case PSLexType::EexecSwitch: {
+                    // --- decrypt remaining input ---
+                    std::vector<uint8_t> hexDecoded;
+
+                    if (!spanToHexString(lex.span, hexDecoded))
+                        return false;
+
+                    eexecDecrypt(hexDecoded, decrypted);
+
+                    // Optional: trim 512 random bytes from beginning
+                    // if the first 4–8 lines look like garbage
+
+                    // Push new generator
+                    stack.emplace_back(OctetCursor(decrypted.data(), decrypted.size()));
+                    continue;
+                }
+
+                case PSLexType::LBRACE:
+                    return scanProcedure(top, obj);
+
+                case PSLexType::RBRACE:
+                    return obj.reset();
+
+                default:
+                    return objectFromLex(lex, obj);
+                }
+            }
+
+            return obj.reset(); // All sources exhausted
+        }
+    };
+    */
+
 
 
 }

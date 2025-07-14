@@ -72,9 +72,9 @@ namespace waavs {
     }
 
     static bool op_pstack(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
+        auto& ostk = vm.opStack();
         std::printf("<< pstack BEGIN <<\n");
-        for (const auto& obj : s) {
+        for (const auto& obj : ostk) {
             writeObjectDeep(obj, std::cout);
             std::cout << std::endl;
         }

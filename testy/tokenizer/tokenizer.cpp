@@ -27,8 +27,10 @@ using namespace waavs;
 		Comment,
 		DSCComment,		// %%DSCKeyword value
 		Delimiter,
+		EexecSwitch,	// eexec switch
 		Eof
 	};
+
 */
 
 std::unordered_map<PSLexType, const char*> lexTypeNames = {
@@ -50,6 +52,7 @@ std::unordered_map<PSLexType, const char*> lexTypeNames = {
 	{PSLexType::Comment, "Comment"},
 	{PSLexType::DSCComment, "DSCComment"},
 	{PSLexType::Delimiter, "Delimiter"},
+    {PSLexType::EexecSwitch, "EexecSwitch"},
 	{PSLexType::Eof, "Eof"}
 };
 

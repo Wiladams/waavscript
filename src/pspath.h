@@ -11,8 +11,6 @@ namespace waavs {
     enum class PSPathCommand : uint8_t {
         MoveTo,
         LineTo,
-        //Arc,        // clockwise arc from start to end angle
-        //ArcCCW, // counter-clockwise arc from start to end angle
         EllipticArc,
         CurveTo,
         ClosePath
@@ -20,17 +18,71 @@ namespace waavs {
 
     struct PSPathSegment {
         PSPathCommand command;
+        PSMatrix fTransform;    // transformation matrix for this segment
 
         // Holds up to 3 points depending on the command
         double x1 = 0, y1 = 0;
         double x2 = 0, y2 = 0;
         double x3 = 0, y3 = 0;
-        PSMatrix fTransform;    // transformation matrix for this segment
 
     };
 
+    // calArcTangents
+    //
+    // Given three points (x0, y0), (x1, y1), (x2, y2) 
+    // where (x0,y0) is the starting point
+    //       (x1, y1) is the corner point
+    //       (x2, y2) is the end point
+    // and a radius r, calculates the tangent points (xt1, yt1) and (xt2, yt2)
+    // Returns true if successful, false if the angle is too small to draw an arc
+    // The tangent points are the points on the circle of radius r that touch the lines
+    // going from the two endpoints to the corner point.
+    static bool calcArcTangents(double x0, double y0,
+        double x1, double y1,
+        double x2, double y2,
+        double r,
+        double& xt1, double& yt1,
+        double& xt2, double& yt2)
+    {
+        // 1. Compute direction vectors away from the corner towards the tangent points
+        // From start point (x0, y0) to corner (x1, y1)
+        double dx1 = x0 - x1;
+        double dy1 = y0 - y1;
+        double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+        double vx1 = dx1 / len1; // Normalize
+        double vy1 = dy1 / len1;
+
+        // From end point (x2, y2) to corner (x1, y1)
+        double dx2 = x2 - x1;
+        double dy2 = y2 - y1;
+        double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+        double vx2 = dx2 / len2; // Normalize
+        double vy2 = dy2 / len2;
+
+        // 2. Compute the angle between the two vectors
+        // This gives us the interior angle at the corner
+        double dot = vx1 * vx2 + vy1 * vy2; // Dot product
+        double theta = std::acos(CLAMP(dot, -1.0, 1.0)); // Angle in radians
+
+        // 3. Calculate the distance from the corner to the tangent points
+        // We want to back up along the vectors from the corner point along the normals
+        // This comes from from geometry of circle segments tangent to both lines
+        // Note:  if the angle is too small, we can't draw an arc, so we should exit, or
+        // just draw the two lines instead
+        double d = r / std::tan(theta / 2.0);
+
+
+        // 4.0 Compute tangent points
+        xt1 = x1 + vx1 * d; // Tangent point 1
+        yt1 = y1 + vy1 * d; // Tangent point 1
+        xt2 = x1 + vx2 * d; // Tangent point 2
+        yt2 = y1 + vy2 * d; // Tangent point 2
+
+        return true;
+    }
+
+
     struct PSPath {
-        //static constexpr double P_PI = 3.14159265358979323846; // Pi constant
 
         std::vector<PSPathSegment> segments;
 
@@ -74,9 +126,9 @@ namespace waavs {
         bool moveto(const PSMatrix &ctm, double x, double y) {
             PSPathSegment seg;
             seg.command = PSPathCommand::MoveTo;
+            seg.fTransform = ctm; // Store the transformation matrix
             seg.x1 = x;
             seg.y1 = y;
-            seg.fTransform = ctm; // Store the transformation matrix
 
             segments.push_back(seg);
 
@@ -97,9 +149,9 @@ namespace waavs {
 
             PSPathSegment seg;
             seg.command = PSPathCommand::LineTo;
+            seg.fTransform = ctm;
             seg.x1 = x;
             seg.y1 = y;
-            seg.fTransform = ctm;
 
             segments.push_back(seg);
 
@@ -114,69 +166,12 @@ namespace waavs {
         }
 
 
-        // Arc command:
-        //   cx-x1, cy-y1 = center of the arc 
-        //   radius-x2 = radius of the arc
-        //   startDeg-x3 = starting angle in degrees
-        //   endDeg-y3 = ending angle in degrees
-        // Note: Angles are in degrees, with 0 degrees pointing to the right (positive X axis)
-        /*
-        bool arc(const PSMatrix &ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
-            static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
-            static constexpr double RAD_TO_DEG = 180.0 / 3.14159265358979323846;
-
-            // Arc is valid even if there is no currentpoint yet (like moveto)
-            // Update currentpoint to arc endpoint (angle = endDeg)
-            double thetaRad = endDeg * DEG_TO_RAD;
-            fCurrentX = cx + radius * std::cos(thetaRad);
-            fCurrentY = cy + radius * std::sin(thetaRad);
-            fHasCurrentPoint = true;
-
-
-            PSPathSegment seg;
-            seg.fTransform = ctm; // Store the transformation matrix
-            seg.command = PSPathCommand::Arc;
-            seg.x1 = cx;        // Center X
-            seg.y1 = cy;        // Center Y
-            seg.x2 = radius;    // Radius
-            seg.y2 = 0;         // Unused
-            seg.x3 = startDeg;  // Start angle (degrees)
-            seg.y3 = endDeg;    // End angle (degrees)
-
-            segments.push_back(seg);
-
-
-            return true;
-        }
-        
-
-        bool arcCCW(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg) {
-
-            PSPathSegment seg;
-            seg.fTransform = ctm; // Store the transformation matrix
-            seg.command = PSPathCommand::ArcCCW;
-            seg.x1 = cx;        // Center X
-            seg.y1 = cy;        // Center Y
-            seg.x2 = radius;    // Radius
-            seg.y2 = 0;         // Unused
-            seg.x3 = startDeg;  // Start angle (degrees)
-            seg.y3 = endDeg;    // End angle (degrees)
-
-            segments.push_back(seg);
-
-            // Update currentpoint to the arc’s endpoint
-            double endRad = endDeg * (P_PI / 180.0);
-            fCurrentX = cx + radius * cos(endRad);
-            fCurrentY = cy + radius * sin(endRad);
-            fHasCurrentPoint = true;
-
-            return true;
-        }
-        */
 
         bool ellipticArcTo(double radius,bool sweepFlag,double x2, double y2) {
 
-            if (!fHasCurrentPoint) return false;
+            if (!fHasCurrentPoint) 
+                return false;
+
             // Store the elliptic arc segment
             PSPathSegment seg;
             seg.command = PSPathCommand::EllipticArc;
@@ -275,9 +270,6 @@ namespace waavs {
             // Build the actual path segments
             lineto(ctm, xt1, yt1);
             ellipticArcTo(r, sweepFlag, xt2, yt2);
-            //moveto(xt2, yt2);
-            //lineto(ctm, x2, y2);
-
 
             fCurrentX = xt2;
             fCurrentY = yt2;
@@ -292,19 +284,19 @@ namespace waavs {
             double x2, double y2,
             double x3, double y3) {
 
-            if (!fHasCurrentPoint) return false;
+            if (!fHasCurrentPoint) 
+                return false;
 
-
-            
-            double tx1, ty1;
-            double tx2, ty2;
-            double tx3, ty3;
-            
-            ctm.transformPoint(x1, y1, tx1, ty1);
-            ctm.transformPoint(x2, y2, tx2, ty2);
-            ctm.transformPoint(x3, y3, tx3, ty3);
-
-            segments.push_back({ PSPathCommand::CurveTo, tx1, ty1, tx2, ty2, tx3, ty3 });
+            PSPathSegment seg;
+            seg.command = PSPathCommand::CurveTo;
+            seg.fTransform = ctm;
+            seg.x1 = x1;
+            seg.y1 = y1;
+            seg.x2 = x2;
+            seg.y2 = y2;
+            seg.x3 = x3;
+            seg.y3 = y3;
+            segments.push_back(seg);
 
             fCurrentX = x3; // Assuming x3 is the end point of the curve
             fCurrentY = y3;
@@ -313,8 +305,18 @@ namespace waavs {
         }
 
         bool close() {
-            segments.push_back({ PSPathCommand::ClosePath });
-			fCurrentX = fStartX; // Reset current point to start point
+            if (!fHasCurrentPoint) 
+                return false;
+            
+            PSPathSegment seg;
+            seg.command = PSPathCommand::ClosePath;
+            seg.fTransform = PSMatrix(); // No transformation for close path
+            seg.x1 = fCurrentX;
+            seg.y1 = fCurrentY;
+
+            segments.push_back(seg);
+
+            fCurrentX = fStartX; // Reset current point to start point
 			fCurrentY = fStartY;
 
             return true;
@@ -386,33 +388,6 @@ namespace waavs {
                     }
                     break;
 
-                    /*
-                case PSPathCommand::Arc:
-                case PSPathCommand::ArcCCW: {
-                    double cx = seg.x1;
-                    double cy = seg.y1;
-                    double r = seg.x2;
-                    double startDeg = seg.x3;
-                    double endDeg = seg.y3;
-
-                    // Convert to sweep angle
-                    auto norm = [](double deg) {
-                        deg = std::fmod(deg, 360.0);
-                        return deg < 0 ? deg + 360.0 : deg;
-                        };
-                    startDeg = norm(startDeg);
-                    endDeg = norm(endDeg);
-
-                    bool ccw = (seg.command == PSPathCommand::ArcCCW);
-                    double sweep = endDeg - startDeg;
-                    if (ccw && sweep < 0) sweep += 360.0;
-                    if (!ccw && sweep > 0) sweep -= 360.0;
-
-                    includeArcBounds(cx, cy, r, startDeg, sweep);
-                    break;
-                }
-                */
-
                 case PSPathCommand::EllipticArc: {
                     double cx = seg.x1;
                     double cy = seg.y1;
@@ -430,7 +405,6 @@ namespace waavs {
 
             return found;
         }
-
     };
 
 } // namespace waavs

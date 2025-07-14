@@ -41,5 +41,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="sample.ps" />
+    <None Include="encrypted.ps" />
   </ItemGroup>
 </Project>

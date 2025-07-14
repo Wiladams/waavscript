@@ -190,6 +190,9 @@
     <ClInclude Include="..\..\src\ps_lexer.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="encrypted.ps" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

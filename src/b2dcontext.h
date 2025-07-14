@@ -46,36 +46,6 @@ namespace waavs {
         }
     }
 
-    // From current point to: angleStart + sweep
-    // With radius = BLPoint(r, r), rotation = 0
-    // largeArcFlag = sweepDeg > 180
-    // sweepFlag = true  // clockwise
-    /*
-    bool emitArcToBlend2D(BLPath& path, double cx, double cy, double r, double a1Deg, double sweepDeg)
-    {
-        double a2Deg = a1Deg + sweepDeg;
-
-        // Start and end point in radians
-        double a1Rad = a1Deg * (3.14159265358979323846 / 180.0);
-        double a2Rad = a2Deg * (3.14159265358979323846 / 180.0);
-
-        double x0 = cx + r * std::cos(a1Rad);
-        double y0 = cy + r * std::sin(a1Rad);
-        double x1 = cx + r * std::cos(a2Rad);
-        double y1 = cy + r * std::sin(a2Rad);
-
-        // Inject moveTo if needed (depends on current path state)
-        BLPoint lastPos;
-        path.getLastVertex(&lastPos);
-        if (std::abs(lastPos.x - x0) > 1e-6 || std::abs(lastPos.y - y0) > 1e-6)
-            path.lineTo(x0, y0);
-
-        bool largeArc = sweepDeg > 180.0;
-        bool sweep = true; // clockwise
-
-        return path.ellipticArcTo(BLPoint(r, r), 0.0, largeArc, sweep, BLPoint(x1, y1)) == BL_SUCCESS;
-    }
-    */
     
     static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1, const PSMatrix &ctm) {
         double cos0 = std::cos(t0), sin0 = std::sin(t0);
@@ -121,7 +91,7 @@ namespace waavs {
                 out.moveTo(tx, ty);
             }
 
-                break;
+            break;
 
             case PSPathCommand::LineTo: {
                 double tx, ty;
@@ -129,49 +99,24 @@ namespace waavs {
 
                 out.lineTo(tx, ty);
             }
-                break;
+            break;
 
             case PSPathCommand::CurveTo:
-                out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
-                break;
+                // transform the points using the segment's transformation matrix
+                //out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
+
+                double tx1, ty1;
+                double tx2, ty2;
+                double tx3, ty3;
+
+                seg.fTransform.transformPoint(seg.x1, seg.y1, tx1, ty1);
+                seg.fTransform.transformPoint(seg.x2, seg.y2, tx2, ty2);
+                seg.fTransform.transformPoint(seg.x3, seg.y3, tx3, ty3);
+
+                out.cubicTo(tx1, ty1, tx2, ty2, tx3, ty3);
+            break;
 
 
-                /*
-            case PSPathCommand::Arc: 
-            case PSPathCommand::ArcCCW:
-            {
-
-                double cx = seg.x1;
-                double cy = seg.y1;
-                double radius = seg.x2;
-                double startDeg = seg.x3;
-                double endDeg = seg.y3;
-
-                // Convert angles to radians
-                double startRad = startDeg * DEG_TO_RAD;
-                double endRad = endDeg * DEG_TO_RAD;
-                double sweep = endRad - startRad;
-
-                // Determine number of segments (max 90 degrees per segment)
-                int steps = std::ceil(std::abs(sweep) / QUARTER_ARC);
-                if (steps < 1) steps = 1;
-                double delta = sweep / steps;
-
-                // Add moveTo for start point
-                double startX = cx + radius * std::cos(startRad);
-                double startY = cy + radius * std::sin(startRad);
-                double tx, ty;
-                seg.fTransform.transformPoint(startX, startY, tx, ty);
-                out.moveTo(tx, ty);
-
-                for (int i = 0; i < steps; ++i) {
-                    double t0 = startRad + i * delta;
-                    double t1 = t0 + delta;
-                    emitArcSegmentAsBezier(out, cx, cy, radius, t0, t1, seg.fTransform);
-                }
-                break;
-            }
-            */
             case PSPathCommand::EllipticArc: {
                 double x1 = seg.x2;
                 double y1 = seg.y2;
@@ -289,6 +234,7 @@ namespace waavs {
             BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
 
             flipY.translate(0, -h);
+            flipY.scale(2.77, 2.77);
 
             ctx.setTransform(flipY);
             ctx.userToMeta();

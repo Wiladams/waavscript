@@ -155,6 +155,12 @@ namespace waavs {
         case PSObjectType::FontFace:
             os << "--FONTFACE:" << std::endl;
             writeObjectDeep(PSObject::fromDictionary(obj.asFontFace()->getDictionary()), os);
+            break;
+
+        case PSObjectType::Path:
+            os << "--PATH: " << std::endl;
+            break;
+
         default:
             writeObjectShallow(obj, os);
             break;

@@ -3,6 +3,8 @@
 #include "psvm.h"
 #include "psgraphicscontext.h"
 #include "psmatrix.h"
+#include "pspath.h"
+
 
 namespace waavs 
 {
@@ -146,49 +148,7 @@ namespace waavs
         flattenCubicBezier(x0, y0, x1, y1, x2, y2, x3, y3, 0.01, out, ctm);
     }
 
-    static bool calcArcTangents(double x0, double y0,
-        double x1, double y1,
-        double x2, double y2,
-        double r,
-        double& xt1, double& yt1,
-        double& xt2, double& yt2)
-    {
-        // 1. Compute direction vectors away from the corner towards the tangent points
-        // From start point (x0, y0) to corner (x1, y1)
-        double dx1 = x0 - x1;
-        double dy1 = y0 - y1;
-        double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
-        double vx1 = dx1 / len1; // Normalize
-        double vy1 = dy1 / len1;
 
-        // From end point (x2, y2) to corner (x1, y1)
-        double dx2 = x2 - x1;
-        double dy2 = y2 - y1;
-        double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
-        double vx2 = dx2 / len2; // Normalize
-        double vy2 = dy2 / len2;
-
-        // 2. Compute the angle between the two vectors
-        // This gives us the interior angle at the corner
-        double dot = vx1 * vx2 + vy1 * vy2; // Dot product
-        double theta = std::acos(CLAMP(dot, -1.0, 1.0)); // Angle in radians
-
-        // 3. Calculate the distance from the corner to the tangent points
-        // We want to back up along the vectors from the corner point along the normals
-        // This comes from from geometry of circle segments tangent to both lines
-        // Note:  if the angle is too small, we can't draw an arc, so we should exit, or
-        // just draw the two lines instead
-        double d = r / std::tan(theta / 2.0);
-
-
-        // 4.0 Compute tangent points
-        xt1 = x1 + vx1 * d; // Tangent point 1
-        yt1 = y1 + vy1 * d; // Tangent point 1
-        xt2 = x1 + vx2 * d; // Tangent point 2
-        yt2 = y1 + vy2 * d; // Tangent point 2
-
-        return true;
-    }
 
 
     // setflat
@@ -496,11 +456,6 @@ namespace waavs
         if (!path.getCurrentPoint(x0, y0))
             return vm.error("arcto: no currentpoint");
 
-        // Transform all points
-        //double x1, y1, x2, y2, r, dummy;
-        //ctm.transformPoint(x1Obj.asReal(), y1Obj.asReal(), x1, y1);
-        //ctm.transformPoint(x2Obj.asReal(), y2Obj.asReal(), x2, y2);
-        //ctm.dtransform(rObj.asReal(), 0.0, r, dummy);  // only x-direction used for circle
 
         // Execute the arc and retrieve tangent points
         double xt1, yt1, xt2, yt2;
@@ -594,8 +549,13 @@ namespace waavs
     }
 
 
-    static inline bool op_closepath(PSVirtualMachine& vm) {
-        vm.graphics()->closepath();
+    static inline bool op_closepath(PSVirtualMachine& vm) 
+    {
+        auto& path = vm.graphics()->currentPath();
+        if (!path.hasCurrentPoint())
+            return vm.error("op_closepath: no current point to close");
+
+        path.close();
         return true;
     }
 
@@ -608,15 +568,16 @@ namespace waavs
         // we can assume the current path.
         PSObject topper;
         PSObject pathObj;
+        PSPath path;
+
         if (ostk.top(topper) && topper.isPath())
         {
             ostk.pop(pathObj);
+            path = pathObj.asPath();
 
         } else         {
-            pathObj = PSObject::fromPath(vm.graphics()->currentPath());
+            path = vm.graphics()->currentPath();
         }
-
-        PSPath path = pathObj.asPath();
 
         if (!path.hasCurrentPoint() && path.segments.empty()) {
             return vm.error("op_pathbbox: no current path or segments available");

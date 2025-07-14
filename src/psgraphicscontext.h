@@ -168,9 +168,9 @@ namespace waavs {
 
 
 
-        virtual bool closepath() {
-            return currentPath().close();
-        }
+        //virtual bool closepath() {
+        //    return currentPath().close();
+        //}
 
         // Font handling
         virtual bool findFont(PSVirtualMachine &vm, const PSName & name, PSObject &outObj)
