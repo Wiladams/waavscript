@@ -188,6 +188,7 @@ bool roll(int n, int j) {
         bool pushLiteralName(const PSName aname) { return push(PSObject::fromName(aname)); }
         bool pushExecName(const PSName aname) { return push(PSObject::fromExecName(aname)); }
         bool pushString(const PSString& str) { return push(PSObject::fromString(str)); }
+        bool pushMatrix(const PSMatrix& mat) { return push(PSObject::fromMatrix(mat)); }
         bool pushArray(const PSArrayHandle value) { return push(PSObject::fromArray(value)); }
         bool pushProcedure(const PSArrayHandle value) { PSObject obj = PSObject::fromArray(value); obj.setExecutable(true); return push(obj); }
         bool pushDictionary(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }

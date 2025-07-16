@@ -79,6 +79,7 @@ namespace waavs
             uint8_t loChar = src.empty() ? '0' : *src;
             ++src;
 
+            // try to create a byte value from the two hex characters
             uint8_t hi, lo;
             if (!hexToNibble(hiChar, hi) || !hexToNibble(loChar, lo))
                 return false;
@@ -91,7 +92,10 @@ namespace waavs
     }
 
     // Decrypt eexec-encrypted data
-    inline bool eexecDecrypt(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
+    // seed
+    //   55665 - exec seed (default)
+    //   4330 - eexec seed (used in Type 1 fonts)
+    inline bool eexecDecrypt(const std::vector<uint8_t>& in, std::vector<uint8_t>& out, uint16_t seed = 55665)
     {
         constexpr uint16_t c1 = 52845u;
         constexpr uint16_t c2 = 22719u;
@@ -161,12 +165,13 @@ namespace waavs
         case PSLexType::Number:     // 123.456
         {
             double value = 0.0;
-            if (readDecimal(lex.span, value)) {
-				// if it's an integer, we can reset it to an integer
-                if (value == static_cast<int64_t>(value)) {
-                    return obj.resetFromInt(static_cast<int64_t>(value));
-				}
-                return obj.resetFromReal(value);
+            bool isInteger = false;
+
+            if (readNumber(lex.span, value, isInteger)) {
+                if (isInteger)
+                    return obj.resetFromInt(static_cast<int32_t>(value));
+                else
+                    return obj.resetFromReal(value);
             }
             else {
                 return false; // Invalid number format

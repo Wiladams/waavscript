@@ -6,7 +6,7 @@
 
 #include "mappedfile.h"
 #include "ocspan.h"
-#include "psstring.h"
+#include "ps_type_string.h"
 
 
 namespace waavs {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "pscore.h"
-#include "psfont.h"
+#include "ps_type_font.h"
 #include "psvm.h"
 
 namespace waavs {

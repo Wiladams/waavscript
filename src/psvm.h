@@ -7,10 +7,10 @@
 
 #include "pscore.h"
 #include "dictionarystack.h"
-#include "psstack.h"
-#include "psgraphicscontext.h"
+#include "ps_type_stack.h"
+#include "ps_type_graphicscontext.h"
 #include "ps_scanner.h"
-#include "psfile.h"
+#include "ps_type_file.h"
 #include "ps_print.h"
 
 

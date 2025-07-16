@@ -19,7 +19,8 @@ namespace waavs {
             return vm.error("unaryMathOp: typecheck");
 
         double result = func(a.asReal());
-        s.push(PSObject::fromReal(result));
+        s.pushReal(result);
+
         return true;
     }
 
@@ -57,6 +58,7 @@ namespace waavs {
         auto& s = vm.opStack();
         if (s.size() < 2) 
             return vm.error("op_idiv: stackunderflow");
+
         PSObject b, a;
         s.pop(b); 
         s.pop(a);
@@ -67,7 +69,7 @@ namespace waavs {
         if (b.asInt() == 0) 
             return vm.error("op_idiv: divisor == 0");
 
-        s.push(PSObject::fromInt(a.asInt() / b.asInt()));
+        s.pushInt(a.asInt() / b.asInt());
         return true;
     }
 

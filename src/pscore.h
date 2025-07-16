@@ -14,12 +14,11 @@
 #include <variant>
 
 #include "ocspan.h"
-#include "psname.h"
-#include "psstring.h"
-#include "psmatrix.h"
-#include "psimage.h"
-#include "pspath.h"
-#include "psfile.h"
+#include "ps_type_name.h"
+#include "ps_type_string.h"
+#include "ps_type_matrix.h"
+//#include "ps_type_image.h"
+#include "ps_type_path.h"
 
 
 
@@ -36,7 +35,7 @@ namespace waavs {
     struct PSVirtualMachine;
     struct PSFont;
     struct PSFontFace;
-
+    struct PSFile;
 
     // Handle aliases for clarity
     using PSArrayHandle = std::shared_ptr<PSArray>;
@@ -108,17 +107,7 @@ namespace waavs
             }
             return false; // No function to execute
         }
-        /*
-        // an operator() overload to call the function
-        bool operator()(PSVirtualMachine& vm) const
-        {
-            if (fFunc != nullptr) {
-                return fFunc(vm);
-            }
 
-            return false; 
-        }
-        */
         constexpr bool isValid() const noexcept { return fFunc != nullptr;}
 
     };

@@ -3,35 +3,12 @@
 #include "ps_lexer.h"
 #include "mappedfile.h"
 #include "ocspan.h"
+#include "ps_scanner.h"
 
 
 using namespace waavs;
 
-/*
-	enum class PSLexType {
-		Invalid = 0,
-		Whitespace,
-		Name,			// name without leading /, e.g. moveto
-		LiteralName,	// /name with leading /, e.g. /moveto
-		SystemName,		// //moveto
-		Number,
-		String,
-		UnterminatedString,
-		HexString,
-		LBRACE,			// {
-		RBRACE,			// }
-		LBRACKET,		// [
-		RBRACKET,		// ]
-		LLANGLE,		// for <<
-		RRANGLE,		// for >>
-		Comment,
-		DSCComment,		// %%DSCKeyword value
-		Delimiter,
-		EexecSwitch,	// eexec switch
-		Eof
-	};
 
-*/
 
 std::unordered_map<PSLexType, const char*> lexTypeNames = {
 	{PSLexType::Invalid, "Invalid"},
@@ -72,7 +49,33 @@ static void test_lexgen(OctetCursor s)
 	PSLexeme lexeme;
 	while(gen.next(lexeme)) 
 	{
-		printLexeme(lexeme);
+		switch (lexeme.type)
+		{
+			case PSLexType::EexecSwitch: {
+				printf("EexecSwitch encountered, decrypting...\n");
+				std::vector<uint8_t> hexstring;
+                std::vector<uint8_t> decrypted;
+				if (spanToHexString(lexeme.span, hexstring)) {
+					eexecDecrypt(hexstring, decrypted);
+					// print out the decrypted data
+                    printf("Decrypted Eexec data: \n");
+					for (size_t i = 0; i < decrypted.size(); ++i) {
+						printf("%c", decrypted[i]);
+						//if ((i + 1) % 80 == 0) {
+						//	printf("\n");
+						//}
+					}
+				} else {
+					printf("Failed to decode hex string in EexecSwitch.\n");
+				}
+				printf("\n");
+				break;
+            }
+
+			default:
+				printLexeme(lexeme);
+			break;
+		}
 	}
 }
 
@@ -81,6 +84,7 @@ static void test_lexgenfile(const char *filename)
 	auto mapped = MappedFile::create_shared(filename);
 	if (nullptr == mapped)
 		return;
+	
 	OctetCursor s(mapped->data(), mapped->size());
 	test_lexgen(s);
 	mapped->close();
@@ -93,7 +97,7 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	test_lexgen("/x 42 def x =");
+	test_lexgen("10 { square s s translate	-5.0 rotate	/s s phi div def } repeat");
 
 	return 0;
 }

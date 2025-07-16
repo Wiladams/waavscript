@@ -9,7 +9,7 @@ namespace waavs {
 
     // (  ? matrix )
     inline bool op_matrix(PSVirtualMachine& vm) {
-        return vm.opStack().push(PSObject::fromMatrix(PSMatrix::identity()));
+        return vm.opStack().pushMatrix(PSMatrix::makeIdentity());
     }
 
 	// ( matrix ? matrix' )
@@ -25,8 +25,8 @@ namespace waavs {
 			return vm.error("typecheck: expected matrix or array");
 
 		// we don't care what's currently in the matrix object, just fill it with identity values
-        PSMatrix mat = PSMatrix::identity();
-		return s.push(PSObject::fromMatrix(mat)); // push back to stack
+        PSMatrix mat = PSMatrix::makeIdentity();
+		return s.pushMatrix(mat); // push back to stack
     }
 
     // matrix1 matrix2 invertmatrix matrix2
@@ -397,14 +397,11 @@ namespace waavs {
         // which will be use to perform translation on CTM
         if (!extractMatrix(top, mat)) 
         {
-            PSObject ty, tx;
-            s.pop(ty);
-            s.pop(tx);
+            double ty, tx;
+            if (!s.popReal(ty) || !s.popReal(tx)) 
+                return vm.error("op_translate: typecheck; expected two numbers");
 
-            if (!tx.isNumber() || !ty.isNumber()) 
-                return vm.error("op_translate: typecheck");
-
-            ctm.translate(tx.asReal(), ty.asReal());
+            ctm.translate(tx, ty);
             return true;
         }
         else {
@@ -495,25 +492,30 @@ namespace waavs {
 
 
         PSObject top;
-        s.pop(top);
-
-        if (top.isNumber()) {
-            double angle = top.asReal();
-            ctm.rotate(angle);
-
-            return true;
-        }
-        
+        s.top(top);
         PSMatrix mat;
-        if (extractMatrix(top, mat))
-        {
-            PSObject angObj;
-            s.pop(angObj);
 
-            if (!angObj.isNumber()) 
+
+        if (!extractMatrix(top, mat))
+        {
+            double angle;
+            if (!s.popReal(angle)) 
                 return vm.error("op_rotate: typecheck, expected number");
 
-            mat.rotate(angObj.asReal());
+            ctm.rotate(angle);
+            return true;
+        }
+        else {
+            // even though we already have the matrix
+            // we still need to pop the top because we only 
+            // peeked at it before
+            s.pop(top); // pop the matrix object
+
+            double angle;
+            if (!s.popReal(angle))
+                return vm.error("op_rotate: typecheck, expected number");
+
+            mat.rotate(angle);
             return s.push(PSObject::fromMatrix(mat));
         }
 

@@ -4,11 +4,11 @@
 #include <vector>
 #include <cstdio>
 
-#include "psgraphicstate.h"
-#include "psmatrix.h"
-#include "psimage.h"
-#include "psfont.h"
-//#include "fontmonger.h"
+#include "ps_type_graphicstate.h"
+#include "ps_type_matrix.h"
+#include "ps_type_image.h"
+#include "ps_type_font.h"
+
 
 namespace waavs {
 
@@ -22,7 +22,7 @@ namespace waavs {
         virtual ~PSGraphicsContext() = default;
 
         virtual PSMatrix getDeviceDefaultMatrix() const {
-			return PSMatrix::identity(); // Default to identity matrix
+			return PSMatrix::makeIdentity(); // Default to identity matrix
         }
 
         // --- State access ---

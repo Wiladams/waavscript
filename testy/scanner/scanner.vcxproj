@@ -188,6 +188,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ps_lexer.h" />
+    <ClInclude Include="..\..\src\ps_scanner.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>
   <ItemGroup>

@@ -4,10 +4,10 @@
 #include <memory>
 #include <deque>
 
-#include "psmatrix.h"
-#include "pspaint.h"
-#include "pspath.h"
-#include "psfont.h"
+#include "ps_type_matrix.h"
+#include "ps_type_paint.h"
+#include "ps_type_path.h"
+#include "ps_type_font.h"
 
 namespace waavs {
 
@@ -31,7 +31,7 @@ namespace waavs {
 
     struct PSGraphicsState {
         // Current Transformation Matrix
-        PSMatrix ctm = PSMatrix::identity();
+        PSMatrix ctm = PSMatrix::makeIdentity();
 
         // Stroke Style
         double lineWidth = 1.0;

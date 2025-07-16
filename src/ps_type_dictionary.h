@@ -1,7 +1,7 @@
 #pragma once
 
 #include "pscore.h"
-#include "psname.h"
+#include "ps_type_name.h"
 
 namespace waavs {
 

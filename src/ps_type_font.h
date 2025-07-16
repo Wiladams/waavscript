@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "pscore.h"  // Provides PSObject, PSMatrix, PSDictionaryHandle, etc.
-#include "psdictionary.h"
+#include "ps_type_dictionary.h"
 
 namespace waavs {
     struct PSFontFace;

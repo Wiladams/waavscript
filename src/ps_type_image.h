@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "psmatrix.h"
+#include "ps_type_matrix.h"
 
 namespace waavs {
     struct PSImage {

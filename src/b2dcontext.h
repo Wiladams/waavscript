@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <blend2d/blend2d.h>
 
-#include "psgraphicscontext.h"
+#include "ps_type_graphicscontext.h"
 #include "fontmonger.h"
 
 

@@ -4,7 +4,7 @@
 #include <memory>
 
 #include "pscore.h"
-#include "psdictionary.h"
+#include "ps_type_dictionary.h"
 
 
 namespace waavs {

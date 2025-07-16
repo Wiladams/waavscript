@@ -3,7 +3,7 @@
 #include <vector>
 #include <cmath>
 
-#include "psmatrix.h"
+#include "ps_type_matrix.h"
 
 namespace waavs {
 #define CLAMP(x, low, high) std::min(std::max(x, low), high)

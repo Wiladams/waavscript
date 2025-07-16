@@ -10,7 +10,7 @@
 
 #include "pscore.h"
 #include "psvm.h"
-#include "psfont.h"
+#include "ps_type_font.h"
 
 
 namespace waavs {

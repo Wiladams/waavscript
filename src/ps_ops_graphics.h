@@ -1,7 +1,7 @@
 #pragma once
 
 #include "psvm.h"
-#include "psgraphicscontext.h"
+#include "ps_type_graphicscontext.h"
 
 namespace waavs {
 	//static constexpr double G_PI = 3.14159265358979323846;

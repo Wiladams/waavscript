@@ -41,13 +41,13 @@
     <ClInclude Include="..\..\src\pscore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\pspath.h">
+    <ClInclude Include="..\..\src\ps_type_path.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\psvmfactory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psgraphicscontext.h">
+    <ClInclude Include="..\..\src\ps_type_graphicscontext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\b2dcontext.h">
@@ -65,10 +65,10 @@
     <ClInclude Include="..\..\src\mappedfile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psfile.h">
+    <ClInclude Include="..\..\src\ps_type_file.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psstring.h">
+    <ClInclude Include="..\..\src\ps_type_string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_lexer.h">
@@ -77,10 +77,10 @@
     <ClInclude Include="..\..\src\ps_ops_font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psfont.h">
+    <ClInclude Include="..\..\src\ps_type_font.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psmatrix.h">
+    <ClInclude Include="..\..\src\ps_type_matrix.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\fontmonger.h">
@@ -89,10 +89,10 @@
     <ClInclude Include="..\..\src\ps_scanner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psname.h">
+    <ClInclude Include="..\..\src\ps_type_name.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psdictionary.h">
+    <ClInclude Include="..\..\src\ps_type_dictionary.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_ops_math.h">
@@ -122,7 +122,7 @@
     <ClInclude Include="..\..\src\ps_ops_resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\psstack.h">
+    <ClInclude Include="..\..\src\ps_type_stack.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_ops_text.h">
@@ -132,6 +132,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\stopwatch.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\typeconv.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_charcats.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type_graphicstate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type_image.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type_paint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

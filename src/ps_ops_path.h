@@ -1,9 +1,9 @@
 #pragma once
 
 #include "psvm.h"
-#include "psgraphicscontext.h"
-#include "psmatrix.h"
-#include "pspath.h"
+#include "ps_type_graphicscontext.h"
+#include "ps_type_matrix.h"
+#include "ps_type_path.h"
 
 
 namespace waavs 

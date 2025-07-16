@@ -1,7 +1,7 @@
 #pragma once
 
 #include "psvm.h"
-#include "psfile.h"
+#include "ps_type_file.h"
 
 namespace waavs {
 
@@ -44,6 +44,10 @@ namespace waavs {
 
         if (!file.isFile())
             return vm.error("typecheck: expected file");
+
+        auto file = file.asFile();
+
+        file->close();
 
         return vm.error("closefile operator not yet implemented");
     }

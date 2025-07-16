@@ -2,8 +2,14 @@
 #include <cctype>
 #include <cstdint>
 
+#include "ps_charcats.h"
 
-#include "ps_lexer.h"
+// Generate a table of character categories.  The table is 256 entries long
+// and each entry is a single byte, where each bit represents a different
+// category of character.  The categories are defined in ps_charcats.h.
+// This can be expanded to be more bits per character, by just changing the 
+// core type of the table from uint8_t to uint16_t or uint32_t, etc.
+// When the table is uint8_t, it is aligned to 256 bytes for performance reasons,
 
 using namespace waavs;
 
