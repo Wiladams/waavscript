@@ -107,18 +107,22 @@ namespace waavs {
     inline bool op_sin(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::sin(angle * PI / 180.0); }); }
     inline bool op_cos(PSVirtualMachine& vm) { return unaryMathOp(vm, [](double angle) { return std::cos(angle * PI / 180.0); }); }
 
-    inline bool op_atan(PSVirtualMachine& vm) {
+    inline bool op_atan(PSVirtualMachine& vm) 
+    {
         auto& s = vm.opStack();
+    
         if (s.size() < 2) 
             return vm.error("op_atan: stackunderflow");
         
-        PSObject dx, dy;
-        s.pop(dx); s.pop(dy);
-        if (!dx.isNumber() || !dy.isNumber()) 
-            return vm.error("op_atan: typecheck");
+        double dx, dy;
 
-        double angle = std::atan2(dy.asReal(), dx.asReal()) * 180.0 / PI;
-        s.push(PSObject::fromReal(angle));
+        if (!s.popReal(dx) || !s.popReal(dy)) 
+            return vm.error("op_atan: typecheck, expecting two numbers");
+
+        // Note: atan2 returns angle in radians, we convert to degrees
+        double angle = std::atan2(dy, dx) * RAD_TO_DEG;
+        s.pushReal(angle);
+
         return true;
     }
 
@@ -152,7 +156,9 @@ namespace waavs {
     }
 
     inline bool op_rrand(PSVirtualMachine& vm) {
-        vm.opStack().push(PSObject::fromInt(vm.randSeed));
+        auto& ostk = vm.opStack();
+        ostk.pushInt(vm.randSeed);
+
         return true;
     }
 
@@ -167,10 +173,12 @@ namespace waavs {
         if (!top.isNumber())
             return vm.error("typecheck: cvi requires a numeric operand");
 
+        // Note: This is a simple conversion, it does not handle overflow or special cases
         double val = top.asReal();
         int32_t ival = static_cast<int32_t>(val); // truncate toward zero
 
-        s.push(PSObject::fromInt(ival));
+        s.pushInt(ival);
+
         return true;
     }
 

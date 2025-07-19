@@ -1,7 +1,11 @@
 #pragma once
 
+#include <memory>
+
 #include "ocspan.h"
 #include "ps_type_name.h"
+#include "ps_type_file.h"
+
 #include "typeconv.h"
 
 
@@ -299,7 +303,7 @@ namespace waavs {
 
 	static bool scanLiteralNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
 	{
-		src.skip(1);
+		src.advance(1);
 
 		const uint8_t* start = src.begin();
 		const uint8_t* p = start;			// skip first '/'
@@ -310,7 +314,7 @@ namespace waavs {
 			// This is a system operator name, like //moveto, //setgray, etc.
 			++p; // skip second '/'
 			lex.type = PSLexType::SystemName;
-			src.skip(1);
+			src.advance(1);
 		}
 		else {
 			// Literal name: /name}
@@ -340,7 +344,7 @@ namespace waavs {
 		lex.span = OctetCursor(begin.begin(), cursor.begin() - begin.begin());
 
 		// Advance *past* the matched keyword
-		cursor.skip(keyword.size());
+		cursor.advance(keyword.size());
 		src = cursor;
 
 		return true;
@@ -372,14 +376,22 @@ namespace waavs {
 	// This is pretty low level.  It will do things like isolate a number, but 
 	// won't actually give you the decimal value for that number
 	//
-	static bool nextPSLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+	static bool nextPSLexeme(std::shared_ptr<PSFile> file, PSLexeme& lex) noexcept 
+	{
 		using CC = PSCharClass;
+
+		if (!file->hasCursor())
+			return false;
+
+		auto& src = file->getCursor();
+
+
 
 		// Skip whitespace
 		skipWhile(src, PS_WHITESPACE);
 		// skip null bytes
 		while (!src.empty() && *src.begin() == 0) {
-			src.skip(1);
+			src.advance(1);
         }
 
 		if (src.empty()) {
@@ -445,7 +457,7 @@ namespace waavs {
 				// DictBegin: <<
 				lex.type = PSLexType::LLANGLE;
 				lex.span = OctetCursor(p, 2);
-				src.skip(2);
+				src.advance(2);
 				return true;
 			}
 			else {
@@ -473,14 +485,14 @@ namespace waavs {
 				// DictEnd: >>
 				lex.type = PSLexType::RRANGLE;
 				lex.span = OctetCursor(p, 2);
-				src.skip(2);
+				src.advance(2);
 				return true;
 			}
 			else {
 				// Single '>' (possibly malformed)
 				lex.type = PSLexType::Delimiter;
 				lex.span = OctetCursor(p, 1);
-				src.skip(1);
+				src.advance(1);
 				return true;
 			}
 		}
@@ -553,17 +565,23 @@ namespace waavs {
 
 namespace waavs {
 	struct PSLexemeGenerator {
-		OctetCursor src;
+		PSFileHandle fFile;
 
-		PSLexemeGenerator(OctetCursor input) : src(input) {}
+		PSLexemeGenerator(PSFileHandle file) 
+            : fFile(file)
+		{
+		}
+
+		//PSLexemeGenerator(OctetCursor &input) 
+		//	: src(input) {}
 
 		bool next(PSLexeme &lex) 
 		{
-			return nextPSLexeme(src, lex);
+			return nextPSLexeme(fFile, lex);
 		}
 
-		void setCursor(OctetCursor input)  { src = input;  }
-		bool getCursor(OctetCursor &out) const { out = src; return true;  }
+		//void setCursor(OctetCursor input)  { src = input;  }
+		//bool getCursor(OctetCursor &out) const { out = src; return true;  }
 
 	};
 }

@@ -9,8 +9,8 @@
 #include "dictionarystack.h"
 #include "ps_type_stack.h"
 #include "ps_type_graphicscontext.h"
-#include "ps_scanner.h"
 #include "ps_type_file.h"
+#include "ps_scanner.h"
 #include "ps_print.h"
 
 
@@ -32,6 +32,8 @@ namespace waavs
         std::unique_ptr<PSGraphicsContext> graphicsContext_;
         PSObjectStack operandStack_;
         PSObjectStack executionStack_;
+        PSObjectStack fileStack;
+
 		bool stopRequested = false;
         bool exitRequested = false;
 
@@ -39,7 +41,7 @@ namespace waavs
         PSDictionaryHandle userdict;
         PSDictionaryHandle systemResourceDirectory;
 
-        std::shared_ptr<PSFile> fCurrentFile; // Current file being processed, if any
+        //std::shared_ptr<PSFile> fCurrentFile; // Current file being processed, if any
 
         PSDictionaryStack fResourceStack; // Stack of resource dictionaries, if needed
 
@@ -84,8 +86,38 @@ namespace waavs
 		void setLanguageLevel(int level) { fLanguageLevel = level; }
 
         // File Handling
-        std::shared_ptr<PSFile> getCurrentFile() const { return fCurrentFile; }
-        void setCurrentFile(std::shared_ptr<PSFile> file) { fCurrentFile = file; }
+        bool getCurrentFile(PSFileHandle &handle) const 
+        { 
+            // return whatever is on the top of the file stack
+            PSObject fileObj;
+            if (!fileStack.top(fileObj))
+                return error("getCurrentFile; no current top of fileStack");
+
+            if (!fileObj.isFile())
+                return error("getCurrentFile; top item is not a file object");
+
+            handle = fileObj.asFile();
+
+            return true; 
+        }
+
+        bool popCurrentFile(PSFileHandle &file) 
+        { 
+            // pop the top file off the stack
+            PSObject fileObj;
+            if (!fileStack.pop(fileObj))
+                return error("popCurrentFile; no current top of fileStack");
+            if (!fileObj.isFile())
+                return error("popCurrentFile; top item is not a file object");
+            file = fileObj.asFile();
+        
+            return true; 
+        }
+
+        bool pushCurrentFile(PSFileHandle file) 
+        { 
+            return fileStack.pushFile(file);
+        }
 
         // stack access
         inline PSObjectStack& opStack() { return operandStack_; }
@@ -399,10 +431,40 @@ namespace waavs
             return true;
         }
 
-        bool interpret(const OctetCursor input) {
-            PSObjectGenerator objGen(input);
+
+
+        bool interpret(const PSFileHandle& file)
+        {
+            if (!file || !file->isValid())
+                return error("interpretFile: invalid file handle");
+
+            pushCurrentFile(file);
+
+            // Use the file's cursor as the input stream
+            if (!file->hasCursor())
+                return error("interpretFile: file does not have a cursor");
+
+            //OctetCursor cursor;
+            //file->getCursor(cursor);
+
+            PSObjectGenerator objGen(file);
 
             return interpret(objGen);
+        }
+
+        bool interpret(OctetCursor& input)
+        {
+            auto fileHandle = PSMemoryFile::create(input);
+            return interpret(fileHandle);
+
+            //PSObjectGenerator objGen(input);
+            //return interpret(objGen);
+        }
+
+        bool interpret(const char *input)
+        {
+            OctetCursor cursor(input);
+            return interpret(cursor);
         }
 
 		//=======================================================================

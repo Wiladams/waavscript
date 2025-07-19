@@ -83,9 +83,10 @@ namespace waavs
 			return (fStart + offset < fEnd) ? fStart[offset] : 0;
 		}
 
-		// skip()
+		// advance()
 		// Advance the cursor by n bytes, but not beyond the end of the span.
-		constexpr void skip(size_t n) noexcept { fStart = (fStart + n <= fEnd) ? fStart + n : fEnd; }
+		//constexpr void skip(size_t n) noexcept { fStart = (fStart + n <= fEnd) ? fStart + n : fEnd; }
+		constexpr void advance(size_t n) noexcept { fStart = (fStart + n <= fEnd) ? fStart + n : fEnd; }
 
 	};
 

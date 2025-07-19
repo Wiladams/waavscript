@@ -209,12 +209,12 @@ Legend:
 | `readline`   | Read a line            | ✅     |
 | `flush`      | Flush stdout           | ✅     |
 | `flushfile`  | Flush file buffer      | ⬜     |
-| `resetfile`  | Reset to beginning     | ⬜     |
-| `readhexstring` | Read hex into string | ⬜     |
-| `readstring` | Read string from file  | ⬜     |
+| `resetfile`  | Reset to beginning     | ✅     |
+| `readhexstring` | Read hex into string | ✅     |
+| `readstring` | Read string from file  | ✅     |
 | `writestring`| Write string to file   | ⬜     |
-| `fileposition` | Get file position    | ⬜     |
-| `setfileposition` | Set file position | ⬜     |
+| `fileposition` | Get file position    | ✅     |
+| `setfileposition` | Set file position | ✅     |
 | `deletefile` | Delete a file          | ⬜     |
 | `renamefile` | Rename file            | ⬜     |
 | `status`     | File/device status     | ⬜     |

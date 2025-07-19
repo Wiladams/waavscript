@@ -294,12 +294,22 @@ namespace waavs {
     }
 
     inline bool op_setcmykcolor(PSVirtualMachine& vm) {
-        PSObject k, y, m, c;
-        if (!vm.opStack().pop(k) || !vm.opStack().pop(y) || !vm.opStack().pop(m) || !vm.opStack().pop(c) ||
-            !c.isNumber() || !m.isNumber() || !y.isNumber() || !k.isNumber())
-            return vm.error("op_setcmykcolor:typecheck: expected 4 numbers");
+        auto& ostk = vm.opStack();
 
-        vm.graphics()->setCMYK(c.asReal(), m.asReal(), y.asReal(), k.asReal());
+        if (ostk.size() < 4)
+            return vm.error("op_setcmykcolor: stackunderflow; expected 4 numbers");
+
+        double k, y, m, c;
+
+        if (!ostk.popReal(k) || !ostk.popReal(y) || !ostk.popReal(m) || !ostk.popReal(c))
+            return vm.error("op_setcmykcolor: typecheck");
+
+        //if (!vm.opStack().pop(k) || !vm.opStack().pop(y) || !vm.opStack().pop(m) || !vm.opStack().pop(c) ||
+        //    !c.isNumber() || !m.isNumber() || !y.isNumber() || !k.isNumber())
+        //    return vm.error("op_setcmykcolor:typecheck: expected 4 numbers");
+
+        vm.graphics()->setCMYK(c, m, y, k);
+
         return true;
     }
 
@@ -360,64 +370,85 @@ namespace waavs {
 
         // Pop operands in reverse order
         PSObject procObj, matrixObj, bpcObj, heightObj, widthObj;
+        int32_t bpc, height, width;
+
+        // The proc can be one of a few things.
+        // 1. A procedure that returns a string of image data
+        // 2. An array of bytes representing the image data directly
+        // 3. A file from which to read the image data
         s.pop(procObj);
-        s.pop(matrixObj);
-        s.pop(bpcObj);
-        s.pop(heightObj);
-        s.pop(widthObj);
 
-        // Validate types
-        if (!procObj.isExecutableArray())
-            return vm.error("typecheck: data source must be a procedure");
-        if (!bpcObj.isInt() || !heightObj.isInt() || !widthObj.isInt())
-            return vm.error("typecheck: width, height, and bpc must be integers");
-
-        int width = widthObj.asInt();
-        int height = heightObj.asInt();
-        int bpc = bpcObj.asInt();
-
-        if (width <= 0 || height <= 0)
-            return vm.error("rangecheck: invalid width or height");
-        if (bpc != 8)
-            return vm.error("rangecheck: only 8-bit grayscale images supported");
+        //if (!procObj.isExecutableArray())
+        //    return vm.error("typecheck: data source must be a procedure");
 
         // Extract matrix
+        s.pop(matrixObj);
         PSMatrix matrix;
         if (!extractMatrix(matrixObj, matrix))
-            return vm.error("typecheck: expected array or matrix object");
+            return vm.error("op_image: typecheck: expected array or matrix object");
 
-        // Execute the data source procedure
-        if (!vm.runProc(procObj))
-            return vm.error("exec: failed to execute image data procedure");
+        // bits per component, and image dimensions
+        if (!s.popInt(bpc) || !s.popInt(height) || !s.popInt(width))
+            return vm.error("op_image: typecheck: width, height, and bpc must be integers");
 
-        if (s.empty())
-            return vm.error("stackunderflow: no result from image procedure");
 
-        PSObject result;
-        s.pop(result);
+        if (width <= 0 || height <= 0)
+            return vm.error("op_image: rangecheck: invalid width or height");
+        if (bpc != 8)
+            return vm.error("op_image: rangecheck: only 8-bit grayscale images supported");
 
-        if (!result.isString())
-            return vm.error("typecheck: image procedure must return a string");
 
-        const PSString& str = result.asString();
-        size_t expectedBytes = static_cast<size_t>(width) * height;
-
-        if (str.length() < expectedBytes)
-            return vm.error("rangecheck: insufficient image data");
-
-        // Copy only the required bytes
-        std::vector<uint8_t> imageData;
-        imageData.insert(imageData.end(), str.data(), str.data() + expectedBytes);
-
-        // Create PSImage and delegate to graphics backend
+        // Create PSImage
         PSImage img;
         img.width = width;
         img.height = height;
         img.bitsPerComponent = bpc;
         img.transform = matrix;
-        img.data = std::move(imageData);
 
-        return vm.graphics()->image(img);
+        //std::vector<uint8_t> imageData;
+
+        
+        if (procObj.isExecutable()) {
+            // Execute the data source procedure
+            if (!vm.runProc(procObj))
+                return vm.error("op_image: runProc; failed to execute image data procedure");
+
+            // we expect to see a string on the stack after this
+            if (s.empty())
+                return vm.error("stackunderflow: no result from image procedure");
+
+            PSObject result;
+            s.pop(result);
+
+            if (!result.isString())
+                return vm.error("typecheck: image procedure must return a string");
+
+            const PSString& str = result.asString();
+            size_t expectedBytes = static_cast<size_t>(width) * height;
+
+            if (str.length() < expectedBytes)
+                return vm.error("rangecheck: insufficient image data");
+
+            // Create a memory file from the string data
+            // Copy only the required bytes
+            //imageData.insert(imageData.end(), str.data(), str.data() + expectedBytes);
+            //img.data = std::move(imageData);
+            std::shared_ptr<PSMemoryFile> dataSource = PSMemoryFile::create(OctetCursor(str.data(), expectedBytes));
+
+            return vm.graphics()->image(img, dataSource);
+
+        }
+
+        if (procObj.isFile()) {
+            auto file = procObj.asFile();
+
+            bool result = vm.graphics()->image(img, file);
+            file->finalize();
+
+            return result;
+        }
+
+        return false;
     }
 
     bool op_setscreen(PSVirtualMachine& vm)

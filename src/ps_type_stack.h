@@ -113,17 +113,6 @@ namespace waavs
             return true;
         }
 
-        /*
-bool roll(int n, int j) {
-    if ((size_t)n > _data.size()) return false;
-    if (n <= 0 || j == 0) return true;
-
-    j = ((j % n) + n) % n; // normalize
-    auto first = _data.end() - n;
-    std::rotate(first, first + (n - j), _data.end());
-    return true;
-}
-*/
         bool roll(int count, int shift)
         {
             if (count <= 0 || (size_t)count > this->size())

@@ -45,7 +45,11 @@ namespace waavs {
         static PSPaint fromCMYK(double c, double m, double y, double k) {
             PSPaint p;
             p.kind = PSPaintKind::CMYK;
-            p.c = c; p.m = m; p.y = y; p.k = k;
+            p.c = c; 
+            p.m = m; 
+            p.y = y; 
+            p.k = k;
+
             return p;
         }
     };

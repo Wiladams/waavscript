@@ -22,7 +22,7 @@ namespace waavs {
         virtual ~PSGraphicsContext() = default;
 
         virtual PSMatrix getDeviceDefaultMatrix() const {
-			return PSMatrix::makeIdentity(); // Default to identity matrix
+            return PSMatrix(); // PSMatrix::makeIdentity(); // Default to identity matrix
         }
 
         // --- State access ---
@@ -233,7 +233,7 @@ namespace waavs {
             return false;
         }
 
-        virtual bool image(PSImage& img)
+        virtual bool image(PSImage& img, PSFileHandle src)
         {
             printf("PSGraphicsContext::image() [not implemented]\n");
             return false;

@@ -9,14 +9,12 @@ namespace waavs {
 
     static constexpr double PI = 3.14159265358979323846;
     static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
+    static constexpr double RAD_TO_DEG = 180.0 / 3.14159265358979323846;
     static constexpr double QUARTER_ARC = 3.14159265358979323846 / 2.0;
 
     //
 	// PSMatrix provides a 2D affine transformation matrix
     struct PSMatrix {
-        // Where is the system level PI we can rely on?
-
-
         // Postscript matrix representation is:
         // | m00 m01 0 |
         // | m10 m11 0 |
@@ -34,7 +32,6 @@ namespace waavs {
             };
 
         };
-        //double m[6]; // m00 m01 m10 m11 m20 m21
 
 		//===========================================
 		// Constructors
@@ -62,9 +59,9 @@ namespace waavs {
         // Instance methods
 		//============================================
         // copy constructor
-        PSMatrix clone() const {
-            return PSMatrix(m[0], m[1], m[2], m[3], m[4], m[5]);
-        }
+        //PSMatrix clone() const {
+        //    return PSMatrix(m[0], m[1], m[2], m[3], m[4], m[5]);
+        //}
 
         // determinant
         // Needed to create the inverse
@@ -76,7 +73,8 @@ namespace waavs {
         bool inverse(PSMatrix& out) const 
         {
             double d = determinant();
-            if (d == 0.0) return false;
+            if (d == 0.0) 
+                return false;
 
             double t00 = m[3] / d;
             double t01 = -m[1] / d;
@@ -130,61 +128,85 @@ namespace waavs {
             m[2] = -sinA; m[3] = cosA;
             m[4] = cx;
             m[5] = cy;
+
+            return true;
+        }
+
+        bool resetToTranslation(double tx, double ty) noexcept
+        {
+            m[0] = 1; m[1] = 0;
+            m[2] = 0; m[3] = 1;
+            m[4] = tx; 
+            m[5] = ty;
+        
+            return true;
+        }
+        
+        bool resetToScaling(double sx, double sy) noexcept
+        {
+            m[0] = sx; m[1] = 0;
+            m[2] = 0; m[3] = sy;
+            m[4] = 0; 
+            m[5] = 0;
+            
             return true;
         }
 
 		//=============================================
-		// Transform the matrix
+		// Apply transform to current matrix
 		//=============================================
         
-        PSMatrix& rotate(double angleDegrees) noexcept
+        PSMatrix& rotate(double angleDegrees, double cx=0.0, double cy=0.0) noexcept
         {
-            double angle = angleDegrees * DEG_TO_RAD;
-            double as = std::sin(angle);
-            double ac = std::cos(angle);
+            //double angle = angleDegrees * DEG_TO_RAD;
+            //double as = std::sin(angle);
+            //double ac = std::cos(angle);
 
-            double t00 = as * m10 + ac * m00;
-            double t01 = as * m11 + ac * m01;
-            double t10 = ac * m10 - as * m00;
-            double t11 = ac * m11 - as * m01;
+            //double t00 = as * m10 + ac * m00;
+            //double t01 = as * m11 + ac * m01;
+            //double t10 = ac * m10 - as * m00;
+            //double t11 = ac * m11 - as * m01;
             
-            m00 = t00;
-            m01 = t01;
+            //m00 = t00;
+            //m01 = t01;
 
-            m10 = t10;
-            m11 = t11;
+            //m10 = t10;
+            //m11 = t11;
             
-            return *this;
+           // return *this;
 
-            //PSMatrix r = makeRotation(angleDegrees);
-            //return preMultiply(r);
+            PSMatrix r;
+            r.resetToRotation(angleDegrees, cx, cy);
 
+            return preMultiply(r);
         }
         
 
         constexpr PSMatrix& scale(double sx, double sy) noexcept
         {
-            m00 *= sx;
-            m01 *= sx;
-            m10 *= sy;
-            m11 *= sy;
+            //m00 *= sx;
+            //m01 *= sx;
+            //m10 *= sy;
+            //m11 *= sy;
+            //return *this;
 
-            return *this;
-
-            //return preMultiply(scaling(sx, sy));
+            PSMatrix s;
+            s.resetToScaling(sx, sy);
+            return preMultiply(s);
         }
 
         PSMatrix& translate(double tx, double ty) noexcept
         {
-            m20 += tx * m00 + ty * m10;
-            m21 += tx * m01 + ty * m11;
+            //m20 += tx * m00 + ty * m10;
+            //m21 += tx * m01 + ty * m11;
 
             //this->e += tx;
             //this->f += ty;
-            return *this;
+            //return *this;
 
-            //PSMatrix tr = translation(tx, ty);
-            //return preMultiply(tr);
+            PSMatrix t;
+            t.resetToTranslation(tx, ty);
+            return preMultiply(t);
         }
 
 
@@ -209,6 +231,7 @@ namespace waavs {
             //outY = m[1] * x + m[3] * y;
         }
 
+        // Simple debug print of the matrix values
         void print() const {
             printf("%3.2f %3.2f\n%3.2f %3.2f\n%3.2f %3.2f\n",
                 m[0], m[1], m[2], m[3], m[4], m[5]);
@@ -218,32 +241,33 @@ namespace waavs {
         // Factory constructors
         // 
         //============================================
-        static constexpr PSMatrix makeIdentity() 
-        {
-            return PSMatrix(1, 0, 0, 1, 0, 0);
-        }
+        //static constexpr PSMatrix makeIdentity() 
+        //{
+        //    return PSMatrix(1, 0, 0, 1, 0, 0);
+        //}
 
-        static constexpr PSMatrix makeTranslation(double tx, double ty) 
-        {
-            return PSMatrix(1, 0, 0, 1, tx, ty);
-        }
+        //static constexpr PSMatrix makeTranslation(double tx, double ty) 
+        //{
+        //    return PSMatrix(1, 0, 0, 1, tx, ty);
+        //}
 
-        static constexpr PSMatrix makeScaling(double sx, double sy) 
-        {
-            return PSMatrix(sx, 0, 0, sy, 0, 0);
-        }
+        //static constexpr PSMatrix makeScaling(double sx, double sy) 
+        //{
+        //    return PSMatrix(sx, 0, 0, sy, 0, 0);
+        //}
 
-        static PSMatrix makeRotation(double angleDegrees) 
-        {
-            double rad = angleDegrees * DEG_TO_RAD;
-            PSMatrix m;
-            m.resetToRotation(rad, 0, 0);
-        }
+        //static PSMatrix makeRotation(double angleDegrees) 
+        //{
+        //    double rad = angleDegrees * DEG_TO_RAD;
+        //    PSMatrix m;
+        //    m.resetToRotation(rad, 0, 0);
+        //    return m;
+        //}
 
-        static std::shared_ptr<PSMatrix> create() 
-        {
-            return std::shared_ptr<PSMatrix>(new PSMatrix());
-        }
+        //static std::shared_ptr<PSMatrix> createIdentity() 
+        //{
+        //    return std::shared_ptr<PSMatrix>(new PSMatrix());
+        //}
     };
 
 } // namespace waavs

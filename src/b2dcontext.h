@@ -28,21 +28,25 @@ namespace waavs {
     }
 
 
-    static inline BLRgba32 convertPaint(const PSPaint& p)  {
+    static inline BLRgba32 convertPaint(const PSPaint& p)  
+    {
         switch (p.kind) {
-        case PSPaintKind::GRAY:
-            return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
-        case PSPaintKind::RGB:
-            return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
-        case PSPaintKind::CMYK: {
-            auto clamp01 = [](double x) { return std::min(std::max(x, 0.0), 1.0); };
-            double r = 1.0 - clamp01(p.c + p.k);
-            double g = 1.0 - clamp01(p.m + p.k);
-            double b = 1.0 - clamp01(p.y + p.k);
-            return BLRgba32(uint8_t(r * 255), uint8_t(g * 255), uint8_t(b * 255));
-        }
-        default:
-            return BLRgba32(0, 0, 0, 255); // fallback to black
+            case PSPaintKind::GRAY:
+                return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
+
+            case PSPaintKind::RGB:
+                return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
+
+            case PSPaintKind::CMYK: {
+                double r = std::min(1.0, (1.0 - p.c) * (1.0 - p.k));
+                double g = std::min(1.0, (1.0 - p.m) * (1.0 - p.k));
+                double b = std::min(1.0, (1.0 - p.y) * (1.0 - p.k));
+
+                return BLRgba32(uint8_t(r * 255), uint8_t(g * 255), uint8_t(b * 255), 255);
+            }
+
+            default:
+                return BLRgba32(0, 0, 0, 255); // fallback to black
         }
     }
 
@@ -234,7 +238,7 @@ namespace waavs {
             BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
 
             flipY.translate(0, -h);
-            flipY.scale(2.77, 2.77);
+            //flipY.scale(2.77, 2.77);
 
             ctx.setTransform(flipY);
             ctx.userToMeta();
@@ -350,7 +354,7 @@ namespace waavs {
         }
 
 
-        bool image(PSImage& img) override
+        bool image(PSImage& img, PSFileHandle src) override
         {
             // Create a BLImage object
             BLImage blimg(img.width, img.height, BLFormat::BL_FORMAT_PRGB32);
@@ -361,7 +365,10 @@ namespace waavs {
             // values in the PSImage
             for (int y = 0; y < img.height; ++y) {
                 for (int x = 0; x < img.width; ++x) {
-                    uint8_t grayValue = img.data[y * img.width + x];
+                    uint8_t grayValue = 0;
+                    if (!src->readByte(grayValue))
+                        return false;
+                    //uint8_t grayValue = img.data[y * img.width + x];
                     uint32_t pixelValue = (255 << 24) | (grayValue << 16) | (grayValue << 8) | grayValue;
                     ((uint32_t*)(imgData.pixelData))[(img.height-1-y)*img.width+x] = pixelValue;
                 }
@@ -369,7 +376,9 @@ namespace waavs {
 
             //BLMatrix2D blTrans = blTransform(img.transform);
             ctx.save();
-            //ctx.applyTransform(blTrans);
+            double cx, cy;
+            currentState()->fCurrentPath.getCurrentPoint(cx, cy);
+
             ctx.blitImage(BLPoint(0, 0), blimg);
             ctx.restore();
 

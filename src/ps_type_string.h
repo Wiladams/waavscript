@@ -18,8 +18,8 @@ namespace waavs {
     struct PSString {
     private:
         std::unique_ptr<uint8_t[]> fData;
-        uint32_t fLength = 0;
-        uint32_t fCapacity = 0;
+        uint32_t fLength{ 0 };
+        uint32_t fCapacity{ 0 };
 
     public:
         PSString() = default;

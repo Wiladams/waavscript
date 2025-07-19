@@ -2,6 +2,7 @@
 
 #include "psvm.h"
 #include "ps_type_file.h"
+#include "ps_file_filter.h"
 
 namespace waavs {
 
@@ -27,7 +28,7 @@ namespace waavs {
         const PSString& filename = filenameObj.asString();
         const PSString& access = accessObj.asString();
 
-        auto pf = PSFile::create(filename, access);
+        auto pf = PSDiskFile::create(filename, access);
         if (!pf || !pf->isValid())
             return vm.error("file: could not open");
 
@@ -45,9 +46,9 @@ namespace waavs {
         if (!file.isFile())
             return vm.error("typecheck: expected file");
 
-        auto file = file.asFile();
+        auto fileHandle = file.asFile();
 
-        file->close();
+        //file->close();
 
         return vm.error("closefile operator not yet implemented");
     }
@@ -155,6 +156,7 @@ namespace waavs {
         str.setLength(static_cast<uint32_t>(actual));
         s.push(PSObject::fromString(str));
         s.push(PSObject::fromBool(actual == count));
+
         return true;
     }
 
@@ -341,7 +343,7 @@ namespace waavs {
         if (!file.isFile() || !str.isString())
             return vm.error("typecheck: expected file and string");
 
-        return vm.error("writestring operator not yet implemented");
+        return vm.error("op_writestring: operator not yet implemented");
     }
 
     inline bool op_writehexstring(PSVirtualMachine& vm) {
@@ -355,20 +357,22 @@ namespace waavs {
         if (!file.isFile() || !str.isString())
             return vm.error("typecheck: expected file and string");
 
-        return vm.error("writehexstring operator not yet implemented");
+        return vm.error("op_writehexstring: operator not yet implemented");
     }
 
     inline bool op_flushfile(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         if (s.size() < 1) return vm.error("stackunderflow");
 
-        PSObject file;
-        s.pop(file);
+        PSObject fileObj;
+        s.pop(fileObj);
 
-        if (!file.isFile())
+        if (!fileObj.isFile())
             return vm.error("typecheck: expected file");
 
-        return vm.error("flushfile operator not yet implemented");
+        fileObj.asFile()->flush();
+        
+        return true;
     }
 
 
@@ -429,22 +433,121 @@ namespace waavs {
     //
     // Special File Access
     //
-    inline bool op_currentfile(PSVirtualMachine& vm) {
-        return vm.error("currentfile operator not yet implemented");
+    inline bool op_currentfile(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+
+        PSFileHandle fileHandle;
+        if (!vm.getCurrentFile(fileHandle))
+            return vm.error("op_currentfile: valuecheck; no currentfile available");
+
+        return ostk.pushFile(fileHandle);
     }
 
-    inline bool op_filter(PSVirtualMachine& vm) {
+
+    // op_filter
+    // BUGBUG - only doing the one that takes two parameters
+    bool op_filter(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+
+        // Support 2 parameter formm
+        PSObject sourceObj, nameObj;
+
+        if (!ostk.pop(nameObj) || !ostk.pop(sourceObj))
+            return vm.error("op_filter: stackunderflow");
+
+
+        if (!nameObj.isName())
+            return vm.error("op_filter: typecheck: expected filter name");
+        if (!sourceObj.isFile())
+            return vm.error("op_filter: typecheck: expected file as source");
+
+        PSName filterName = nameObj.asName();
+        auto sourceFile = sourceObj.asFile();
+
+
+        // Lookup filter by name and create a wrapper
+        std::shared_ptr<PSFile> fileWrapper;
+
+        if (filterName == "ASCII85Decode")
+        {
+            fileWrapper = std::make_shared<ASCII85DecodeFilter>(sourceFile);
+        } else if (filterName == "RunLengthDecode")
+        {
+            fileWrapper = std::make_shared<RunLengthDecodeFilter>(sourceFile);
+        }
+        else
+        {
+            return vm.error("undefined: unknown filter");
+        }
+
+
+        return ostk.push(PSObject::fromFile(fileWrapper));
+    }
+
+
+
+/*
+    bool op_filter(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+
+        // Support both 2- and 3-operand forms
+        PSObject nameObj, sourceObj, paramObj;
+        bool hasParams = false;
+
+        //if (ostk.size() >= 3 && ostk.peek(2).isDictionary()) {
+        //    hasParams = true;
+        //    ostk.pop(paramObj);
+        //}
+
+        
+
+        if (!ostk.pop(sourceObj) || !ostk.pop(nameObj))
+            return vm.error("op_filter: stackunderflow");
+
+        if (!nameObj.isName())
+            return vm.error("op_filter: typecheck: expected filter name");
+        if (!sourceObj.isFile())
+            return vm.error("op_filter: typecheck: expected file as source");
+
+        PSName filterName = nameObj.asName();
+        std::shared_ptr<PSFile> sourceFile = sourceObj.asFile();
+
+        // Optional parameters (can be ignored or used)
+        std::shared_ptr<PSDictionary> params = nullptr;
+        if (hasParams)
+            params = paramObj.asDictionary();
+
+        // Lookup filter by name and create a wrapper
+        std::shared_ptr<PSFile> filteredFile;
+        //filteredFile    = vm.filterRegistry().create(filterName, sourceFile, params);
+
+        if (!filteredFile)
+            return vm.error("undefined: unknown filter");
+
+        return ostk.push(PSObject::fromFile(filteredFile));
+    }
+*/
+
+    inline bool op_resetfile(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
-        if (s.size() < 2) return vm.error("stackunderflow");
+        if (s.size() < 1)
+            return vm.error("op_resetfile: stackunderflow");
 
-        PSObject source, name;
-        s.pop(source);
-        s.pop(name);
-
-        if (!name.isName())
-            return vm.error("typecheck: expected filter name");
-
-        return vm.error("filter operator not yet implemented");
+        PSObject fileObj;
+        s.pop(fileObj);
+        if (!fileObj.isFile())
+            return vm.error("op_resetfile: typecheck; expected file");
+        auto file = fileObj.asFile();
+        
+        if (!file || !file->isValid())
+            return vm.error("op_resetfile: invalidfileaccess: file not valid");
+        
+        file->rewind(); // Reset the file position to the beginning
+        
+        return true;
     }
 
     inline bool op_run(PSVirtualMachine& vm) {
@@ -461,7 +564,7 @@ namespace waavs {
             // (filename) run
             const PSString& name = srcObj.asString();
             PSString access = PSString::fromCString("r");
-            file = PSFile::create(name, access);
+            file = PSDiskFile::create(name, access);
             if (!file || !file->isValid())
                 return vm.error("invalidfileaccess: cannot open file");
         }
@@ -475,13 +578,16 @@ namespace waavs {
             return vm.error("typecheck: expected file or filename");
         }
 
-        // Push currentFile and restore after run
-        PSFileHandle saved = vm.getCurrentFile();
-        vm.setCurrentFile(file);
+        // Push currentFile and run the content
+        // BUGBUG - maybe just pushing is good enough, and the run
+        // loop can take care of popping when it's exhausted?
+        vm.pushCurrentFile(file);
 
-        bool ok = vm.interpret(file->getCursor());
+        bool ok = vm.interpret(file);
 
-        vm.setCurrentFile(saved); // restore
+        PSFileHandle lastOne;
+
+        vm.popCurrentFile(lastOne); // restore
 
         return ok;
     }
@@ -517,6 +623,7 @@ namespace waavs {
             // File positioning
             { "fileposition",    op_fileposition },
             { "setfileposition", op_setfileposition },
+            { "resetfile",       op_resetfile },
 
             // File environment
             { "currentfile",     op_currentfile },

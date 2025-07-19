@@ -191,6 +191,8 @@
     <ClInclude Include="..\..\src\mappedfile.h" />
     <ClInclude Include="..\..\src\ocspan.h" />
     <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\ps_file_filter.h" />
+    <ClInclude Include="..\..\src\ps_type1.h" />
     <ClInclude Include="..\..\src\ps_type_graphicstate.h" />
     <ClInclude Include="..\..\src\ps_type_image.h" />
     <ClInclude Include="..\..\src\ps_type_paint.h" />
@@ -206,7 +208,7 @@
     <ClInclude Include="..\..\src\psvm.h" />
     <ClInclude Include="..\..\src\psvmfactory.h" />
     <ClInclude Include="..\..\src\ps_charcats.h" />
-    <ClInclude Include="..\..\src\ps_lexer.h" />
+    <ClInclude Include="..\..\src\ps_lex_tokenizer.h" />
     <ClInclude Include="..\..\src\ps_operator.h" />
     <ClInclude Include="..\..\src\ps_ops_array.h" />
     <ClInclude Include="..\..\src\ps_ops_control.h" />

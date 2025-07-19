@@ -82,15 +82,14 @@ namespace waavs {
         if (ostk.size() < 2)
             return vm.error("stackunderflow");
 
-        PSObject proc, count;
+        PSObject proc;
+        int count;
         ostk.pop(proc);
-        ostk.pop(count);
-
-        if (!count.isInt())
+        if (!ostk.popInt(count))
             return vm.error("typecheck: expected integer");
 
-        int n = count.asInt();
-        for (int i = 0; i < n; ++i) {
+
+        for (int i = 0; i < count; ++i) {
             if (!vm.runProc(proc))
                 return vm.error("repeat:: run() failed");
 

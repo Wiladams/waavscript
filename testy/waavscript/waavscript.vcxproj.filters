@@ -71,7 +71,7 @@
     <ClInclude Include="..\..\src\ps_type_string.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_lexer.h">
+    <ClInclude Include="..\..\src\ps_lex_tokenizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_ops_font.h">
@@ -147,6 +147,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_type_paint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_file_filter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

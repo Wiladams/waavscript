@@ -35,13 +35,13 @@ size_t loadFontsInDirectory(PSVirtualMachine* vm, const char* dirpath) {
 }
 
 // Utility to wrap input and run interpreter
-static void runPostscript(OctetCursor input, const char *outfilename) 
+static bool runFile(const char *filename, const char *outfilename) 
 {
 	auto vm = PSVMFactory::createVM();
 
 	if (!vm) {
 		printf("Failed to create virtual machine\n");
-		return;
+		return false;
 	}
 
 	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(1700, 2200);	// US Letter size in points (8.5 x 11 inches, 200dpi)
@@ -50,12 +50,28 @@ static void runPostscript(OctetCursor input, const char *outfilename)
 	loadFontsInDirectory(vm.get(), "c:/windows/fonts");
 
 	// Run the interpreter
-	//PSInterpreter interp(*vm);
-	vm->interpret(input);
+	auto mapped = MappedFile::create_shared(filename);
+
+	// if the mapped file does not exist, return
+	if (mapped == nullptr)
+	{
+		printf("File not found: %s\n", filename);
+		return false;
+	}
+
+	//OctetCursor mappedSpan(mapped->data(), mapped->size());
+	auto file = PSDiskFile::create(mapped);
+	if (file == nullptr || !file->isValid()) {
+		printf("Failed to open file: %s\n", filename);
+		return false;
+    }
+
+	vm->interpret(file);
 
 	// If we want, we can save output here
 	static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().writeToFile(outfilename);
 
+	return true;
 }
 
 // Utility to replace .ps with .png or append .png if no .ps is found
@@ -87,21 +103,9 @@ int main(int argc, char** argv)
 	// create an mmap for the specified file
 	const char* filename = argv[1];
 
-	auto mapped = MappedFile::create_shared(filename);
-
-	// if the mapped file does not exist, return
-	if (mapped == nullptr)
-	{
-		printf("File not found: %s\n", filename);
-		return 1;
-	}
-
-	OctetCursor mappedSpan(mapped->data(), mapped->size());
-
-
 	auto outfilename = defaultOutputFilename(filename);
 
-	runPostscript(mappedSpan, outfilename.c_str());
+	runFile(filename, outfilename.c_str());
 
 	return 0;
 }

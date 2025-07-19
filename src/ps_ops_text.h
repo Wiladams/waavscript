@@ -5,8 +5,11 @@
 #include "psvm.h"
 
 namespace waavs {
-    inline bool op_ashow(PSVirtualMachine& vm) {
+    inline bool op_ashow(PSVirtualMachine& vm) 
+    {
         auto& ostk = vm.opStack();
+        auto* g = vm.graphics();
+        auto& ctm = g->getCTM();
 
         PSObject axObj;
         PSObject ayObj;
@@ -17,6 +20,35 @@ namespace waavs {
             !ostk.pop(axObj)) {
             return vm.error("op_ashow: stackunderflow");
         }
+
+        // BUGBUG: not using specified adjustments
+        g->showText(ctm, strObj.asMutableString());
+
+        return true;
+    }
+
+    inline bool op_kshow(PSVirtualMachine& vm)
+    {
+        auto& ostk = vm.opStack();
+        auto* g = vm.graphics();
+        auto& ctm = g->getCTM();
+
+        if (ostk.size() < 2)
+            return vm.error("op_kshow: stackunderflow");
+
+        // pop a string, then a procedure
+        PSObject strObj;
+        PSObject proc;
+
+        if (!ostk.pop(strObj) || !strObj.isString())
+            return vm.error("op_kshow: typecheck; string");
+
+        if (!ostk.pop(proc) || !proc.isExecutable())
+            return vm.error("op_kshow: typecheck; proc");
+
+        // BUGBUG: need to apply per character-pair spacing
+        // but for now we'll just do what show does
+        g->showText(ctm, strObj.asMutableString());
 
         return true;
     }
@@ -43,9 +75,9 @@ namespace waavs {
     // Text operator registration
     inline const PSOperatorFuncMap& getTextOps() {
         static const PSOperatorFuncMap table = {
-            { "ashow",     op_ashow }
-            ,{"show", op_show}
-
+            { "ashow",      op_ashow },
+            {"show",        op_show},
+            { "kshow",      op_kshow  }
         };
         return table;
     }

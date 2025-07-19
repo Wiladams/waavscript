@@ -8,8 +8,12 @@ namespace waavs {
 
 
     // (  ? matrix )
-    inline bool op_matrix(PSVirtualMachine& vm) {
-        return vm.opStack().pushMatrix(PSMatrix::makeIdentity());
+    inline bool op_matrix(PSVirtualMachine& vm) 
+    {
+        auto& ostk = vm.opStack();
+        PSMatrix mat{};
+
+        return ostk.pushMatrix(mat);
     }
 
 	// ( matrix ? matrix' )
@@ -25,8 +29,9 @@ namespace waavs {
 			return vm.error("typecheck: expected matrix or array");
 
 		// we don't care what's currently in the matrix object, just fill it with identity values
-        PSMatrix mat = PSMatrix::makeIdentity();
-		return s.pushMatrix(mat); // push back to stack
+        PSMatrix mat;   // default matrix is identity
+		
+        return s.pushMatrix(mat);
     }
 
     // matrix1 matrix2 invertmatrix matrix2

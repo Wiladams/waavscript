@@ -23,15 +23,13 @@ namespace waavs {
         Bevel = 2
     };
 
-
-
 } // namespace waavs
 
 namespace waavs {
 
     struct PSGraphicsState {
         // Current Transformation Matrix
-        PSMatrix ctm = PSMatrix::makeIdentity();
+        PSMatrix ctm;  // = PSMatrix::makeIdentity();
 
         // Stroke Style
         double lineWidth = 1.0;

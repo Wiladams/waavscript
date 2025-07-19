@@ -3,7 +3,7 @@
 #include <functional>
 
 #include "pscore.h"
-#include "ps_lexer.h"
+#include "ps_lex_tokenizer.h"
 #include "typeconv.h"
 
 //
@@ -282,13 +282,26 @@ namespace waavs
     
     struct PSObjectGenerator
     {
+        PSFileHandle fOwnFile;
         PSLexemeGenerator lexgen;
 
 
-        explicit PSObjectGenerator(const OctetCursor& oc)
-            : lexgen(oc)
+        explicit PSObjectGenerator(PSFileHandle file)
+            : fOwnFile(file),
+            lexgen(file)
         {
         }
+
+        //explicit PSObjectGenerator(const OctetCursor& oc)
+        //    : fOwnCursor(oc),
+        //    lexgen(fOwnCursor)
+        //{
+        //}
+
+        //explicit PSObjectGenerator(OctetCursor& oc)
+        //    : lexgen(oc)
+        //{
+        //}
 
         bool next(PSObject& obj)
         {
