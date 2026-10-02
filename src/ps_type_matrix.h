@@ -119,15 +119,17 @@ namespace waavs {
             return *this;
         }
         
-        bool resetToRotation(double rads, double cx, double cy) noexcept
+        bool resetToRotation(double rads, double cx = 0.0, double cy = 0.0) noexcept
         {
             double cosA = std::cos(rads);
             double sinA = std::sin(rads);
-            
-            m[0] = cosA; m[1] = sinA;
-            m[2] = -sinA; m[3] = cosA;
-            m[4] = cx;
-            m[5] = cy;
+
+            m[0] = cosA;
+            m[1] = sinA;
+            m[2] = -sinA;
+            m[3] = cosA;
+            m[4] = cx - cx * cosA + cy * sinA;
+            m[5] = cy - cx * sinA - cy * cosA;
 
             return true;
         }
@@ -176,7 +178,9 @@ namespace waavs {
            // return *this;
 
             PSMatrix r;
-            r.resetToRotation(angleDegrees, cx, cy);
+            double rads = angleDegrees * DEG_TO_RAD;
+
+            r.resetToRotation(rads, cx, cy);
 
             return preMultiply(r);
         }

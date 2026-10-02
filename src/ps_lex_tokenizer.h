@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "pscore.h"
 #include "ocspan.h"
 #include "ps_type_name.h"
 #include "ps_type_file.h"

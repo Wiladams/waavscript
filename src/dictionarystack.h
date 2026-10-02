@@ -15,6 +15,9 @@ namespace waavs {
     public:
         PSDictionaryStack() {}
 
+        size_t size() const noexcept { return stack.size(); }
+
+
         bool push(PSDictionaryHandle dict) {
             stack.push_back(dict);
             return true;
@@ -27,20 +30,24 @@ namespace waavs {
             return true;
         }
 
-        PSDictionaryHandle currentdict() const {
+        PSDictionaryHandle currentdict() const 
+        {
             if (stack.empty())
                 return nullptr;
 
             return stack.back();
         }
 
-        size_t size() { return stack.size(); }
-        /*
-        bool getCount(size_t& count) const {
-            count = stack.size();
+        bool getFromTop(size_t index, PSDictionaryHandle& out) const noexcept
+        {
+            if (index >= stack.size())
+                return false;
+
+            out = stack[stack.size() - 1 - index];
             return true;
         }
-        */
+
+
         PSArrayHandle getStack() const {
             PSArrayHandle out = PSArray::create(stack.size());
             for (size_t i = 0; i < stack.size(); ++i) {

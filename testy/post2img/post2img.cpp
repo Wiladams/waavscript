@@ -69,7 +69,7 @@ static bool runFile(const char *filename, const char *outfilename)
 	vm->interpret(file);
 
 	// If we want, we can save output here
-	static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().writeToFile(outfilename);
+	static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().write_to_file(outfilename);
 
 	return true;
 }

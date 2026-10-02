@@ -5,7 +5,7 @@
 #include <string>
 
 #include "definitions.h"
-#include "bithacks.h"
+#include "corebits/bithacks.h"
 
 
 namespace waavs
@@ -148,12 +148,7 @@ namespace waavs {
 		}
 	};
 
-	// Case insensitive 'string' comparison
-	//struct ByteSpanInsensitiveHash {
-	//	size_t operator()(const ByteSpan& span) const noexcept {
-	//		return waavs::fnv1a_32_case_insensitive(span.data(), span.size());
-	//	}
-	//};
+
 
 	// Don't need to implement the following, as long as the operator==
 	// does a content comparison.

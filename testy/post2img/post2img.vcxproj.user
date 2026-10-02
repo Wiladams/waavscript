@@ -3,9 +3,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
     <LocalDebuggerCommandArguments>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerCommandArgumentsHistory>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <LocalDebuggerCommandArguments>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerCommandArgumentsHistory>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
 </Project>

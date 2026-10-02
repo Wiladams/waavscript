@@ -47,3 +47,5 @@
 /testy/scanner/x64
 /testy/interpreter/x64
 *.log
+/lib/ARM64
+/testy/waavscript/ARM64

@@ -1,3 +1,4 @@
+// ps_ops_matrix.h
 #pragma once
 
 
@@ -363,23 +364,24 @@ namespace waavs {
     // 
     // matrix1 matrix2 matrix3 contatmatrix matrix3
     //
-    inline bool op_concatmatrix(PSVirtualMachine& vm) {
+    inline bool op_concatmatrix(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
 
-        if (s.size() < 3) 
+        if (s.size() < 3)
             return vm.error("op_concatmatrix: stackunderflow");
 
         PSObject m3, m2, m1;
-		s.pop(m3);
-        s.pop(m2); 
+        s.pop(m3);
+        s.pop(m2);
         s.pop(m1);
 
         PSMatrix mat1, mat2;
         if (!extractMatrix(m1, mat1) || !extractMatrix(m2, mat2))
             return vm.error("op_concatmatrix: typecheck");
 
-        mat2.preMultiply(mat1); // mat2 = mat1 * mat2
-        m3.resetFromMatrix(mat2); // copy mat2 to mat3
+        mat1.preMultiply(mat2); // internal result = mat2 * mat1
+        m3.resetFromMatrix(mat1);
 
         return s.push(m3);
     }
@@ -488,7 +490,8 @@ namespace waavs {
     // angle rotate
     // angle matrix rotate
     //
-    inline bool op_rotate(PSVirtualMachine& vm) {
+    inline bool op_rotate(PSVirtualMachine& vm) 
+    {
         auto& s = vm.opStack();
         auto& ctm = vm.graphics()->getCTM();
 

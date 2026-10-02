@@ -8,7 +8,6 @@ namespace waavs
     inline bool op_findresource(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
-        auto& rs = vm.getResourceStack();
 
         // stack: key category
         PSObject categoryObj;
@@ -26,40 +25,21 @@ namespace waavs
         if (!keyObj.isName())
             return vm.error("findresource: key must be a name");
 
-        const PSName& categoryName = categoryObj.asName();
-        const PSName& resourceKey = keyObj.asName();
-
-        // find the category dictionary on the resource stack
-        PSObject obj;
-        PSDictionaryHandle categoryDict;
-        if (!rs.load(categoryName, obj))
-            return vm.error("findresource: category not found", categoryName.c_str());
-
-        if (!obj.isDictionary())
-            return vm.error("findresource: category is not a dictionary");
-
-        categoryDict = obj.asDictionary();
-        
         PSObject foundResource;
-        if (!categoryDict->get(resourceKey, foundResource))
-            return vm.error("findresource: resource not found", resourceKey.c_str());
+        if (!vm.findResource(keyObj.asName(), categoryObj.asName(), foundResource))
+            return vm.error("findresource: resource not found", keyObj.asName().c_str());
 
-        s.push(foundResource);
-        return true;
+        return s.push(foundResource);
     }
 
     // key category value  defineresource
     inline bool op_defineresource(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
-        auto& rs = vm.getResourceStack();
 
-        // stack: key value category
         PSObject keyObj;
         PSObject categoryObj;
         PSObject valueObj;
-
-
 
         if (!s.pop(valueObj))
             return vm.error("defineresource: missing value");
@@ -70,40 +50,16 @@ namespace waavs
         if (!s.pop(keyObj))
             return vm.error("defineresource: missing key");
 
-        // Validate types
         if (!categoryObj.isName())
             return vm.error("defineresource: category must be a name");
 
         if (!keyObj.isName())
             return vm.error("defineresource: key must be a name");
 
-        auto categoryName = categoryObj.asName();
-        auto resourceKey = keyObj.asName();
+        if (!vm.defineResource(keyObj.asName(), categoryObj.asName(), valueObj))
+            return vm.error("defineresource: failed to define resource", keyObj.asName().c_str());
 
-        //printf("defineresource: category=%s, key=%s\n", categoryName.c_str(), resourceKey.c_str());
-
-        //
-        // get top of the resource stack
-        //
-        PSObject topResDirObj;
-        if (!rs.currentdict()->get(categoryName, topResDirObj)) {
-            // category dictionary not yet present, create it
-            auto categoryDict = PSDictionary::create();
-            rs.currentdict()->put(categoryName, PSObject::fromDictionary(categoryDict));
-            topResDirObj = PSObject::fromDictionary(categoryDict);
-        }
-
-        if (!topResDirObj.isDictionary())
-            return vm.error("defineresource: category entry is not a dictionary");
-
-        auto categoryDict = topResDirObj.asDictionary();
-
-        categoryDict->put(resourceKey, valueObj);
-
-        // PostScript defineresource leaves the value on the stack
-        s.push(valueObj);
-
-        return true;
+        return s.push(valueObj);
     }
 
     inline bool op_undefineresource(PSVirtualMachine& vm)
@@ -208,6 +164,30 @@ namespace waavs
     inline bool op_resourceforall(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
+
+        // stack: category proc
+        PSObject procObj;
+        PSObject categoryObj;
+
+        if (!s.pop(procObj))
+            return vm.error("resourceforall: missing procedure");
+
+        if (!s.pop(categoryObj))
+            return vm.error("resourceforall: missing category");
+
+        if (!categoryObj.isName())
+            return vm.error("resourceforall: category must be a name");
+
+        if (!procObj.isExecutable())
+            return vm.error("resourceforall: proc must be executable");
+
+        return vm.scheduleResourceForAll(categoryObj.asName(), procObj);
+    }
+
+    /*
+    inline bool op_resourceforall(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
         auto& estk = vm.execStack();
         auto& rs = vm.getResourceStack();
 
@@ -260,6 +240,7 @@ namespace waavs
 
         return true;
     }
+    */
 
     inline bool op_beginresource(PSVirtualMachine& vm)
     {

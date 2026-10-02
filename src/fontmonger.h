@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include <blend2d/blend2d.h>
-#include <blend2d/blend2d/fontmanager.h>
+#include <blend2d/core/fontmanager.h>
 
 #include "strutil.h"
 
@@ -110,48 +110,44 @@ namespace waavs {
         // BuildGlyph       Alternative procedure for building glyphs (Type 3 fonts)
         // Scan a font file and extract metadata.
         // Returns true if the font was successfully scanned and metadata extracted.
-        bool loadFontResource(PSVirtualMachine &vm) {
+        bool loadFontResource(PSVirtualMachine& vm)
+        {
             BLFontFace face;
 
             auto& s = vm.opStack();
-            auto& estk = vm.execStack();
 
             // pop the path from the stack
-            if (s.size() < 1) {
-                vm.error("loadFontResource: stackunderflow");
-                return false;
-            }
+            if (s.size() < 1)
+                return vm.error("loadFontResource: stackunderflow");
 
             PSObject pathObj;
-            s.pop(pathObj);
-            
-            if (!pathObj.isString()) {
-                vm.error("loadFontResource: typecheck; Expected a string on the stack for font path");
-                return false;
-            }
+            if (!s.pop(pathObj))
+                return vm.error("loadFontResource: stackunderflow");
+
+            if (!pathObj.isString())
+                return vm.error("loadFontResource: typecheck; Expected a string on the stack for font path");
 
             auto filePathStr = pathObj.asString().toString();
-            const char *filePath = filePathStr.c_str();
-            if (face.createFromFile(filePath) != BL_SUCCESS || !face.isValid())
-                return vm.error("createFromFile error");
+            const char* filePath = filePathStr.c_str();
+            if (face.create_from_file(filePath) != BL_SUCCESS || !face.is_valid())
+                return vm.error("create_from_file error");
 
-
-            const BLFontDesignMetrics &dm = face.designMetrics();
+            const BLFontDesignMetrics& dm = face.design_metrics();
 
             // bounding box is an array of 4 reals: [llx, lly, urx, ury]
             auto arr = PSArray::create();
-            arr->append(PSObject::fromReal(dm.glyphBoundingBox.x0)); // llx
-            arr->append(PSObject::fromReal(dm.glyphBoundingBox.y0)); // lly
-            arr->append(PSObject::fromReal(dm.glyphBoundingBox.x1)); // urx
-            arr->append(PSObject::fromReal(dm.glyphBoundingBox.y1)); // ury
+            arr->append(PSObject::fromReal(dm.glyph_bounding_box.x0)); // llx
+            arr->append(PSObject::fromReal(dm.glyph_bounding_box.y0)); // lly
+            arr->append(PSObject::fromReal(dm.glyph_bounding_box.x1)); // urx
+            arr->append(PSObject::fromReal(dm.glyph_bounding_box.y1)); // ury
 
             // FontMatrix can be built from unitsPerEm, which is what's in the
             // design metrics
-            PSMatrix fontMatrix(1.0/dm.unitsPerEm, 0.0, 0.0, 1.0/dm.unitsPerEm, 0.0, 0.0);
+            PSMatrix fontMatrix(1.0 / dm.units_per_em, 0.0, 0.0, 1.0 / dm.units_per_em, 0.0, 0.0);
 
-            const char* psName = toLowerIntern(face.postScriptName());
-            const char* famName = toLowerIntern(face.familyName());
-            const char* subfamName = toLowerIntern(face.subfamilyName());
+            const char* psName = toLowerIntern(face.post_script_name());
+            const char* famName = toLowerIntern(face.family_name());
+            const char* subfamName = toLowerIntern(face.subfamily_name());
 
             auto psface = PSFontFace::create();
             psface->set("FontFile", pathObj);
@@ -164,29 +160,14 @@ namespace waavs {
             psface->set("Style", PSObject::fromInt(face.style()));
 
             psface->set("FontBBox", PSObject::fromArray(arr));
-            psface->set("UnitsPerEm", PSObject::fromInt(face.unitsPerEm()));
+            psface->set("UnitsPerEm", PSObject::fromInt(face.units_per_em()));
             psface->set("FontMatrix", PSObject::fromMatrix(fontMatrix));
-            //psface->set("FontType", PSObject::fromInt(face.fontType()));
+            //psface->set("FontType", PSObject::fromInt(face.font_type()));
 
-            // We want to save the font into the ResourceDirectory.  We'll use the 
-            // already available 'defineresource' operator to do this.
-            // Key: PostScript name (interned, lowercase)
-            // Value: font face handle 
-            // Category: Font Category
-            // key category value  defineresource
-            s.pushLiteralName(psName);
-            s.pushLiteralName("Font");
-            s.push(PSObject::fromFontFace(psface));
-
-            estk.pushExecName("defineresource");
-
-            vm.run();
-
-
-            // value left on stack, so pop that, we don't need it
-            PSObject resObj;
-            if (!s.pop(resObj))
-                return vm.error("loadFontResource: stackunderflow");
+            // Save the font into the ResourceDirectory directly through the VM.
+            PSObject resource = PSObject::fromFontFace(psface);
+            if (!vm.defineResource(psName, "Font", resource))
+                return vm.error("loadFontResource: failed to define font resource", psName);
 
             return true;
         }
@@ -213,9 +194,9 @@ namespace waavs {
             //const char* fontFilePath = fontFileObj.asString().toString().c_str();
 
             BLFontFace fFace;
-            BLResult result = fFace.createFromFile(fontFilePath);
+            BLResult result = fFace.create_from_file(fontFilePath);
 
-            if (result != BL_SUCCESS || !fFace.isValid()) {
+            if (result != BL_SUCCESS || !fFace.is_valid()) {
                 //delete fFace; // Clean up if creation failed
                 return false; // Error: Failed to create BLFontFace
             }
@@ -223,9 +204,9 @@ namespace waavs {
 
             BLFont* font = new BLFont();
 
-            result = font->createFromFace(fFace, sz); // Create a font from the face at the specified size
+            result = font->create_from_face(fFace, sz); // Create a font from the face at the specified size
 
-            if (result != BL_SUCCESS || !font->isValid()) {
+            if (result != BL_SUCCESS || !font->is_valid()) {
                 delete font; // Clean up if creation failed
                 return false; // Error: Failed to create BLFont
             }

@@ -1,3 +1,5 @@
+// b2dcontext.h
+
 #pragma once
 
 #pragma comment(lib, "blend2d.lib")
@@ -79,7 +81,7 @@ namespace waavs {
         ctm.transformPoint(x2, y2, tx2, ty2);
         ctm.transformPoint(x3, y3, tx3, ty3);
 
-        out.cubicTo(tx1, ty1, tx2, ty2, tx3, ty3);
+        out.cubic_to(tx1, ty1, tx2, ty2, tx3, ty3);
     }
     
 
@@ -92,7 +94,7 @@ namespace waavs {
             case PSPathCommand::MoveTo: {
                 double tx, ty;
                 seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
-                out.moveTo(tx, ty);
+                out.move_to(tx, ty);
             }
 
             break;
@@ -101,7 +103,7 @@ namespace waavs {
                 double tx, ty;
                 seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
 
-                out.lineTo(tx, ty);
+                out.line_to(tx, ty);
             }
             break;
 
@@ -117,7 +119,7 @@ namespace waavs {
                 seg.fTransform.transformPoint(seg.x2, seg.y2, tx2, ty2);
                 seg.fTransform.transformPoint(seg.x3, seg.y3, tx3, ty3);
 
-                out.cubicTo(tx1, ty1, tx2, ty2, tx3, ty3);
+                out.cubic_to(tx1, ty1, tx2, ty2, tx3, ty3);
             break;
 
 
@@ -127,7 +129,7 @@ namespace waavs {
                 double r = seg.x1; // Radius
                 bool sweepFlag = seg.y1>0.0 ? true : false;
                
-                out.ellipticArcTo(r, r, 0.0, false, sweepFlag, x1, y1);
+                out.elliptic_arc_to(r, r, 0.0, false, sweepFlag, x1, y1);
                 break;
             }
 
@@ -142,8 +144,8 @@ namespace waavs {
 
     bool convertBLPathToPSPath(const BLPath& inPath, const PSMatrix& ctm, PSPath& outPSPath)
     {
-        const uint8_t* cmds = inPath.commandData();
-        const BLPoint* pts = inPath.vertexData();
+        const uint8_t* cmds = inPath.command_data();
+        const BLPoint* pts = inPath.vertex_data ();
         size_t cmdCount = inPath.size();
 
         for (size_t i = 0; i < cmdCount; ++i)
@@ -222,26 +224,26 @@ namespace waavs {
             : fCanvas(width, height, BL_FORMAT_PRGB32)
         {
             ctx.begin(fCanvas);
-            ctx.clearAll();
+            ctx.clear_all();
 			
-            ctx.setFillRule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
-            ctx.setCompOp(BL_COMP_OP_SRC_OVER);
-            ctx.setGlobalAlpha(1.0); // optional - opaque rendering
-            ctx.fillAll(BLRgba32(0xff, 0xff, 0xff, 255)); // Fill with white background
+            ctx.set_fill_rule(BL_FILL_RULE_NON_ZERO); // Non-zero winding rule
+            ctx.set_comp_op(BL_COMP_OP_SRC_OVER);
+            ctx.set_global_alpha(1.0); // optional - opaque rendering
+            ctx.fill_all(BLRgba32(0xff, 0xff, 0xff, 255)); // Fill with white background
 
-			ctx.setStrokeAlpha(1.0); // optional - opaque stroke
+			ctx.set_stroke_alpha(1.0); // optional - opaque stroke
             setRGB(0, 0, 0);
 
 
             // Flip coordinate system: origin to bottom-left, Y+ goes up
             double h = fCanvas.height();
-            BLMatrix2D flipY = BLMatrix2D::makeScaling(1, -1);
+            BLMatrix2D flipY = BLMatrix2D::make_scaling(1, -1);
 
             flipY.translate(0, -h);
-            //flipY.scale(2.77, 2.77);
+            flipY.scale(2.77, 2.77);
 
-            ctx.setTransform(flipY);
-            ctx.userToMeta();
+            ctx.set_transform(flipY);
+            ctx.user_to_meta();
 
         }
 
@@ -258,26 +260,16 @@ namespace waavs {
 
         void erasePage() override {
             // Clear the canvas
-            ctx.clearAll();
+            ctx.clear_all();
             ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
         }
 
         // Font related methods
-        bool findFont(PSVirtualMachine &vm, const PSName& faceName, PSObject& outObj) override
+        bool findFont(PSVirtualMachine& vm, const PSName& faceName, PSObject& outObj) override
         {
-            auto& ostk = vm.opStack();
-            auto& estk = vm.execStack();
+            if (!vm.findResource(faceName, "Font", outObj))
+                return vm.error("findFont: font resource not found", faceName.c_str());
 
-            ostk.pushLiteralName(faceName);
-            ostk.pushLiteralName("Font");
-            estk.pushExecName("findresource");
-
-
-            if (!vm.run())
-                return false;
-
-            ostk.pop(outObj);
-            
             return true;
         }
 
@@ -293,10 +285,10 @@ namespace waavs {
             BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
             BLFillRule fillRule = BL_FILL_RULE_NON_ZERO;
 
-            ctx.setFillRule(fillRule);
-            ctx.setFillStyle(fillColor);
+            ctx.set_fill_rule(fillRule);
+            ctx.set_fill_style(fillColor);
 
-            ctx.fillPath(blPath);
+            ctx.fill_path(blPath);
 
             currentPath().reset();
 
@@ -316,9 +308,9 @@ namespace waavs {
             BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
             BLFillRule fillRule = BL_FILL_RULE_EVEN_ODD;
 
-            ctx.setFillRule(fillRule); // Set even-odd fill rule
-            ctx.setFillStyle(fillColor);
-            ctx.fillPath(blPath);
+            ctx.set_fill_rule(fillRule); // Set even-odd fill rule
+            ctx.set_fill_style(fillColor);
+            ctx.fill_path(blPath);
 
             currentPath().reset();
 
@@ -339,13 +331,13 @@ namespace waavs {
             double lineWidth = currentState()->lineWidth;
             BLStrokeJoin join = convertLineJoin(currentState()->lineJoin);
 
-            ctx.setStrokeStyle(strokeColor);
-            ctx.setStrokeWidth(lineWidth);
-            ctx.setStrokeCaps(static_cast<BLStrokeCap>(currentState()->lineCap));
-            ctx.setStrokeJoin(join);
-            ctx.setStrokeMiterLimit(currentState()->miterLimit);
+            ctx.set_stroke_style(strokeColor);
+            ctx.set_stroke_width(lineWidth);
+            ctx.set_stroke_caps(static_cast<BLStrokeCap>(currentState()->lineCap));
+            ctx.set_stroke_join(join);
+            ctx.set_stroke_miter_limit(currentState()->miterLimit);
 
-            ctx.strokePath(blPath);
+            ctx.stroke_path(blPath);
             currentPath().reset();
 
 			ctx.restore(); // Restore to previous state
@@ -359,7 +351,7 @@ namespace waavs {
             // Create a BLImage object
             BLImage blimg(img.width, img.height, BLFormat::BL_FORMAT_PRGB32);
             BLImageData imgData;
-            blimg.getData(&imgData);
+            blimg.get_data(&imgData);
 
             // got pixel by pixel setting each value according to the grayscale
             // values in the PSImage
@@ -370,7 +362,7 @@ namespace waavs {
                         return false;
                     //uint8_t grayValue = img.data[y * img.width + x];
                     uint32_t pixelValue = (255 << 24) | (grayValue << 16) | (grayValue << 8) | grayValue;
-                    ((uint32_t*)(imgData.pixelData))[(img.height-1-y)*img.width+x] = pixelValue;
+                    ((uint32_t*)(imgData.pixel_data))[(img.height-1-y)*img.width+x] = pixelValue;
                 }
             }
 
@@ -379,7 +371,7 @@ namespace waavs {
             double cx, cy;
             currentState()->fCurrentPath.getCurrentPoint(cx, cy);
 
-            ctx.blitImage(BLPoint(0, 0), blimg);
+            ctx.blit_image(BLPoint(0, 0), blimg);
             ctx.restore();
 
             return true;
@@ -389,13 +381,13 @@ namespace waavs {
         {
             // Draw postscript axes as they currently sit
             BLPath xAxisPath, yAxisPath;
-            xAxisPath.moveTo(0, 0);
-            xAxisPath.lineTo(300, 0);
-            yAxisPath.moveTo(0, 0);
-            yAxisPath.lineTo(0, 300);
+            xAxisPath.move_to(0, 0);
+            xAxisPath.line_to(300, 0);
+            yAxisPath.move_to(0, 0);
+            yAxisPath.line_to(0, 300);
 
-            ctx.strokePath(xAxisPath, xColor);
-            ctx.strokePath(yAxisPath, yColor);
+            ctx.stroke_path(xAxisPath, xColor);
+            ctx.stroke_path(yAxisPath, yColor);
 
         }
 
@@ -422,7 +414,7 @@ namespace waavs {
             // Apply CTM matrix before the coordinates of the text
            // PSMatrix ctm = currentState()->ctm;
             BLMatrix2D bctm(ctm.m[0], ctm.m[1], ctm.m[2], ctm.m[3], ctm.m[4], ctm.m[5]);
-            ctx.applyTransform(bctm);
+            ctx.apply_transform(bctm);
 
             // Finally, get into the right coordinate space 
             // To draw the text
@@ -441,8 +433,8 @@ namespace waavs {
 
             // Finally, draw the actual text
             BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
-            ctx.setFillStyle(fillColor);
-            ctx.fillUtf8Text(BLPoint(0, 0), *font, (const char *)text.data(), text.length());
+            ctx.set_fill_style(fillColor);
+            ctx.fill_utf8_text(BLPoint(0, 0), *font, (const char *)text.data(), text.length());
             
             ctx.restore();
 
@@ -465,11 +457,11 @@ namespace waavs {
             BLGlyphBuffer gb;
             BLFontMetrics fm = font->metrics();
 
-            gb.setUtf8Text(str.data(), str.length());
+            gb.set_utf8_text(str.data(), str.length());
             font->shape(gb);
-            font->getTextMetrics(gb, tm);
+            font->get_text_metrics(gb, tm);
 
-            dx = tm.boundingBox.x1 - tm.boundingBox.x0;
+            dx = tm.bounding_box.x1 - tm.bounding_box.x0;
             dy = 0.0;
 
             return true;
@@ -480,13 +472,13 @@ namespace waavs {
             BLFont* font = (BLFont*)fontHandle->fSystemHandle;
 
             BLGlyphBuffer gb;
-            gb.setUtf8Text(str.data(), str.length());
+            gb.set_utf8_text(str.data(), str.length());
             font->shape(gb);
 
-            const BLGlyphRun& grun = gb.glyphRun();
+            const BLGlyphRun& grun = gb.glyph_run();
 
             BLPath glyphPath{};
-            font->getGlyphRunOutlines(grun, glyphPath);
+            font->get_glyph_run_outlines(grun, glyphPath);
 
             // Now turn the BLPath into a PSPath
             //double h = fCanvas.height();

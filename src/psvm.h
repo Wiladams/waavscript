@@ -1,3 +1,4 @@
+// psvm.h
 #pragma once
 
 
@@ -6,6 +7,7 @@
 
 
 #include "pscore.h"
+#include "ps_execution_frame.h"
 #include "dictionarystack.h"
 #include "ps_type_stack.h"
 #include "ps_type_graphicscontext.h"
@@ -25,23 +27,25 @@ namespace waavs
     // You can use this VM completely in the absense of the PSInterpreter.  Mainly it relies
 	// on the PSObject and PSOperator classes to handle the execution of operators.
     // 
+
+    using PSExecutionStack = PSStack<PSExecutionItem>;
+
+
     struct PSVirtualMachine
     {
     private:
 		int fLanguageLevel = 2; // Default language level
         std::unique_ptr<PSGraphicsContext> graphicsContext_;
+        
         PSObjectStack operandStack_;
-        PSObjectStack executionStack_;
+        PSExecutionStack executionStack_;
         PSObjectStack fileStack;
 
-		bool stopRequested = false;
-        bool exitRequested = false;
 
         PSDictionaryHandle systemdict;
         PSDictionaryHandle userdict;
         PSDictionaryHandle systemResourceDirectory;
 
-        //std::shared_ptr<PSFile> fCurrentFile; // Current file being processed, if any
 
         PSDictionaryStack fResourceStack; // Stack of resource dictionaries, if needed
 
@@ -76,9 +80,40 @@ namespace waavs
             return userdict;
         }
 
+        // Resource management
         PSDictionaryHandle getSystemResourceDirectory() const { return systemResourceDirectory; }
         PSDictionaryStack& getResourceStack() { return fResourceStack; }
         const PSDictionaryStack& getResourceStack() const { return fResourceStack; }
+
+        bool findResource(const PSName& key, const PSName& category, PSObject& out)
+        {
+            PSObject categoryObj;
+
+            if (!fResourceStack.load(category, categoryObj))
+                return false;
+
+            if (!categoryObj.isDictionary())
+                return false;
+
+            return categoryObj.asDictionary()->get(key, out);
+        }
+
+        bool defineResource(const PSName& key, const PSName& category, const PSObject& value)
+        {
+            PSObject categoryObj;
+
+            if (!fResourceStack.currentdict()->get(category, categoryObj))
+            {
+                auto categoryDict = PSDictionary::create();
+                fResourceStack.currentdict()->put(category, PSObject::fromDictionary(categoryDict));
+                categoryObj = PSObject::fromDictionary(categoryDict);
+            }
+
+            if (!categoryObj.isDictionary())
+                return false;
+
+            return categoryObj.asDictionary()->put(key, value);
+        }
 
 
         // Meta Information
@@ -123,8 +158,8 @@ namespace waavs
         inline PSObjectStack& opStack() { return operandStack_; }
         inline const PSObjectStack& opStack() const { return operandStack_; }
 
-        inline PSObjectStack& execStack() { return executionStack_; }
-        inline const PSObjectStack& execStack() const { return executionStack_; }
+        inline PSExecutionStack& execStack() { return executionStack_; }
+        inline const PSExecutionStack& execStack() const { return executionStack_; }
 
         // Graphics context access
         PSGraphicsContext* graphics() { return graphicsContext_.get(); }
@@ -156,28 +191,114 @@ namespace waavs
         }
 
 
+        bool exit()
+        {
+            PSExecutionItem item;
 
-        // request whole program exit
-        void exit() { 
-            exitRequested = true; 
+            while (execStack().pop(item))
+            {
+                if (std::holds_alternative<PSRepeatFrame>(item) ||
+                    std::holds_alternative<PSLoopFrame>(item) ||
+                    std::holds_alternative<PSForFrame>(item) ||
+                    std::holds_alternative<PSForAllFrame>(item) ||
+                    std::holds_alternative<PSResourceForAllFrame>(item))
+                    return true;
+            }
+
+            return error("exit: invalidexit");
         }
-        bool isExitRequested() const { return exitRequested; }
-        void clearExitRequest() { exitRequested = false; }
+
 
         // request a stop to the currently executing loop
-        void stop() 
-        { 
-            execStack().clearToMark();  // clear the rest of currently executing procedure
-            stopRequested = true; 
+        bool stop()
+        {
+            PSExecutionItem item;
+
+            while (execStack().pop(item))
+            {
+                if (std::holds_alternative<PSStoppedFrame>(item))
+                    return opStack().pushBool(true);
+            }
+
+            return error("stop: no enclosing stopped context");
         }
-        bool isStopRequested() const { return stopRequested; }
-        void clearStopRequest() { stopRequested = false; }
 
 
         
 
 
  public:
+        // Scheduling things
+        bool schedule(const PSObject& obj)
+        {
+            return execStack().push(PSScheduledObject(obj));
+        }
+
+        bool scheduleProcedure(const PSObject& proc)
+        {
+            if (!proc.isArray())
+                return error("scheduleProcedure: typecheck, NOT ARRAY");
+
+            return execStack().push(PSProcedureFrame{ proc.asArray(), 0 });
+        }
+
+        bool scheduleForAll(const PSObject& container, const PSObject& proc)
+        {
+            return execStack().push(PSForAllFrame{ container, proc, 0 });
+        }
+
+        bool scheduleLoop(const PSObject& proc)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleLoop: typecheck");
+
+            return execStack().push(PSLoopFrame{ proc });
+        }
+
+        bool scheduleResourceForAll(const PSName& category, const PSObject& proc)
+        {
+            return execStack().push(PSResourceForAllFrame{ category, proc, 0, 0 });
+        }
+
+        bool scheduleRepeat(const PSObject& proc, int32_t count)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleRepeat: typecheck");
+
+            if (count < 0)
+                return error("scheduleRepeat: rangecheck");
+
+            if (count == 0)
+                return true;
+
+            return execStack().push(PSRepeatFrame{ proc, count });
+        }
+
+        bool scheduleFor(double initial, double increment, double limit, const PSObject& proc)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleFor: typecheck");
+
+            if (increment == 0)
+                return error("scheduleFor: rangecheck");
+
+            return execStack().push(PSForFrame{ initial, increment, limit, proc });
+        }
+
+        bool scheduleStopped(const PSObject& proc)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleStopped: typecheck");
+
+            if (!execStack().push(PSStoppedFrame{}))
+                return false;
+
+            return scheduleProcedure(proc);
+        }
+
+
+
+
 
         bool execOperator(const PSObject& obj)
         {
@@ -220,14 +341,15 @@ namespace waavs
             // 2. If it's an operator?  run it immediately
             //return execObject(resolved);
 
-            if (resolved.isOperator()) {
+            if (resolved.isOperator()) 
+            {
                 return execOperator(resolved);
             }
 
             // 3. Name resolves to a procedure?  auto-exec
-            if (resolved.isArray() && resolved.isExecutable()) {
-                //execProc(resolved);
-                return runProc(resolved);
+            if (resolved.isArray() && resolved.isExecutable()) 
+            {
+                return scheduleProcedure(resolved);
             }
 
             // 4. Otherwise, it's a literal value, push to operand stack
@@ -287,73 +409,219 @@ namespace waavs
         // run
         // 
         // Run items off the execution stack until it is empty or an exit/stop request is made.
-        // As these can be nested, we will also return after hitting a procedure end marker.
+        // This is the primary execution loop of the virtual machine.
         //
         bool run()
         {
-            while (!execStack().empty()) 
+            while (!execStack().empty())
             {
-                if (isExitRequested())
-                    break;
-                if (isStopRequested())
-                    break;
 
-                PSObject obj;
-                if (!execStack().pop(obj))
+                PSExecutionItem item;
+                if (!execStack().pop(item))
                     return error("run(): stackunderflow");
-                //writeObjectDeep(obj); printf("\n");
 
-                // Handle marker for proc end
-                if (obj.isMark()) {
-                    // If it's a mark, pop the stack to the mark
-                    //execStack().clearToMark();
-                    break; // Successfully cleared to mark
+                if (auto scheduled = std::get_if<PSScheduledObject>(&item))
+                {
+                    const PSObject& obj = scheduled->object;
+
+                    if (obj.isExecutable())
+                    {
+                        if (obj.isArray()) {
+                            opStack().push(obj);
+                        }
+                        else if (obj.isName() || obj.isOperator()) {
+                            if (!execObject(obj))
+                                return false;
+                        }
+                        else {
+                            return error("run(): typecheck, unknown executable type");
+                        }
+                    }
+                    else {
+                        opStack().push(obj);
+                    }
+                }
+                else if (auto proc = std::get_if<PSProcedureFrame>(&item))
+                {
+                    if (proc->index >= proc->procedure->elements.size())
+                        continue;
+
+                    PSObject obj = proc->procedure->elements[proc->index++];
+
+                    if (proc->index < proc->procedure->elements.size())
+                        execStack().push(*proc);
+
+                    if (!schedule(obj))
+                        return false;
+                }
+                else if (auto frame = std::get_if<PSForAllFrame>(&item))
+                {
+                    switch (frame->container.type)
+                    {
+                    case PSObjectType::Array:
+                    {
+                        auto arr = frame->container.asArray();
+
+                        if (frame->index >= arr->elements.size())
+                            break;
+
+                        PSObject value = arr->elements[frame->index++];
+
+                        if (frame->index < arr->elements.size())
+                            execStack().push(*frame);
+
+                        opStack().push(value);
+
+                        if (!scheduleProcedure(frame->procedure))
+                            return false;
+
+                        break;
+                    }
+
+                    case PSObjectType::String:
+                    {
+                        auto str = frame->container.asString();
+
+                        if (frame->index >= static_cast<size_t>(str.length()))
+                            break;
+
+                        uint8_t byte;
+                        if (!str.get(static_cast<int>(frame->index++), byte))
+                            return error("run(): forall string access failed");
+
+                        if (frame->index < static_cast<size_t>(str.length()))
+                            execStack().push(*frame);
+
+                        opStack().pushInt(static_cast<int32_t>(byte));
+
+                        if (!scheduleProcedure(frame->procedure))
+                            return false;
+
+                        break;
+                    }
+
+                    case PSObjectType::Dictionary:
+                    {
+                        auto dict = frame->container.asDictionary();
+
+                        PSName key;
+                        PSObject value;
+
+                        if (!dict->nextEntry(frame->index, key, value))
+                            break;
+
+                        execStack().push(*frame);
+
+                        opStack().pushLiteralName(key);
+                        opStack().push(value);
+
+                        if (!scheduleProcedure(frame->procedure))
+                            return false;
+
+                        break;
+                    }
+
+                    default:
+                        return error("run(): invalid forall container");
+                    }
+                }
+                else if (auto frame = std::get_if<PSResourceForAllFrame>(&item))
+                {
+                    auto& rs = getResourceStack();
+
+                    while (frame->resourceIndex < rs.size())
+                    {
+                        PSDictionaryHandle resourceDir;
+                        if (!rs.getFromTop(frame->resourceIndex, resourceDir))
+                            return error("run(): invalid resourceforall resource index");
+
+                        PSObject categoryObj;
+                        if (!resourceDir->get(frame->category, categoryObj) || !categoryObj.isDictionary())
+                        {
+                            frame->resourceIndex++;
+                            frame->entryIndex = 0;
+                            continue;
+                        }
+
+                        auto categoryDict = categoryObj.asDictionary();
+
+                        PSName key;
+                        PSObject value;
+
+                        if (!categoryDict->nextEntry(frame->entryIndex, key, value))
+                        {
+                            frame->resourceIndex++;
+                            frame->entryIndex = 0;
+                            continue;
+                        }
+
+                        execStack().push(*frame);
+
+                        opStack().pushLiteralName(key);
+                        opStack().push(value);
+
+                        if (!scheduleProcedure(frame->procedure))
+                            return false;
+
+                        break;
+                    }
+                }
+                else if (auto frame = std::get_if<PSRepeatFrame>(&item))
+                {
+                    if (frame->remaining <= 0)
+                        continue;
+
+                    frame->remaining--;
+
+                    if (frame->remaining > 0)
+                        execStack().push(*frame);
+
+                    if (!scheduleProcedure(frame->procedure))
+                        return false;
+                }
+                else if (auto frame = std::get_if<PSLoopFrame>(&item))
+                {
+                    execStack().push(*frame);
+
+                    if (!scheduleProcedure(frame->procedure))
+                        return false;
+                }
+                else if (auto frame = std::get_if<PSForFrame>(&item))
+                {
+                    bool inRange = frame->increment > 0 ? frame->current <= frame->limit : frame->current >= frame->limit;
+
+                    if (!inRange)
+                        continue;
+
+                    double value = frame->current;
+                    frame->current += frame->increment;
+
+                    execStack().push(*frame);
+                    opStack().pushReal(value);
+
+                    if (!scheduleProcedure(frame->procedure))
+                        return false;
+                }
+                else if (std::holds_alternative<PSStoppedFrame>(item))
+                {
+                    if (!opStack().pushBool(false))
+                        return false;
+                }
+                else {
+                    return error("run(): unsupported execution item");
                 }
 
-
-
-                // executable names, procedures, operators
-                if (obj.isExecutable()) {
-                    if (obj.isArray())
-                        opStack().push(obj);
-                    else if (obj.isName() || obj.isOperator())
-                    {
-                        execObject(obj);
-                    }
-                    else
-                        return error("run(): typecheck, unknown executable type");
-                } else
-                    opStack().push(obj); // Otherwise, push it back to the operand stack
-
-                if (isExitRequested())
-                    break;
-                if (isStopRequested())
-                    break;
             }
 
             return true;
         }
 
+        // BUGBUG - TEMPORARY compatibility shim.
+        // This no longer executes the procedure synchronously.
+        // Remaining callers must be converted to scheduling semantics.
         bool runProc(PSObject& proc)
         {
-            // If the procedure is not executable, return an error
-            //if (!proc.isArray() || !proc.isExecutable())
-            //    return error("runProc: typecheck, NOT ARRAY or NOT EXECUTABLE");
-            if (!proc.isArray())
-                return error("runProc: typecheck, NOT ARRAY");
-
-            // Push the endProc frame marker onto the execution stack
-            execStack().mark();
-
-            // push elements in reverse order
-            auto arr = proc.asArray();
-            for (auto it = arr->elements.rbegin(); it != arr->elements.rend(); ++it)
-            {
-                execStack().push(*it);
-            }
-
-
-            return run(); // Run the procedure
+            return scheduleProcedure(proc);
         }
 
         // This is a shim.  Mainly it needs to convert systemNamed objects
@@ -408,7 +676,7 @@ namespace waavs
                             return error("interpreter: stack overflow while pushing executable array");
                     }
                     else {
-                        execStack().push(obj); // Push executable objects onto the execution stack
+                        schedule(obj); // Push executable objects onto the execution stack
                         if (!run())
                             return error("interpreter: run failed on executable object");
                     }
@@ -418,14 +686,6 @@ namespace waavs
                         return error("interpreter: stack overflow while pushing non-executable object");
                 }
 
-                if (isExitRequested()) {
-                    break;
-                }
-
-                if (isStopRequested()) {
-                    clearStopRequest();
-                    continue;
-                }
             }
 
             return true;

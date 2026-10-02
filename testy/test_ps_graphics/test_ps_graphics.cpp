@@ -9,7 +9,8 @@
 using namespace waavs;
 
 // Utility to wrap input and run interpreter
-static void runPostscript(const char* sourceText) {
+static void runPostscript(const char* sourceText) 
+{
     OctetCursor input(sourceText);
 
     printf("+-----------------------------------------+\n");
@@ -29,7 +30,7 @@ static void runPostscript(const char* sourceText) {
     vm->interpret(input);
 
     // If we want, we can save output here
-    static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().writeToFile("output.png");
+    static_cast<waavs::Blend2DGraphicsContext*>(vm->graphics())->getImage().write_to_file("output.png");
 
 }
 
@@ -502,10 +503,10 @@ showpage
 
 static void test_core()
 {
-    //test_lines();
+    test_lines();
     //test_op_curveto();
     //test_op_arc();
-    test_op_arcto();
+    //test_op_arcto();
     //test_current_path();
     //test_numeric();
     //test_simple();
@@ -519,16 +520,16 @@ static void test_idioms()
     //radialLines();
     //scaledRectangles();
     //grid();
-    truchet();
+    //truchet();
     //pbourke_example9();
-    //star();
+    star();
 
 }
 
 int main() {
 
-    //test_core();
-    test_idioms();
+    test_core();
+    //test_idioms();
 
     return 0;
 }

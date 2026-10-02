@@ -89,11 +89,30 @@ namespace waavs {
             if (!findKey(key, slot))
                 return false;
 
-            // clear the slot
             fEntries[slot].key = PSName();
             fEntries[slot].value.reset();
+            fCount--;
 
-            fCount--;  // adjust count
+            size_t index = (slot + 1) % fCapacity;
+
+            while (!fEntries[index].isEmpty())
+            {
+                PSDictEntry entry = std::move(fEntries[index]);
+
+                fEntries[index].key = PSName();
+                fEntries[index].value.reset();
+                fCount--;
+
+                size_t newSlot;
+                if (!findSlotForUpsertIn(fEntries, fCapacity, entry.key, newSlot))
+                    return false;
+
+                fEntries[newSlot] = std::move(entry);
+                fCount++;
+
+                index = (index + 1) % fCapacity;
+            }
+
             return true;
         }
 
@@ -128,6 +147,25 @@ namespace waavs {
             }
             fCount = 0;
         }
+
+
+        bool nextEntry(size_t& cursor, PSName& key, PSObject& value) const noexcept
+        {
+            while (cursor < fCapacity)
+            {
+                const PSDictEntry& entry = fEntries[cursor++];
+
+                if (entry.isEmpty())
+                    continue;
+
+                key = entry.key;
+                value = entry.value;
+                return true;
+            }
+
+            return false;
+        }
+
 
         // Support for iterating over the entries
         // applying a supplied function to each entry.
@@ -239,66 +277,7 @@ namespace waavs {
 
     };
 
-    /*
-    // --------------------
-    // PSDictionary
-    // --------------------
-    struct PSDictionary {
-    private:
-        // Actual storage for the dictionary entries
-        // the key is PSName, which is an interned string
-        PSDictTable fEntries;
 
-        PSDictionary() = default;
-
-        PSDictionary(size_t initialSize=32) : fEntries(initialSize){}
-
-
-    public:
-
-        static PSDictionaryHandle create(size_t initialSize = 32) {
-            auto ptr = std::shared_ptr<PSDictionary>(new PSDictionary(initialSize));
-
-            return ptr;
-        }
-
-        size_t size() const { return fEntries.size(); }
-
-        bool put(const PSName& key, const PSObject& value) {
-            return fEntries.put(key, value);
-        }
-        bool get(const PSName& key, PSObject& out) const {
-            return fEntries.get(key, out);
-        }
-
-        bool remove(const PSName& key) {
-            return fEntries.remove(key);
-        }
-
-        bool copyEntryFrom(const PSDictionary& other, const PSName& key) {
-            PSObject value;
-            if (!other.get(key, value)) return false;
-
-            fEntries.put(key, value);
-            return true;
-        }
-
-        bool contains(const PSName& key) const {
-            PSObject dummy;
-            return fEntries.get(key, dummy);
-        }
-
-        void clear() {
-            fEntries.clear();
-        }
-
-        // Apply a function to each entry in the dictionary.
-        bool forEach(std::function<bool(PSName, PSObject&)> fn) {
-            fEntries.forEach(fn);
-            return true;
-        }
-    };
-    */
 
 } // namespace waavs
 

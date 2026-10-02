@@ -1,6 +1,6 @@
 #include <unordered_map>
 
-#include "ps_lexer.h"
+#include "ps_lex_tokenizer.h"
 #include "mappedfile.h"
 #include "ocspan.h"
 #include "ps_scanner.h"

@@ -22,7 +22,7 @@ static void runPostscript(const char* sourceText) {
         return;
     }
     
-    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(640, 480);
+    auto ctx = std::make_unique<Blend2DGraphicsContext>(640, 480);
     vm->setGraphicsContext(std::move(ctx));
     
     // Run the interpreter
@@ -690,7 +690,7 @@ StandardEncoding listarray
 static void test_core()
 {
 	printf("== Core Tests ==\n");
-    //test_meta();
+    test_meta();
     test_arithmetic_ops();
     test_stack_ops();
     test_control_flow();
@@ -702,25 +702,25 @@ static void test_core()
     test_repeat();
     test_nested();
     test_exec();
-    //test_op_stopped();
+    test_op_stopped();
     test_operator_def();
-    //test_op_dict();
+    test_op_dict();
 	test_matrix_ops();
-    //test_unimplemented_op();
-    //test_dictionary_inline();
-    //test_numeric();
-    //test_resources();
-    //test_encodings();
-    //test_encodings2();
+    test_unimplemented_op();
+    test_dictionary_inline();
+    test_numeric();
+    test_resources();
+    test_encodings();
+    test_encodings2();
 }
 
 static void test_idioms()
 {
 	printf("\n== Idiomatic Tests ==\n");
-    //test_tail();
-    //test_factorial();
+    test_tail();
+    test_factorial();
     test_average();
-    //test_fizzbuzz();
+    test_fizzbuzz();
 
 }
 
@@ -728,8 +728,8 @@ static void test_idioms()
 
 
 int main() {
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }
