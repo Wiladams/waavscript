@@ -49,3 +49,6 @@
 *.log
 /lib/ARM64
 /testy/waavscript/ARM64
+/testy/test_ffi/ARM64
+/testy/test_ps_graphics/ARM64
+/testy/post2img/ARM64

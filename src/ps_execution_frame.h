@@ -1,17 +1,35 @@
 // ps_execution_frame.h
 #pragma once
 
+
+
+#include "pscore.h"
+#include "ps_scanner.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <variant>
+#include <memory>
 
-#include "pscore.h"
 
 namespace waavs
 {
     struct PSScheduledObject
     {
         PSObject object;
+    };
+
+    struct PSImageFrame
+    {
+        int32_t width = 0;
+        int32_t height = 0;
+        int32_t bitsPerComponent = 0;
+
+        PSObject matrix;
+        PSObject procedure;
+
+        std::shared_ptr<PSString> data;
+        size_t written = 0;
     };
 
     struct PSProcedureFrame
@@ -56,17 +74,57 @@ namespace waavs
         size_t entryIndex = 0;
     };
 
+    struct PSPathForAllFrame
+    {
+        PSObject path;
+
+        PSObject moveProc;
+        PSObject lineProc;
+        PSObject curveProc;
+        PSObject closeProc;
+
+        size_t opIndex = 0;
+        size_t argIndex = 0;
+
+        PSMatrix inverseCTM;
+    };
+
+    struct PSFileFrame
+    {
+        PSFileHandle file;
+        std::shared_ptr<PSObjectGenerator> generator;
+    };
+
+    // For showing text with adjustments, 
+    // we need to keep track of the string 
+    // and the procedure
+    struct PSKShowFrame
+    {
+        PSObject string;
+        PSObject procedure;
+        size_t index = 0;
+    };
+
+    // For cleaning up after eexec
+    struct PSEexecFrame
+    {};
+
     struct PSStoppedFrame
     {};
 
-    using PSExecutionItem = std::variant<
+    using PSExecutionItem = std::variant <
         PSScheduledObject,
+        PSFileFrame,
+        PSEexecFrame,
+        PSImageFrame,
         PSProcedureFrame,
         PSRepeatFrame,
         PSLoopFrame,
         PSForFrame,
         PSForAllFrame,
         PSResourceForAllFrame,
+        PSPathForAllFrame,
+        PSKShowFrame,
         PSStoppedFrame
     >;
 }

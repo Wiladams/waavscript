@@ -238,7 +238,208 @@ namespace waavs
     };
 
 
+    //=====================================================
+    // EExec Decode Filter
+    //=====================================================
+    class EExecDecodeFilter : public PSFile
+    {
+    private:
+        static constexpr uint16_t kInitialKey = 55665u;
+        static constexpr uint16_t kC1 = 52845u;
+        static constexpr uint16_t kC2 = 22719u;
 
+        std::shared_ptr<PSFile> _source;
+        std::vector<uint8_t> _decoded;
+
+        bool _finished = false;
+        bool _valid = false;
+
+    public:
+        explicit EExecDecodeFilter(std::shared_ptr<PSFile> source)
+            : _source(std::move(source))
+        {
+            if (!_source || !_source->isValid())
+                return;
+
+            if (!decode())
+                return;
+
+            fCursor = OctetCursor(_decoded.data(), _decoded.size());
+            _valid = true;
+        }
+
+        bool hasCursor() const override
+        {
+            return true;
+        }
+
+        size_t size() const override
+        {
+            return _decoded.size();
+        }
+
+        bool isValid() const override
+        {
+            return _valid;
+        }
+
+        bool readByte(uint8_t& out) override
+        {
+            if (_finished || fCursor.empty())
+                return false;
+
+            out = *fCursor;
+            ++fCursor;
+            return true;
+        }
+
+        bool readBytes(uint8_t* out, size_t count) override
+        {
+            if (_finished || fCursor.size() < count)
+                return false;
+
+            std::memcpy(out, fCursor.begin(), count);
+            fCursor.advance(count);
+            return true;
+        }
+
+        size_t position() const override
+        {
+            if (_decoded.empty())
+                return 0;
+
+            return static_cast<size_t>(fCursor.begin() - _decoded.data());
+        }
+
+        bool setPosition(size_t pos) override
+        {
+            if (pos > _decoded.size())
+                return false;
+
+            fCursor = OctetCursor(_decoded.data() + pos, _decoded.size() - pos);
+            _finished = false;
+            return true;
+        }
+
+        void rewind() override
+        {
+            fCursor = OctetCursor(_decoded.data(), _decoded.size());
+            _finished = false;
+        }
+
+        bool isEOF() const override
+        {
+            return _finished || fCursor.empty();
+        }
+
+        void finalize() override
+        {
+            _finished = true;
+
+            // Terminate execution of this filtered file immediately.
+            // Do not finalize the underlying source: the outer PostScript
+            // file must resume after the encrypted block.
+            fCursor = OctetCursor();
+        }
+
+    private:
+        static bool isWhitespace(uint8_t ch) noexcept
+        {
+            return ch == 0 || ch == 9 || ch == 10 || ch == 12 || ch == 13 || ch == 32;
+        }
+
+        static bool isHexDigit(uint8_t ch) noexcept
+        {
+            return (ch >= '0' && ch <= '9') ||
+                (ch >= 'A' && ch <= 'F') ||
+                (ch >= 'a' && ch <= 'f');
+        }
+
+        static uint8_t hexValue(uint8_t ch) noexcept
+        {
+            if (ch >= '0' && ch <= '9')
+                return static_cast<uint8_t>(ch - '0');
+
+            if (ch >= 'A' && ch <= 'F')
+                return static_cast<uint8_t>(ch - 'A' + 10);
+
+            if (ch >= 'a' && ch <= 'f')
+                return static_cast<uint8_t>(ch - 'a' + 10);
+
+            return 0xFF;
+        }
+
+        bool decode()
+        {
+            uint16_t key = kInitialKey;
+            uint32_t discard = 4;
+
+            _decoded.clear();
+
+            while (true)
+            {
+                const size_t pairStart = _source->position();
+
+                uint8_t hi;
+                uint8_t lo;
+
+                if (!readHexDigit(hi))
+                    break;
+
+                if (!readHexDigit(lo))
+                {
+                    // The first character may itself have been a valid hex digit
+                    // belonging to the following PostScript token, as in
+                    // "cleartomark". Restore the source to before that pair.
+                    if (!_source->setPosition(pairStart))
+                        return false;
+
+                    break;
+                }
+
+                const uint8_t cipher = static_cast<uint8_t>((hi << 4) | lo);
+                const uint8_t plain = static_cast<uint8_t>(cipher ^ (key >> 8));
+
+                // BUGBUG
+                //printf("%c", plain);
+
+                key = static_cast<uint16_t>((static_cast<uint32_t>(cipher + key) * kC1 + kC2) & 0xFFFFu);
+
+                if (discard != 0)
+                {
+                    --discard;
+                    continue;
+                }
+
+                _decoded.push_back(plain);
+            }
+
+            // print the decoded data to stdout for debugging
+            //for (uint8_t b : _decoded)
+            //    printf("%c", b);
+
+            return discard == 0 && !_decoded.empty();
+        }
+
+        bool readHexDigit(uint8_t& value)
+        {
+            uint8_t ch;
+
+            while (_source->readByte(ch))
+            {
+                if (isWhitespace(ch))
+                    continue;
+
+                if (!isHexDigit(ch))
+                    return false;
+
+                value = hexValue(ch);
+                return true;
+            }
+
+            return false;
+        }
+    };
 }
 
 

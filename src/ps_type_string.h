@@ -1,161 +1,251 @@
+// ps_type_string.h
+
 #pragma once
 
 #include "definitions.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace waavs {
+
+    struct PSStringStorage
+    {
+        std::vector<uint8_t> bytes;
+    };
+
+
     // --------------------
     // PSString
-    // 
-    //     Core type representing a string, with a PS interface
-    //     This is NOT null terminated.  the length tells you 
-    //     the size of the string.  The capacity tells you the size
-    //     of the allocated buffer.
+    //
+    // A PostScript string is a view into shared byte storage.
+    // Substrings share the same storage with a different offset/length.
     // --------------------
-    struct PSString {
+    struct PSString
+    {
     private:
-        std::unique_ptr<uint8_t[]> fData;
-        uint32_t fLength{ 0 };
-        uint32_t fCapacity{ 0 };
+        std::shared_ptr<PSStringStorage> fStorage;
+        uint32_t fOffset = 0;
+        uint32_t fLength = 0;
+
+        PSString(std::shared_ptr<PSStringStorage> storage, uint32_t offset, uint32_t length)
+            : fStorage(std::move(storage))
+            , fOffset(offset)
+            , fLength(length)
+        {}
 
     public:
-        PSString() = default;
+        PSString()
+            : fStorage(std::make_shared<PSStringStorage>())
+        {}
 
-        explicit PSString(size_t cap)
-            : fData(new uint8_t[cap+1]())
-            , fLength(0)
-            , fCapacity(static_cast<uint32_t>(cap+1)) 
+        explicit PSString(size_t length)
+            : fStorage(std::make_shared<PSStringStorage>())
+            , fLength(static_cast<uint32_t>(length))
         {
+            fStorage->bytes.resize(length);
         }
 
         PSString(const uint8_t* src, size_t len)
-            : fData(new uint8_t[len+1])
+            : fStorage(std::make_shared<PSStringStorage>())
             , fLength(static_cast<uint32_t>(len))
-            , fCapacity(static_cast<uint32_t>(len)) {
-            std::memcpy(fData.get(), src, len);
-        }
-
-        PSString(const char* cstr) {
-            if (cstr) {
-                size_t len = std::strlen(cstr);
-                fData = std::unique_ptr<uint8_t[]>(new uint8_t[len+1]);
-                std::memcpy(fData.get(), cstr, len);
-                fLength = fCapacity = static_cast<uint32_t>(len);
-            }
-        }
-
-        // Copy constructor
-        PSString(const PSString& other)
-            : fData(new uint8_t[other.fCapacity+1])
-            , fLength(other.fLength)
-            , fCapacity(other.fCapacity) 
         {
-            std::memcpy(fData.get(), other.fData.get(), fLength);
+            if (len != 0)
+                fStorage->bytes.assign(src, src + len);
         }
 
-        // Copy assignment
-        PSString& operator=(const PSString& other) {
-            if (this != &other) {
-                fData.reset(new uint8_t[other.fCapacity+1]);
-                fLength = other.fLength;
-                fCapacity = other.fCapacity;
-                std::memcpy(fData.get(), other.fData.get(), fLength);
+        PSString(const char* cstr)
+            : fStorage(std::make_shared<PSStringStorage>())
+        {
+            if (!cstr)
+                return;
+
+            size_t len = std::strlen(cstr);
+
+            if (len != 0)
+            {
+                const auto* src = reinterpret_cast<const uint8_t*>(cstr);
+                fStorage->bytes.assign(src, src + len);
             }
-            return *this;
+
+            fLength = static_cast<uint32_t>(len);
         }
 
-        // Move constructor
+        // Copying a PostScript string copies the view, not its bytes.
+        PSString(const PSString&) = default;
         PSString(PSString&&) noexcept = default;
-
-        // Move assignment
+        PSString& operator=(const PSString&) = default;
         PSString& operator=(PSString&&) noexcept = default;
 
-        // Public interface
-        size_t length() const noexcept { return fLength; }
-        size_t capacity() const noexcept { return fCapacity; }
-        uint8_t* data() noexcept { return fData.get(); }
-        const uint8_t* data() const noexcept { return fData.get(); }
 
-        void reset() noexcept { fLength = 0; }
-
-        void setLength(uint32_t len) noexcept {
-            fLength = (len <= fCapacity) ? len : fCapacity;
+        size_t length() const noexcept
+        {
+            return fLength;
         }
 
-        std::string toString() const {
-            return std::string(reinterpret_cast<const char*>(fData.get()), fLength);
+        // Compatibility with existing runtime code.
+        // PostScript strings are fixed-length objects, so their visible
+        // capacity is their current view length.
+        size_t capacity() const noexcept
+        {
+            return fLength;
         }
 
-        uint8_t get(uint32_t i) const noexcept {
-            return (i < fLength) ? fData[i] : 0;
+        bool empty() const noexcept
+        {
+            return fLength == 0;
         }
 
-        bool get(uint32_t i, uint8_t& out) const noexcept {
-            if (i >= fLength) return false;
-            out = fData[i];
-            return true;
+
+        uint8_t* data() noexcept
+        {
+            if (fStorage->bytes.empty())
+                return nullptr;
+
+            return fStorage->bytes.data() + fOffset;
         }
 
-        bool put(uint32_t i, uint8_t value) {
-            if (i >= fCapacity) return false;
-            fData[i] = value;
-            if (i >= fLength) fLength = i + 1;
-            return true;
+        const uint8_t* data() const noexcept
+        {
+            if (fStorage->bytes.empty())
+                return nullptr;
+
+            return fStorage->bytes.data() + fOffset;
         }
 
-        PSString getInterval(uint32_t offset, uint32_t count) const {
-            if (offset >= fLength) return PSString();
-            if (count > fLength - offset) count = fLength - offset;
-            return PSString(fData.get() + offset, count);
+
+        void reset() noexcept
+        {
+            fStorage = std::make_shared<PSStringStorage>();
+            fOffset = 0;
+            fLength = 0;
         }
 
-        bool putInterval(uint32_t offset, const PSString& src) {
-            if (offset >= fCapacity) return false;
-            uint32_t count = src.fLength;
-            if (offset + count > fCapacity) count = fCapacity - offset;
-            std::memcpy(fData.get() + offset, src.fData.get(), count);
-            if (offset + count > fLength) fLength = offset + count;
-            return true;
+
+        // Retained for existing internal code such as readstring/cvs.
+        // This only shortens the current view; it never grows it.
+        void setLength(uint32_t length) noexcept
+        {
+            if (length < fLength)
+                fLength = length;
         }
 
-        // Search 
-        // Adds to PSString class
-        inline bool search(const PSString& target, PSString& pre, PSString& match, PSString& post) const {
-            if (target.length() == 0 || this->length() < target.length())
+
+        std::string toString() const
+        {
+            if (fLength == 0)
+                return std::string();
+
+            return std::string(reinterpret_cast<const char*>(data()), fLength);
+        }
+
+
+        uint8_t get(uint32_t index) const noexcept
+        {
+            return index < fLength ? fStorage->bytes[fOffset + index] : 0;
+        }
+
+        bool get(uint32_t index, uint8_t& out) const noexcept
+        {
+            if (index >= fLength)
                 return false;
 
-            const uint8_t* haystack = this->data();
+            out = fStorage->bytes[fOffset + index];
+            return true;
+        }
+
+        bool put(uint32_t index, uint8_t value) noexcept
+        {
+            if (index >= fLength)
+                return false;
+
+            fStorage->bytes[fOffset + index] = value;
+            return true;
+        }
+
+
+        // Return a shared view into this string.
+        PSString getInterval(uint32_t offset, uint32_t count) const
+        {
+            if (offset > fLength || count > fLength - offset)
+                return PSString();
+
+            return PSString(fStorage, fOffset + offset, count);
+        }
+
+
+        bool putInterval(uint32_t offset, const PSString& src)
+        {
+            if (offset > fLength || src.fLength > fLength - offset)
+                return false;
+
+            for (uint32_t i = 0; i < src.fLength; ++i)
+            {
+                uint8_t value;
+
+                if (!src.get(i, value))
+                    return false;
+
+                if (!put(offset + i, value))
+                    return false;
+            }
+
+            return true;
+        }
+
+
+        bool sameValue(const PSString& other) const noexcept
+        {
+            return fStorage == other.fStorage &&
+                fOffset == other.fOffset &&
+                fLength == other.fLength;
+        }
+
+
+        // Search for target and return views into this string.
+        bool search(const PSString& target, PSString& pre, PSString& match, PSString& post) const
+        {
+            if (target.length() == 0 || length() < target.length())
+                return false;
+
+            const uint8_t* haystack = data();
             const uint8_t* needle = target.data();
-            size_t haystackLen = this->length();
+            size_t haystackLen = length();
             size_t needleLen = target.length();
 
-            for (size_t i = 0; i <= haystackLen - needleLen; ++i) {
-                if (std::memcmp(haystack + i, needle, needleLen) == 0) {
-                    pre = this->getInterval(0, static_cast<uint32_t>(i));
-                    match = target;
-                    post = this->getInterval(static_cast<uint32_t>(i + needleLen), this->length() - (i + needleLen));
+            for (size_t i = 0; i <= haystackLen - needleLen; ++i)
+            {
+                if (std::memcmp(haystack + i, needle, needleLen) == 0)
+                {
+                    pre = getInterval(0, static_cast<uint32_t>(i));
+                    match = getInterval(static_cast<uint32_t>(i), static_cast<uint32_t>(needleLen));
+                    post = getInterval(static_cast<uint32_t>(i + needleLen), static_cast<uint32_t>(haystackLen - i - needleLen));
                     return true;
                 }
             }
+
             return false;
         }
 
 
-
-        // Helpful factory constructors
-        static PSString fromSpan(const uint8_t* src, size_t len) {
-            return len == 0 ? PSString() : PSString(src, len);
-		}
-
-        static PSString fromVector(const std::vector<uint8_t>& v) {
-            return v.empty() ? PSString() : PSString(v.data(), v.size());
+        static PSString fromSpan(const uint8_t* src, size_t len)
+        {
+            return PSString(src, len);
         }
 
-        static PSString fromCString(const char* s) {
-            return s ? PSString(s) : PSString();
+        static PSString fromVector(const std::vector<uint8_t>& v)
+        {
+            return PSString(v.data(), v.size());
+        }
+
+        static PSString fromCString(const char* str)
+        {
+            return PSString(str);
         }
     };
+
 }

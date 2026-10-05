@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// psvmfactory.h
+#pragma once
 
 #include <memory>
 
@@ -37,16 +38,21 @@ namespace waavs
 		PSVMFactory() = default;
 		~PSVMFactory() = default;
 
-		static inline void registerExtensionOps(PSVirtualMachine* vm)
+		static inline bool registerExtensionOps(PSVirtualMachine* vm)
 		{
+            bool success = true;
+
 			PSVMOps extOps;
 
-			//vm->interpret(extOps.op_code_max);
-			//vm->interpret(extOps.op_code_min);
+			vm->interpret(extOps.op_code_max);
+			vm->interpret(extOps.op_code_min);
+
+			return success;
 		}
 
-		static inline void registerEncodings(PSVirtualMachine* vm)
+		static inline bool registerEncodings(PSVirtualMachine* vm)
 		{
+
 			PSVMEncodings encodings;
 
 			vm->interpret(encodings.standardEncodingPS);
@@ -56,38 +62,45 @@ namespace waavs
 			vm->interpret(encodings.symbolEncodingPS);
 			vm->interpret(encodings.winAnsiEncodingPS);
 			vm->interpret(encodings.zapfDingbatsEncodingPS);
+
+			return true;
         }
 
-		static inline void registerResources(PSVirtualMachine* vm)
+		static inline bool registerResources(PSVirtualMachine* vm)
 		{
-            //registerEncodings(vm);
 
 			PSVMEncodings encodings;
 
 			vm->interpret(encodings.fontMapPS);
+
+			return true;
         }
 
-		static inline void registerCoreOps(PSVirtualMachine *vm) 
+		static inline bool registerCoreOps(PSVirtualMachine *vm) 
 		{
-			vm->registerOps(getArrayOps());
-			vm->registerOps(getDictionaryStackOps());
-			vm->registerOps(getControlOps());
-			vm->registerOps(getDebugOps());
-			vm->registerOps(getDictionaryOps());
-			vm->registerOps(getLogicOps());
-			vm->registerOps(getMathOps());
-			vm->registerOps(getPolymorphOps());
-			vm->registerOps(getRelationalOps());
-			vm->registerOps(getStackOps());
-			vm->registerOps(getStringOps());
-			vm->registerOps(getMatrixOps());
-			vm->registerOps(getGraphicsOps());
-			vm->registerOps(getEnviroOps());
-            vm->registerOps(getFileOps());
-            vm->registerOps(getFontOps());
-			vm->registerOps(getResourceOperators());
-			vm->registerOps(getTextOps());
-			vm->registerOps(getPathOps());
+			bool success = true;
+
+			success &= vm->registerOps(getArrayOps());
+			success &= vm->registerOps(getDictionaryStackOps());
+			success &= vm->registerOps(getControlOps());
+			success &= vm->registerOps(getDebugOps());
+			success &= vm->registerOps(getDictionaryOps());
+			success &= vm->registerOps(getLogicOps());
+			success &= vm->registerOps(getMathOps());
+			success &= vm->registerOps(getPolymorphOps());
+			success &= vm->registerOps(getRelationalOps());
+			success &= vm->registerOps(getStackOps());
+			success &= vm->registerOps(getStringOps());
+			success &= vm->registerOps(getMatrixOps());
+			success &= vm->registerOps(getGraphicsOps());
+			success &= vm->registerOps(getEnviroOps());
+            success &= vm->registerOps(getFileOps());
+            success &= vm->registerOps(getFontOps());
+			success &= vm->registerOps(getResourceOperators());
+			success &= vm->registerOps(getTextOps());
+			success &= vm->registerOps(getPathOps());
+			
+			return success;
 		}
 
 		// Create a new PSVM instance
@@ -96,9 +109,12 @@ namespace waavs
 			auto vm = std::make_unique<PSVirtualMachine>();
 			
 			// Register built-in operations
-			PSVMFactory::registerCoreOps(vm.get());
+			if (!PSVMFactory::registerCoreOps(vm.get()))
+				return nullptr
+				;
 			PSVMFactory::registerExtensionOps(vm.get());
 			PSVMFactory::registerResources(vm.get());
+			PSVMFactory::registerEncodings(vm.get());
 
 			return vm;
 		}

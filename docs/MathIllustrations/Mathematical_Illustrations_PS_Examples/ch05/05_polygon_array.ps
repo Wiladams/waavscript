@@ -1,0 +1,22 @@
+%!PS-Adobe-3.0
+%%Title: Polygon from an array - Chapter 5
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 5.5 translate
+1 72 div setlinewidth
+/make-polygon { 3 dict begin
+  /a exch def /n a length def
+  n 1 gt {
+    a 0 get aload pop moveto
+    1 1 n 1 sub { /i exch def a i get aload pop lineto } for
+  } if
+end } def
+newpath
+[ [1 0] [72 cos 72 sin] [144 cos 144 sin] [216 cos 216 sin] [288 cos 288 sin] ]
+make-polygon
+closepath
+stroke
+showpage
+%%EOF

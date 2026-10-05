@@ -1,0 +1,23 @@
+%!PS-Adobe-3.0
+%%Title: Regular polygon using repeat - Chapter 5
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 5.5 translate
+1 72 div setlinewidth
+/make-regular-polygon { 4 dict begin
+  /N exch def
+  /A 360 N div def
+  1 0 moveto
+  N {
+    A cos A sin lineto
+    /A A 360 N div add def
+  } repeat
+  closepath
+end } def
+newpath
+5 make-regular-polygon
+stroke
+showpage
+%%EOF

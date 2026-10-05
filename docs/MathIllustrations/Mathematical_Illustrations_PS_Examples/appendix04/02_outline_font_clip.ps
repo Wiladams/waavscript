@@ -1,0 +1,33 @@
+%!PS-Adobe-3.0
+%%Title: Outline font clipping - Appendix 4
+%%Pages: 1
+%%EndComments
+
+72 500 translate
+1 setlinejoin
+1 setlinecap
+/Helvetica-Bold findfont
+48 scalefont
+setfont
+gsave
+newpath
+0 0 moveto
+(ABC) false charpath
+clip
+1 0 0 setrgbcolor
+newpath
+2 setlinewidth
+-24 8 96 {
+  /i exch def
+  i 0 moveto
+  40 40 rlineto
+} for
+stroke
+grestore
+newpath
+0 0 moveto
+(ABC) true charpath
+0.5 setlinewidth
+stroke
+showpage
+%%EOF

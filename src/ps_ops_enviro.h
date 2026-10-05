@@ -3,6 +3,10 @@
 
 namespace waavs {
 
+    inline bool op_realtime(PSVirtualMachine& vm)
+    {
+        return vm.opStack().pushInt(vm.realtime());
+    }
 
     bool op_languagelevel(PSVirtualMachine& vm) {
         // Push the current language level onto the stack
@@ -104,11 +108,22 @@ namespace waavs {
         return true;
     }
 
-    bool op_showpage(PSVirtualMachine& vm) {
+    bool op_showpage(PSVirtualMachine& vm)
+    {
         auto* grph = vm.graphics();
 
         grph->showPage();
-        grph->currentPath().reset(); // Clear the current path after showing the page
+
+        // Need to re-initialize state so we can start drawing on the new page
+        grph->initGraphics();
+
+        auto& ctm = grph->getCTM();
+        ctm.reset();
+
+        grph->currentPath().reset();
+
+        grph->currentState()->strokePaint = PSPaint::fromRGB(0, 0, 0);
+        grph->currentState()->fillPaint = PSPaint::fromRGB(0, 0, 0);
 
         return true;
     }
@@ -128,6 +143,7 @@ namespace waavs {
             { "save",            op_save },                 // Save the current state of the VM
             { "restore",         op_restore },              // Restore the saved state of the VM
 
+            { "realtime",           op_realtime },
 			{ "languagelevel",      op_languagelevel },
             { "setpagedevice",      op_setpagedevice },
             { "currentpagedevice",  op_currentpagedevice },

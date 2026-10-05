@@ -1,0 +1,23 @@
+%!PS-Adobe-3.0
+%%Title: rectangle path procedure - Chapter 3
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+3.25 4 translate
+1 72 div setlinewidth
+/rectangle { 2 dict begin
+  /h exch def
+  /w exch def
+  0 0 moveto
+  w 0 rlineto
+  0 h rlineto
+  w neg 0 rlineto
+  0 h neg rlineto
+  closepath
+end } def
+newpath
+2 3 rectangle
+stroke
+showpage
+%%EOF

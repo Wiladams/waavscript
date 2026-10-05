@@ -31,9 +31,9 @@ namespace waavs
             {
                 auto arr = container.asArray();
                 int idx = index.asInt();
-                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->elements.size())
+                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->size())
                     return false;
-                s.push(arr->elements[idx]);
+                s.push((*arr)[idx]);
                 return true;
             }
 
@@ -99,10 +99,10 @@ namespace waavs
             {
                 auto arr = container.asArray();
                 int idx = index.asInt();
-                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->elements.size())
+                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->size())
                     return vm.error("op_put: rangecheck");
 
-                arr->elements[idx] = value;
+                (*arr)[idx] = value;
                 return true;
             }
 
@@ -170,78 +170,138 @@ namespace waavs
     }
 
     // copy: (n x? ... x? ? x? ... x? x? ... x?) — duplicate top n items
-    inline bool op_copy(PSVirtualMachine& vm) {
+    inline bool op_copy(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
 
         PSObject top;
         if (!s.top(top))
-            return false;
+            return vm.error("op_copy: stackunderflow");
 
-
-        // 1. Integer form: n copy
-        if (top.isInt()) {
-            int32_t n = top.asInt();
-
-			s.pop(top); // pop the top item
-
-            if (n < 0 || static_cast<size_t>(n) > s.size() )
-                return false; // vm.error("stackunderflow");
-
-            // Copy the top n items (preserve order)
-            return s.copy(n);
-        }
-
-		// the next two forms MUST have at least two items on the stack
-        if (s.size() < 2) 
-            return vm.error("op_copy: stackunderflow"); // Need at least two strings
-
-        PSObject destObject;
-        PSObject srcObject;
-
-		s.pop(destObject); // pop destination
-		s.pop(srcObject); // pop source
-
-        // 2. Array form: array1 array2 copy
-        // copy array1 into array2
-        if (srcObject.isArray()) {
-            if ( !destObject.isArray())
-                return vm.error("op_copy:typecheck ARRAY - destination object not array");
-
-            auto dest = destObject.asArray();
-            auto src = srcObject.asArray();
-
-            if (!dest || !src) return vm.error("op_copy:invalidaccess");
-
-            size_t maxSize = std::min(dest->size(), src->size());
-
-            for (size_t i = 0; i < maxSize; ++i)
-                dest->elements[i] = src->elements[i];
-
-            // push destination back onto stack
-			return s.push(destObject); // push updated dest
-        }
-
-        // 3. String form: string1 string2 copy
-		// copy string1 into string2
-        if (srcObject.isString()) 
+        // n copy
+        if (top.type == PSObjectType::Int)
         {
-            // Type check
-            if (!destObject.isString())
-				return vm.error("op_copy:typecheck");
+            int32_t count = top.asInt();
+            s.pop(top);
 
-			auto dest = destObject.asString();
-			auto src = srcObject.asString();
+            if (count < 0)
+                return vm.error("op_copy: rangecheck");
 
-            // Make sure neither one is null
-            //if (!dest || !src) return  vm.error("op_copy:invalidaccess");
+            if (static_cast<size_t>(count) > s.size())
+                return vm.error("op_copy: stackunderflow");
 
-            if (!dest.putInterval(0, src)) 
-                return vm.error("op_copy:putInterval failed");
-
-            return s.push(destObject);
+            return s.copy(static_cast<size_t>(count));
         }
 
-        return false; // vm.error("typecheck");
+        if (s.size() < 2)
+            return vm.error("op_copy: stackunderflow");
+
+        PSObject destObj;
+        PSObject srcObj;
+
+        s.pop(destObj);
+        s.pop(srcObj);
+
+
+        // array1 array2 copy subarray2
+        if (srcObj.isArray())
+        {
+            if (!destObj.isArray())
+                return vm.error("op_copy: typecheck");
+
+            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
+                return vm.error("op_copy: invalidaccess");
+
+            auto src = srcObj.asArray();
+            auto dest = destObj.asArray();
+
+            if (dest->size() < src->size())
+                return vm.error("op_copy: rangecheck");
+
+            for (size_t i = 0; i < src->size(); ++i)
+            {
+                PSObject value;
+
+                if (!src->get(i, value))
+                    return vm.error("op_copy: rangecheck");
+
+                if (!dest->put(i, value))
+                    return vm.error("op_copy: rangecheck");
+            }
+
+            auto result = dest->subarray(0, src->size());
+            if (!result)
+                return vm.error("op_copy: rangecheck");
+
+            PSObject resultObj = destObj;
+            resultObj.resetFromArray(result);
+
+            return s.push(resultObj);
+        }
+
+
+        // string1 string2 copy substring2
+        if (srcObj.isString())
+        {
+            if (!destObj.isString())
+                return vm.error("op_copy: typecheck");
+
+            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
+                return vm.error("op_copy: invalidaccess");
+
+            PSString src = srcObj.asString();
+            PSString dest = destObj.asString();
+
+            if (dest.length() < src.length())
+                return vm.error("op_copy: rangecheck");
+
+            for (uint32_t i = 0; i < src.length(); ++i)
+            {
+                uint8_t value;
+
+                if (!src.get(i, value))
+                    return vm.error("op_copy: rangecheck");
+
+                if (!dest.put(i, value))
+                    return vm.error("op_copy: rangecheck");
+            }
+
+            PSString result = dest.getInterval(0, static_cast<uint32_t>(src.length()));
+            return s.pushString(result);
+        }
+
+
+        // dict1 dict2 copy dict2
+        if (srcObj.isDictionary())
+        {
+            if (!destObj.isDictionary())
+                return vm.error("op_copy: typecheck");
+
+            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
+                return vm.error("op_copy: invalidaccess");
+
+            auto src = srcObj.asDictionary();
+            auto dest = destObj.asDictionary();
+
+            bool success = true;
+
+            src->forEach([&](const PSObject &key, const PSObject& value) {
+                if (!dest->put(key, value))
+                {
+                    success = false;
+                    return false;
+                }
+
+                return true;
+                });
+
+            if (!success)
+                return vm.error("op_copy: limitcheck");
+
+            return s.push(destObj);
+        }
+
+        return vm.error("op_copy: typecheck");
     }
 
 
@@ -250,66 +310,113 @@ namespace waavs
 
     // op_equality
     // eq
-    inline bool op_equality(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        if (s.size() < 2) 
+    // A couple of helpers
+    inline bool psStringEqual(const PSString& a, const PSString& b)
+    {
+        if (a.length() != b.length())
             return false;
+
+        return a.length() == 0 || std::memcmp(a.data(), b.data(), a.length()) == 0;
+    }
+
+    inline bool psStringNameEqual(const PSString& str, const PSName& name)
+    {
+        size_t nameLen = std::strlen(name.c_str());
+
+        if (str.length() != nameLen)
+            return false;
+
+        return nameLen == 0 || std::memcmp(str.data(), name.c_str(), nameLen) == 0;
+    }
+
+
+    inline bool op_equality(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.size() < 2)
+            return vm.error("op_equality: stackunderflow");
 
         PSObject b;
         PSObject a;
 
-        s.pop(a);
         s.pop(b);
+        s.pop(a);
 
-        // Try as integer first, because one might be int, and one might be real
-        if (a.isInt() && b.isInt()) {
-            // Both are integers
-            s.push(PSObject::fromBool(a.asInt() == b.asInt()));
-            return true;
-        }
-        else if (a.isReal() && b.isReal()) {
-            // Both can be treated as reals
-            s.push(PSObject::fromBool(a.asReal() == b.asReal()));
-            return true;
-        }
+        // Numbers compare by mathematical value, regardless of integer/real type.
+        if (a.isNumber() && b.isNumber())
+            return s.pushBool(a.asReal() == b.asReal());
 
-        bool result = (a.type == b.type);
+        // String contents are required for these comparisons.
+        if ((a.isString() && b.isString()) ||
+            (a.isString() && b.isName()) ||
+            (a.isName() && b.isString()))
+        {
+            if ((a.isString() && !a.isAccessReadable()) ||
+                (b.isString() && !b.isAccessReadable()))
+                return vm.error("op_equality: invalidaccess");
 
-        if (result) {
-            switch (a.type) {
-            case PSObjectType::Bool:    result = a.asBool() == b.asBool(); break;
-            case PSObjectType::Name:    result = a.asName() == b.asName(); break;
-            case PSObjectType::Null:    result = true; break;
-            default:
-                return vm.error("op_equality: typecheck failed");
-                //result = false; 
-                //break;
-            }
-        }
-        else {
-            //return vm.error("op_equality: typemismatch");
+            if (a.isString() && b.isString())
+                return s.pushBool(psStringEqual(a.asString(), b.asString()));
+
+            if (a.isString())
+                return s.pushBool(psStringNameEqual(a.asString(), b.asName()));
+
+            return s.pushBool(psStringNameEqual(b.asString(), a.asName()));
         }
 
-        s.push(PSObject::fromBool(result));
-        return true;
+        // Different remaining types cannot be equal.
+        if (a.type != b.type)
+            return s.pushBool(false);
+
+        switch (a.type)
+        {
+        case PSObjectType::Bool:
+            return s.pushBool(a.asBool() == b.asBool());
+
+        case PSObjectType::Name:
+            return s.pushBool(a.asName() == b.asName());
+
+        case PSObjectType::String:
+            if (!a.isAccessReadable() || !b.isAccessReadable())
+                return vm.error("op_equality: invalidaccess");
+            return s.pushBool(psStringEqual(a.asString(), b.asString()));
+
+        case PSObjectType::Array:
+            return s.pushBool(a.asArray() == b.asArray());
+
+        case PSObjectType::Dictionary:
+            return s.pushBool(a.asDictionary() == b.asDictionary());
+
+        case PSObjectType::File:
+            return s.pushBool(a.asFile() == b.asFile());
+
+        case PSObjectType::Font:
+            return s.pushBool(a.asFont() == b.asFont());
+
+        case PSObjectType::FontFace:
+            return s.pushBool(a.asFontFace() == b.asFontFace());
+
+        case PSObjectType::Null:
+            return s.pushBool(true);
+
+        default:
+            return s.pushBool(false);
+        }
     }
 
-    inline bool op_ne(PSVirtualMachine& vm) {
-		auto& s = vm.opStack();
+    inline bool op_ne(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
 
-        bool ok = op_equality(vm);
-        if (!ok)
-            return vm.error("op_ne: op_equality false");
+        if (!op_equality(vm))
+            return false;
 
-        PSObject top;
-        
-        s.pop(top);
+        PSObject result;
+        if (!s.pop(result))
+            return false;
 
-        if (!top.isBool())
-            return vm.error("op_ne: typecheck");
-
-        s.push(PSObject::fromBool(!top.asBool()));
-        return true;
+        return s.pushBool(!result.asBool());
     }
 
 
@@ -380,36 +487,52 @@ namespace waavs
 
 
 
-    inline bool op_rcheck(PSVirtualMachine& vm) 
+    inline bool op_rcheck(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
+        auto& s = vm.opStack();
 
-        if (ostk.empty())
+        if (s.empty())
             return vm.error("op_rcheck: stackunderflow");
 
         PSObject obj;
-        ostk.pop(obj);
+        s.pop(obj);
 
-        ostk.push(obj);
-        ostk.push(PSObject::fromBool(obj.isAccessReadable()));
+        switch (obj.type)
+        {
+        case PSObjectType::Array:
+        case PSObjectType::Matrix:
+        case PSObjectType::Dictionary:
+        case PSObjectType::File:
+        case PSObjectType::String:
+            return s.pushBool(obj.isAccessReadable());
 
-        return true;
+        default:
+            return vm.error("op_rcheck: typecheck");
+        }
     }
 
     inline bool op_wcheck(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
+        auto& s = vm.opStack();
 
-        if (ostk.empty())
+        if (s.empty())
             return vm.error("op_wcheck: stackunderflow");
 
         PSObject obj;
-        ostk.pop(obj);
+        s.pop(obj);
 
-        ostk.push(obj);
-        ostk.push(PSObject::fromBool(obj.isAccessWriteable()));
+        switch (obj.type)
+        {
+        case PSObjectType::Array:
+        case PSObjectType::Matrix:
+        case PSObjectType::Dictionary:
+        case PSObjectType::File:
+        case PSObjectType::String:
+            return s.pushBool(obj.isAccessWriteable());
 
-        return true;
+        default:
+            return vm.error("op_wcheck: typecheck");
+        }
     }
 
     inline bool op_readonly(PSVirtualMachine& vm)

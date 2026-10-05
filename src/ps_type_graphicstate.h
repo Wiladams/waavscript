@@ -31,6 +31,10 @@ namespace waavs {
         // Current Transformation Matrix
         PSMatrix ctm;  // = PSMatrix::makeIdentity();
 
+        // Future state
+        bool fStrokeAdjust = false;
+        bool fOverprint = false;
+
         // Stroke Style
         double lineWidth = 1.0;
         double miterLimit = 10.0;
@@ -58,12 +62,18 @@ namespace waavs {
         PSPaint fillPaint = PSPaint::fromGray(0.0);   // Default: black
 
         
-        
+        // ========================================================
         // Constructors
         PSGraphicsState() = default;
 
         PSGraphicsState(const PSGraphicsState& other) = default;
         PSGraphicsState& operator=(const PSGraphicsState& other) = default;
+
+        bool strokeAdjust() const { return fStrokeAdjust; }
+        void setStrokeAdjust(bool adjust) { fStrokeAdjust = adjust; }
+
+        bool overprint() const { return fOverprint; }
+        void  setOverprint(bool overprint) { fOverprint = overprint; }
 
         double getLineWidth() const { return lineWidth; }
         double getMiterLimit() const { return miterLimit; }

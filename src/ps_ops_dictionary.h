@@ -8,7 +8,31 @@ namespace waavs {
 
 
     // --- Operator Implementations ---
+    
+    inline bool op_def(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
 
+        if (s.size() < 2)
+            return vm.error("op_def: stackunderflow");
+
+        PSObject value;
+        PSObject key;
+
+        if (!s.pop(value) || !s.pop(key))
+            return vm.error("op_def: stackunderflow");
+
+        auto dict = vm.currentDictionary();
+        if (!dict)
+            return vm.error("op_def: no current dictionary");
+
+        if (!dict->put(key, value))
+            return vm.error("op_def: invalide key or dictionary insertion failed");
+
+        return true;
+    }
+
+    /*
     static bool op_def(PSVirtualMachine& vm) 
     {
         auto& ostk = vm.opStack();
@@ -32,6 +56,7 @@ namespace waavs {
 
         return true;
     }
+    */
 
     static bool op_dict(PSVirtualMachine& vm) {
         auto& s = vm.opStack();

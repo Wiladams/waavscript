@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: Path subdivision with transform.inc - Chapter 8
+%%Pages: 1
+%%EndComments
+
+(transform.inc) run
+72 72 scale
+2.5 4.5 translate
+1 72 div setlinewidth
+newpath
+0 0 moveto
+1 2 2 2 3 0 curveto
+gsave 0.7 setgray stroke grestore
+newpath
+0 0 moveto
+1 2 2 2 3 0 curveto
+subdivide
+0 setgray
+stroke
+showpage
+%%EOF

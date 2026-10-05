@@ -181,7 +181,10 @@ namespace waavs {
     public:
         PSObjectType type = PSObjectType::Null;
 
-
+        PSObject()
+        {
+            reset();
+        }
 
         // Reset state
         bool reset() {
@@ -343,6 +346,7 @@ namespace waavs {
         inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
         inline bool isNumber() const { return isInt() || isReal(); }
         inline bool isInt() const {return is(PSObjectType::Int) || (isReal() && (as<double>() == static_cast<int64_t>(as<double>()))); }
+        inline bool isIntegralNumber() const { return is(PSObjectType::Int) || (isReal() && (as<double>() == static_cast<int64_t>(as<double>()))); }
         inline bool isReal() const { return is(PSObjectType::Real); }
         inline bool isBool() const { return is(PSObjectType::Bool); }
         inline bool isName() const { return is(PSObjectType::Name); }
@@ -372,6 +376,205 @@ namespace waavs {
 
 
 namespace waavs {
+
+
+    // --------------------
+    // PSArrayStorage
+    // --------------------
+    struct PSArrayStorage
+    {
+        std::vector<PSObject> elements;
+    };
+
+
+    // --------------------
+    // PSArray
+    // --------------------
+    //
+    // A PostScript array is a view into shared array storage.
+    // Subarrays share the same storage with a different offset/length.
+    //
+    struct PSArray
+    {
+    private:
+        std::shared_ptr<PSArrayStorage> fStorage;
+        size_t fOffset = 0;
+        size_t fLength = 0;
+
+        PSArray(std::shared_ptr<PSArrayStorage> storage, size_t offset, size_t length)
+            : fStorage(std::move(storage))
+            , fOffset(offset)
+            , fLength(length)
+        {}
+
+    public:
+        PSArray()
+            : fStorage(std::make_shared<PSArrayStorage>())
+        {}
+
+        explicit PSArray(size_t size, const PSObject& fill = PSObject())
+            : fStorage(std::make_shared<PSArrayStorage>())
+            , fLength(size)
+        {
+            fStorage->elements.resize(size, fill);
+        }
+
+        PSArray(const PSArray&) = default;
+        PSArray(PSArray&&) noexcept = default;
+        PSArray& operator=(const PSArray&) = default;
+        PSArray& operator=(PSArray&&) noexcept = default;
+
+
+        // Size
+        size_t size() const noexcept
+        {
+            return fLength;
+        }
+
+        bool empty() const noexcept
+        {
+            return fLength == 0;
+        }
+
+
+        // Element access
+        bool get(size_t index, PSObject& out) const
+        {
+            if (index >= fLength)
+                return false;
+
+            out = fStorage->elements[fOffset + index];
+            return true;
+        }
+
+        bool put(size_t index, const PSObject& value)
+        {
+            if (index >= fLength)
+                return false;
+
+            fStorage->elements[fOffset + index] = value;
+            return true;
+        }
+
+        PSObject& operator[](size_t index)
+        {
+            return fStorage->elements[fOffset + index];
+        }
+
+        const PSObject& operator[](size_t index) const
+        {
+            return fStorage->elements[fOffset + index];
+        }
+
+
+        // Contiguous visible storage
+        PSObject* data() noexcept
+        {
+            return fLength ? fStorage->elements.data() + fOffset : nullptr;
+        }
+
+        const PSObject* data() const noexcept
+        {
+            return fLength ? fStorage->elements.data() + fOffset : nullptr;
+        }
+
+        PSObject* begin() noexcept { return data(); }
+        PSObject* end() noexcept { return data() + fLength; }
+
+        const PSObject* begin() const noexcept { return data(); }
+        const PSObject* end() const noexcept { return data() + fLength; }
+
+
+        // Append is only meaningful for an array that represents the
+        // complete backing store. PostScript arrays themselves are fixed-size,
+        // but this is useful while constructing arrays internally.
+        bool append(const PSObject& value)
+        {
+            if (fOffset != 0 || fLength != fStorage->elements.size())
+                return false;
+
+            fStorage->elements.push_back(value);
+            ++fLength;
+            return true;
+        }
+
+
+        // Reset this array object to a new empty array.
+        // Existing subarrays continue to reference the old storage.
+        void reset()
+        {
+            fStorage = std::make_shared<PSArrayStorage>();
+            fOffset = 0;
+            fLength = 0;
+        }
+
+
+        // Make an independent copy of the visible array.
+        std::shared_ptr<PSArray> copy() const
+        {
+            auto result = PSArray::create(fLength);
+
+            for (size_t i = 0; i < fLength; ++i)
+                result->put(i, (*this)[i]);
+
+            return result;
+        }
+
+
+        // Return a view into the same backing storage.
+        std::shared_ptr<PSArray> subarray(size_t index, size_t count) const
+        {
+            if (index > fLength || count > fLength - index)
+                return nullptr;
+
+            return std::shared_ptr<PSArray>(new PSArray(fStorage, fOffset + index, count));
+        }
+
+
+        // True when two array objects describe the same PostScript value.
+        bool sameValue(const PSArray& other) const noexcept
+        {
+            return fStorage == other.fStorage &&
+                fOffset == other.fOffset &&
+                fLength == other.fLength;
+        }
+
+
+        // Predicate-based validation
+        template<typename Pred>
+        bool allOf(Pred pred) const
+        {
+            for (size_t i = 0; i < fLength; ++i)
+            {
+                if (!pred((*this)[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        bool allOfType(PSObjectType type) const
+        {
+            return allOf([=](const PSObject& obj) { return obj.is(type); });
+        }
+
+        bool allNumbers() const
+        {
+            return allOf([](const PSObject& obj) { return obj.isNumber(); });
+        }
+
+
+        // Factory
+        static std::shared_ptr<PSArray> create(size_t size = 0, const PSObject& fill = PSObject())
+        {
+            return std::make_shared<PSArray>(size, fill);
+        }
+    };
+
+
+
+
+    /*
     // --------------------
     // PSArray
     // --------------------
@@ -460,7 +663,7 @@ namespace waavs {
             return std::make_shared<PSArray>(size, fill);
         }
     };
-
+    */
 
 }
 

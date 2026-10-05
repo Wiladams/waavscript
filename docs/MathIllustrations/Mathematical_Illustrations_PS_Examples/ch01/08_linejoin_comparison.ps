@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: Line join comparison - Chapter 1
+%%Pages: 1
+%%EndComments
+
+72 72 translate
+9 setlinewidth
+0 1 2 {
+  /j exch def
+  gsave
+  j 144 mul 0 translate
+  j setlinejoin
+  newpath
+  0 0 moveto
+  0 72 lineto
+  72 0 lineto
+  stroke
+  grestore
+} for
+showpage
+%%EOF

@@ -16,29 +16,50 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_setlinewidth(PSVirtualMachine& vm) {
-        auto& ostk = vm.opStack();
-        auto& ctm = vm.graphics()->getCTM();
+    inline bool op_setlinewidth(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
 
-        if (ostk.empty())
-            return vm.error("op_setlinewidth: stackunderflow");    
-
-        PSObject widthObj;
-        ostk.pop(widthObj);
-
-        if (!widthObj.isNumber())
-            return vm.error("op_setlinewidth:typecheck; expected number");
-
-        double width, dwidth;
-
-        ctm.dtransform(widthObj.asReal(), 0.0, width, dwidth);
+        double width;
+        if (!s.popReal(width))
+            return vm.error("op_setlinewidth: typecheck");
 
         vm.graphics()->setLineWidth(width);
-
-        //vm.graphics()->setLineWidth(widthObj.asReal());
-
         return true;
     }
+
+    inline bool op_setstrokeadjust(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        auto* grph = vm.graphics();
+
+        if (s.empty())
+            return vm.error("op_setstrokeadjust: stackunderflow");
+
+        PSObject value;
+        if (!s.pop(value) || !value.isBool())
+            return vm.error("op_setstrokeadjust: typecheck");
+
+        grph->currentState()->setStrokeAdjust(value.asBool());
+        return true;
+    }
+
+    inline bool op_setoverprint(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        auto* grph = vm.graphics();
+
+        if (s.empty())
+            return vm.error("op_setoverprint: stackunderflow");
+
+        PSObject value;
+        if (!s.pop(value) || !value.isBool())
+            return vm.error("op_setoverprint: typecheck");
+
+        grph->currentState()->setOverprint(value.asBool());
+        return true;
+    }
+
 
     inline bool op_setlinecap(PSVirtualMachine& vm) 
     {
@@ -48,7 +69,7 @@ namespace waavs {
             return vm.error("op_setlinecap: stackunderflow");
 
         PSObject obj;
-        if (!vm.opStack().pop(obj) || !obj.isInt())
+        if (!vm.opStack().pop(obj) || !obj.isIntegralNumber())
             return vm.error("op_setlinecap: typecheck; expected int");
 
         int val = obj.asInt();
@@ -66,7 +87,7 @@ namespace waavs {
             return vm.error("op_setlinejoin: stackunderflow");
 
         PSObject obj;
-        if (!ostk.pop(obj) || !obj.isInt())
+        if (!ostk.pop(obj) || !obj.isIntegralNumber())
             return vm.error("typecheck: expected int");
 
         int val = obj.asInt();
@@ -118,7 +139,7 @@ namespace waavs {
 
         const auto arr = patternObj.asArray();
         std::vector<double> dashPattern;
-        for (const PSObject& elem : arr->elements) {
+        for (const PSObject& elem : *arr) {
             if (!elem.isNumber())
                 return vm.error("typecheck");
 
@@ -234,7 +255,10 @@ namespace waavs {
         if (!vm.opStack().pop(obj) || !obj.isNumber())
             return vm.error("typecheck: expected number");
 
-        vm.graphics()->setGray(obj.asReal());
+        const double gv = std::clamp(obj.asReal(), 0.0, 1.0);
+
+        vm.graphics()->setGray(gv);
+
         return true;
     }
 
@@ -245,20 +269,25 @@ namespace waavs {
         vm.opStack().push(PSObject::fromReal(r));
         vm.opStack().push(PSObject::fromReal(g));
         vm.opStack().push(PSObject::fromReal(b));
+
         return true;
     }
 
-    inline bool op_setrgbcolor(PSVirtualMachine& vm) {
+    inline bool op_setrgbcolor(PSVirtualMachine& vm)
+    {
         PSObject b, g, r;
 
-		vm.opStack().pop(b);
-		vm.opStack().pop(g);
-		vm.opStack().pop(r);
+        if (!vm.opStack().pop(b) || !vm.opStack().pop(g) || !vm.opStack().pop(r))
+            return vm.error("op_setrgbcolor: stackunderflow");
 
         if (!r.isNumber() || !g.isNumber() || !b.isNumber())
-            return vm.error("typecheck: expected 3 numbers");
+            return vm.error("op_setrgbcolor: typecheck; expected 3 numbers");
 
-        vm.graphics()->setRGB(r.asReal(), g.asReal(), b.asReal());
+        const double rv = std::clamp(r.asReal(), 0.0, 1.0);
+        const double gv = std::clamp(g.asReal(), 0.0, 1.0);
+        const double bv = std::clamp(b.asReal(), 0.0, 1.0);
+
+        vm.graphics()->setRGB(rv, gv, bv);
         return true;
     }
 
@@ -363,92 +392,50 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_image(PSVirtualMachine& vm) {
+    inline bool op_image(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
+
         if (s.size() < 5)
-            return vm.error("stackunderflow");
+            return vm.error("op_image: stackunderflow");
 
-        // Pop operands in reverse order
-        PSObject procObj, matrixObj, bpcObj, heightObj, widthObj;
-        int32_t bpc, height, width;
+        PSObject sourceObj;
+        PSObject matrixObj;
+        int32_t bpc;
+        int32_t height;
+        int32_t width;
 
-        // The proc can be one of a few things.
-        // 1. A procedure that returns a string of image data
-        // 2. An array of bytes representing the image data directly
-        // 3. A file from which to read the image data
-        s.pop(procObj);
-
-        //if (!procObj.isExecutableArray())
-        //    return vm.error("typecheck: data source must be a procedure");
-
-        // Extract matrix
+        s.pop(sourceObj);
         s.pop(matrixObj);
+
         PSMatrix matrix;
         if (!extractMatrix(matrixObj, matrix))
-            return vm.error("op_image: typecheck: expected array or matrix object");
+            return vm.error("op_image: typecheck; expected matrix");
 
-        // bits per component, and image dimensions
         if (!s.popInt(bpc) || !s.popInt(height) || !s.popInt(width))
-            return vm.error("op_image: typecheck: width, height, and bpc must be integers");
-
+            return vm.error("op_image: typecheck; width, height, and bpc must be integers");
 
         if (width <= 0 || height <= 0)
-            return vm.error("op_image: rangecheck: invalid width or height");
+            return vm.error("op_image: rangecheck; invalid image dimensions");
+
         if (bpc != 8)
-            return vm.error("op_image: rangecheck: only 8-bit grayscale images supported");
+            return vm.error("op_image: rangecheck; only 8-bit grayscale supported");
 
+        if (sourceObj.isArray() && sourceObj.isExecutable())
+            return vm.scheduleImage(width, height, bpc, matrixObj, sourceObj);
 
-        // Create PSImage
-        PSImage img;
-        img.width = width;
-        img.height = height;
-        img.bitsPerComponent = bpc;
-        img.transform = matrix;
+        if (sourceObj.isFile())
+        {
+            PSImage img;
+            img.width = width;
+            img.height = height;
+            img.bitsPerComponent = bpc;
+            img.transform = matrix;
 
-        //std::vector<uint8_t> imageData;
-
-        
-        if (procObj.isExecutable()) {
-            // Execute the data source procedure
-            if (!vm.runProc(procObj))
-                return vm.error("op_image: runProc; failed to execute image data procedure");
-
-            // we expect to see a string on the stack after this
-            if (s.empty())
-                return vm.error("stackunderflow: no result from image procedure");
-
-            PSObject result;
-            s.pop(result);
-
-            if (!result.isString())
-                return vm.error("typecheck: image procedure must return a string");
-
-            const PSString& str = result.asString();
-            size_t expectedBytes = static_cast<size_t>(width) * height;
-
-            if (str.length() < expectedBytes)
-                return vm.error("rangecheck: insufficient image data");
-
-            // Create a memory file from the string data
-            // Copy only the required bytes
-            //imageData.insert(imageData.end(), str.data(), str.data() + expectedBytes);
-            //img.data = std::move(imageData);
-            std::shared_ptr<PSMemoryFile> dataSource = PSMemoryFile::create(OctetCursor(str.data(), expectedBytes));
-
-            return vm.graphics()->image(img, dataSource);
-
+            return vm.graphics()->image(img, sourceObj.asFile());
         }
 
-        if (procObj.isFile()) {
-            auto file = procObj.asFile();
-
-            bool result = vm.graphics()->image(img, file);
-            file->finalize();
-
-            return result;
-        }
-
-        return false;
+        return vm.error("op_image: typecheck; expected procedure or file");
     }
 
     bool op_setscreen(PSVirtualMachine& vm)
@@ -513,6 +500,10 @@ namespace waavs {
             {"image", op_image },
 
             {"setscreen", op_setscreen },
+
+            // Future state operations
+            {"setstrokeadjust", op_setstrokeadjust },
+            {"setoverprint", op_setoverprint },
         };
         return table;
     }

@@ -205,20 +205,26 @@
     <ClInclude Include="..\..\src\fontmonger.h" />
     <ClInclude Include="..\..\src\mappedfile.h" />
     <ClInclude Include="..\..\src\ocspan.h" />
+    <ClInclude Include="..\..\src\pathprogram.h" />
+    <ClInclude Include="..\..\src\pathprogram_builder.h" />
+    <ClInclude Include="..\..\src\pathprogram_flattener.h" />
     <ClInclude Include="..\..\src\pscore.h" />
     <ClInclude Include="..\..\src\ps_execution_frame.h" />
     <ClInclude Include="..\..\src\ps_file_filter.h" />
+    <ClInclude Include="..\..\src\ps_ops_enviro.h" />
+    <ClInclude Include="..\..\src\ps_ops_path.h" />
+    <ClInclude Include="..\..\src\ps_type_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_type_path.h" />
     <ClInclude Include="..\..\src\ps_type1.h" />
     <ClInclude Include="..\..\src\ps_type_graphicstate.h" />
     <ClInclude Include="..\..\src\ps_type_image.h" />
     <ClInclude Include="..\..\src\ps_type_paint.h" />
-    <ClInclude Include="..\..\src\ps_type_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_type_dictionary.hpp" />
     <ClInclude Include="..\..\src\ps_type_file.h" />
     <ClInclude Include="..\..\src\ps_type_font.h" />
     <ClInclude Include="..\..\src\ps_type_graphicscontext.h" />
     <ClInclude Include="..\..\src\ps_type_matrix.h" />
     <ClInclude Include="..\..\src\ps_type_name.h" />
-    <ClInclude Include="..\..\src\ps_type_path.h" />
     <ClInclude Include="..\..\src\ps_type_stack.h" />
     <ClInclude Include="..\..\src\ps_type_string.h" />
     <ClInclude Include="..\..\src\psvm.h" />
@@ -236,7 +242,6 @@
     <ClInclude Include="..\..\src\ps_ops_graphics.h" />
     <ClInclude Include="..\..\src\ps_ops_math.h" />
     <ClInclude Include="..\..\src\ps_ops_matrix.h" />
-    <ClInclude Include="..\..\src\ps_ops_path.h" />
     <ClInclude Include="..\..\src\ps_ops_polymorph.h" />
     <ClInclude Include="..\..\src\ps_ops_resource.h" />
     <ClInclude Include="..\..\src\ps_ops_text.h" />
@@ -245,6 +250,7 @@
     <ClInclude Include="..\..\src\ps_scanner.h" />
     <ClInclude Include="..\..\src\stopwatch.h" />
     <ClInclude Include="..\..\src\strutil.h" />
+    <ClInclude Include="..\..\src\type1_charstring_decoder.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

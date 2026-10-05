@@ -8,17 +8,18 @@ namespace waavs {
 	// ( int -- array )
 	inline bool op_array(PSVirtualMachine& vm) 
 	{
-		auto& s = vm.opStack();
-		if (s.empty()) 
+		auto& ostk = vm.opStack();
+		if (ostk.empty()) 
 			return vm.error("op_array: stackunderflow");
 
 		int32_t len;
-        if (!s.popInt(len))
+        if (!ostk.popInt(len))
 			return vm.error("op_array: typecheck");
 
-		auto arr = PSArray::create();
-		arr->elements.resize(static_cast<size_t>(len));
-		return s.pushArray(arr);
+        if (len < 0)
+            return vm.error("op_array: rangecheck");
+
+		return ostk.pushArray(PSArray::create(static_cast<size_t>(len)));
 	}
 
 	// ( array -- ... elements ... array )
@@ -32,7 +33,7 @@ namespace waavs {
 		if (!s.popArray(arr))
 			return vm.error("op_load: typecheck");
 
-		for (const auto& elem : arr->elements)
+		for (const auto& elem : *arr)
 			s.push(elem);
 
 		return s.pushArray(arr); // push original array back
@@ -55,86 +56,144 @@ namespace waavs {
 		for (size_t i = 0; i < count; ++i) {
 			PSObject val;
 			s.pop(val);
-			arr->elements[count - 1 - i] = val;
+			(*arr)[count - 1 - i] = val;
 		}
 
 		return s.pushArray(arr);
 	}
 
-	// ( array index count -- subarray )
-	inline bool op_getinterval(PSVirtualMachine& vm) {
+	inline bool op_getinterval(PSVirtualMachine& vm)
+	{
 		auto& s = vm.opStack();
-		if (s.size() < 3) 
+
+		if (s.size() < 3)
 			return vm.error("op_getinterval: stackunderflow");
 
 		int32_t start;
 		int32_t count;
-        PSObject containerObj;
+		PSObject containerObj;
 
-		if (!s.popInt(count) ||	!s.popInt(start))
-			return vm.error("op_getinterval: typecheck, index or count not int");
+		if (!s.popInt(count) || !s.popInt(start))
+			return vm.error("op_getinterval: typecheck");
 
-		s.pop(containerObj);
+		if (!s.pop(containerObj))
+			return vm.error("op_getinterval: stackunderflow");
 
 		if (!containerObj.isArray() && !containerObj.isString())
-            return vm.error("op_getinterval: typecheck; container not array or string");
+			return vm.error("op_getinterval: typecheck");
 
-		PSObject intervalObj;
+		if (start < 0 || count < 0)
+			return vm.error("op_getinterval: rangecheck");
+
+		size_t index = static_cast<size_t>(start);
+		size_t length = static_cast<size_t>(count);
 
 		if (containerObj.isArray())
 		{
 			auto arr = containerObj.asArray();
 
-			if (start < 0 || count < 0 || static_cast<size_t>(start + count) > arr->elements.size())
-				return vm.error("op_getinterval: rangecheck; array");
+			if (index > arr->size() || length > arr->size() - index)
+				return vm.error("op_getinterval: rangecheck");
 
-			auto sub = PSArray::create();
-			sub->elements.insert(
-				sub->elements.begin(),
-				arr->elements.begin() + start,
-				arr->elements.begin() + start + count
-			);
+			auto sub = arr->subarray(index, length);
+			if (!sub)
+				return vm.error("op_getinterval: rangecheck");
 
-            intervalObj.resetFromArray(sub);
-		} else if (containerObj.isString())
-		{
-			auto &str = containerObj.asString();
-            auto subStr = str.getInterval(start, count);
-			intervalObj.resetFromString(subStr);
-        }
+			return s.pushArray(sub);
+		}
 
-		return s.push(intervalObj);
+		auto str = containerObj.asString();
+
+		if (index > str.length() || length > str.length() - index)
+			return vm.error("op_getinterval: rangecheck");
+
+		auto subStr = str.getInterval(start, count);
+		return s.pushString(subStr);
 	}
 
 	// ( destArray index srcArray -- )
-	inline bool op_putinterval(PSVirtualMachine& vm) {
+	inline bool op_putinterval(PSVirtualMachine& vm)
+	{
 		auto& s = vm.opStack();
-		if (s.size() < 3) 
+
+		if (s.size() < 3)
 			return vm.error("op_putinterval: stackunderflow");
 
-		int32_t index;
+		PSObject srcObj;
+		PSObject indexObj;
+		PSObject destObj;
 
-		PSObject srcArrObj, destArrObj;
-		s.pop(srcArrObj);
-		if (!s.popInt(index))
-			return vm.error("op_putinterval: typecheck; index");
+		s.pop(srcObj);
+		s.pop(indexObj);
+		s.pop(destObj);
 
-		s.pop(destArrObj);
+		if (indexObj.type != PSObjectType::Int)
+			return vm.error("op_putinterval: typecheck");
 
-		if (!destArrObj.isArray() ||  !srcArrObj.isArray())
-			return vm.error("op_putinterval: typecheck; dest or src not array");
+		int32_t indexValue = indexObj.asInt();
 
-		auto dest = destArrObj.asArray();
-		auto src = srcArrObj.asArray();
-
-		if (index < 0 || static_cast<size_t>(index + src->size()) > dest->size())
+		if (indexValue < 0)
 			return vm.error("op_putinterval: rangecheck");
 
-		for (size_t i = 0; i < src->size(); ++i) {
-			dest->elements[index + i] = src->elements[i];
+		size_t index = static_cast<size_t>(indexValue);
+
+		if (destObj.isArray())
+		{
+			if (!srcObj.isArray())
+				return vm.error("op_putinterval: typecheck");
+
+			if (!destObj.isAccessWriteable() || !srcObj.isAccessReadable())
+				return vm.error("op_putinterval: invalidaccess");
+
+			auto dest = destObj.asArray();
+			auto src = srcObj.asArray();
+
+			if (index > dest->size() || src->size() > dest->size() - index)
+				return vm.error("op_putinterval: rangecheck");
+
+			for (size_t i = 0; i < src->size(); ++i)
+			{
+				PSObject value;
+
+				if (!src->get(i, value))
+					return vm.error("op_putinterval: rangecheck");
+
+				if (!dest->put(index + i, value))
+					return vm.error("op_putinterval: rangecheck");
+			}
+
+			return true;
 		}
 
-		return true;
+		if (destObj.isString())
+		{
+			if (!srcObj.isString())
+				return vm.error("op_putinterval: typecheck");
+
+			if (!destObj.isAccessWriteable() || !srcObj.isAccessReadable())
+				return vm.error("op_putinterval: invalidaccess");
+
+			PSString dest = destObj.asString();
+			PSString src = srcObj.asString();
+
+			if (index > dest.length() || src.length() > dest.length() - index)
+				return vm.error("op_putinterval: rangecheck");
+
+			for (size_t i = 0; i < src.length(); ++i)
+			{
+				uint8_t value;
+
+				if (!src.get(static_cast<uint32_t>(i), value))
+					return vm.error("op_putinterval: rangecheck");
+
+				if (!dest.put(static_cast<uint32_t>(index + i), value))
+					return vm.error("op_putinterval: rangecheck");
+			}
+
+			return true;
+		}
+
+		return vm.error("op_putinterval: typecheck");
 	}
 
 
@@ -148,14 +207,14 @@ namespace waavs {
 		if (!ostk.popArray(arr))
 			return vm.error("op_bind: typecheck; not array");;
 
-		for (auto& elem : arr->elements) {
+		for (const auto& elem : *arr) {
 			if (elem.isExecutableName()) {
 				// If the name resolves to an operator, then replace it in 
 				// the array with the actual operator object.
 				PSObject resolved;
 				if (vm.dictionaryStack.load(elem.asName(), resolved)) {
 					if (resolved.isOperator()) {
-						elem.resetFromOperator(resolved.asOperator());
+						const_cast<PSObject&>(elem).resetFromOperator(resolved.asOperator());
 					}
 				} 
 			}

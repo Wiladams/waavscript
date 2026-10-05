@@ -59,10 +59,10 @@ namespace waavs {
             os << "[";
 
         for (size_t i = 0; i < arr->size(); ++i) {
-            const PSObject& element = arr->elements[i];
+            const PSObject& element = (*arr)[i];
             writeObjectDeep(element, os);
             if (i + 1 < arr->size())
-                std::cout << " ";
+                os << " ";
         }
 
         if (obj.isExecutable())
@@ -81,14 +81,17 @@ namespace waavs {
         os << "<<";
         bool first = true;
 
-        dict->forEach([&](PSName key, const PSObject& val) {
+        dict->forEach([&](const PSObject& key, const PSObject& val) {
             if (!first)
                 os << " ";
+
             first = false;
 
-            os << "/" << key.c_str() << " ";
+            writeObjectDeep(key, os);
+            os << " ";
             writeObjectDeep(val, os);
-            return true; // continue iteration
+
+            return true;
             });
 
         os << ">>";

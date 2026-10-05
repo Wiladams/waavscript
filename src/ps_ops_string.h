@@ -4,7 +4,80 @@
 #include "psvm.h"
 
 
-namespace waavs {
+namespace waavs 
+{
+
+    inline bool op_cvs(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.size() < 2)
+            return vm.error("op_cvs: stackunderflow");
+
+        PSObject strObj;
+        PSObject valueObj;
+
+        s.pop(strObj);
+        s.pop(valueObj);
+
+        if (!strObj.isString())
+            return vm.error("op_cvs: typecheck");
+
+        PSString dest = strObj.asString();
+        std::string text;
+
+        switch (valueObj.type)
+        {
+        case PSObjectType::Int:
+            text = std::to_string(valueObj.asInt());
+            break;
+
+        case PSObjectType::Real:
+        {
+            char buffer[64];
+            int len = std::snprintf(buffer, sizeof(buffer), "%.6g", valueObj.asReal());
+
+            if (len < 0)
+                return vm.error("op_cvs: rangecheck");
+
+            text.assign(buffer, static_cast<size_t>(len));
+            break;
+        }
+
+        case PSObjectType::Bool:
+            text = valueObj.asBool() ? "true" : "false";
+            break;
+
+        case PSObjectType::String:
+        {
+            const PSString& src = valueObj.asString();
+            text.assign(reinterpret_cast<const char*>(src.data()), src.length());
+            break;
+        }
+
+        case PSObjectType::Name:
+            text = valueObj.asName().c_str();
+            break;
+
+        case PSObjectType::Operator:
+            text = valueObj.asOperator().name().c_str();
+            break;
+
+        default:
+            text = "--nostringval--";
+            break;
+        }
+
+        if (text.size() > dest.length())
+            return vm.error("op_cvs: rangecheck");
+
+        if (!text.empty())
+            std::memcpy(dest.data(), text.data(), text.size());
+
+        return s.pushString(dest.getInterval(0, static_cast<uint32_t>(text.size())));
+    }
+
+    /*
     inline bool op_cvs(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
         if (s.size() < 2) 
@@ -52,24 +125,26 @@ namespace waavs {
         return s.push(strObj);
 
     }
+    */
 
-    inline bool op_cvn(PSVirtualMachine& vm) {
+    inline bool op_cvn(PSVirtualMachine& vm) 
+    {
         auto& s = vm.opStack();
-        if (s.empty()) return vm.error("stackunderflow");
+        if (s.empty()) 
+            return vm.error("op_cvn: stackunderflow");
 
         PSObject strObj;
         s.pop(strObj);
 
         if (!strObj.isString())
-            return vm.error("typecheck");
+            return vm.error("op_cvn: typecheck");
 
         auto psStr = strObj.asString();
         const uint8_t* data = psStr.data();
         size_t len = psStr.length();
         OctetCursor oc(data, len);
 
-        s.push(PSObject::fromName(oc));
-        return true;
+        return s.push(PSObject::fromName(oc));
     }
     
     // string: (n -- string)

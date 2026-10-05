@@ -1,411 +1,477 @@
+// ps_type_path.h 
 #pragma once
 
-#include <vector>
 #include <cmath>
+#include <cstdint>
 
+#include "pathprogram_builder.h"
 #include "ps_type_matrix.h"
 
 namespace waavs {
-#define CLAMP(x, low, high) std::min(std::max(x, low), high)
 
-    enum class PSPathCommand : uint8_t {
-        MoveTo,
-        LineTo,
-        EllipticArc,
-        CurveTo,
-        ClosePath
-    };
-
-    struct PSPathSegment {
-        PSPathCommand command;
-        PSMatrix fTransform;    // transformation matrix for this segment
-
-        // Holds up to 3 points depending on the command
-        double x1 = 0, y1 = 0;
-        double x2 = 0, y2 = 0;
-        double x3 = 0, y3 = 0;
-
-    };
-
-    // calArcTangents
-    //
-    // Given three points (x0, y0), (x1, y1), (x2, y2) 
-    // where (x0,y0) is the starting point
-    //       (x1, y1) is the corner point
-    //       (x2, y2) is the end point
-    // and a radius r, calculates the tangent points (xt1, yt1) and (xt2, yt2)
-    // Returns true if successful, false if the angle is too small to draw an arc
-    // The tangent points are the points on the circle of radius r that touch the lines
-    // going from the two endpoints to the corner point.
-    static bool calcArcTangents(double x0, double y0,
-        double x1, double y1,
-        double x2, double y2,
-        double r,
-        double& xt1, double& yt1,
-        double& xt2, double& yt2)
+    struct PSPath
     {
-        // 1. Compute direction vectors away from the corner towards the tangent points
-        // From start point (x0, y0) to corner (x1, y1)
-        double dx1 = x0 - x1;
-        double dy1 = y0 - y1;
-        double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
-        double vx1 = dx1 / len1; // Normalize
-        double vy1 = dy1 / len1;
+    private:
+        PathProgramBuilder fBuilder;
 
-        // From end point (x2, y2) to corner (x1, y1)
-        double dx2 = x2 - x1;
-        double dy2 = y2 - y1;
-        double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
-        double vx2 = dx2 / len2; // Normalize
-        double vy2 = dy2 / len2;
-
-        // 2. Compute the angle between the two vectors
-        // This gives us the interior angle at the corner
-        double dot = vx1 * vx2 + vy1 * vy2; // Dot product
-        double theta = std::acos(CLAMP(dot, -1.0, 1.0)); // Angle in radians
-
-        // 3. Calculate the distance from the corner to the tangent points
-        // We want to back up along the vectors from the corner point along the normals
-        // This comes from from geometry of circle segments tangent to both lines
-        // Note:  if the angle is too small, we can't draw an arc, so we should exit, or
-        // just draw the two lines instead
-        double d = r / std::tan(theta / 2.0);
-
-
-        // 4.0 Compute tangent points
-        xt1 = x1 + vx1 * d; // Tangent point 1
-        yt1 = y1 + vy1 * d; // Tangent point 1
-        xt2 = x1 + vx2 * d; // Tangent point 2
-        yt2 = y1 + vy2 * d; // Tangent point 2
-
-        return true;
-    }
-
-
-    struct PSPath {
-
-        std::vector<PSPathSegment> segments;
-
-		bool fHasCurrentPoint = false;
-        double fCurrentX{ 0 };
-        double fCurrentY{ 0 };
-        double fStartX{ 0 };
-        double fStartY{ 0 };
-
-
-        bool reset() {
-            segments.clear();
-			fCurrentX = 0;
-			fCurrentY = 0;
-            fStartX = 0;
-            fStartY = 0;
-
-			fHasCurrentPoint = false;
-
-            return true;
-        }
-
-        bool empty() const {
-            return segments.empty();
-		}
-
-        constexpr bool hasCurrentPoint() const {
-            return fHasCurrentPoint;
-        }
-
-        bool getCurrentPoint(double& x, double& y) const {
-            if (!fHasCurrentPoint) return false;
-
-            x = fCurrentX;
-            y = fCurrentY;
-            
-            return true;
-		}
-
-        // Movement commands to build path
-        bool moveto(const PSMatrix &ctm, double x, double y) {
-            PSPathSegment seg;
-            seg.command = PSPathCommand::MoveTo;
-            seg.fTransform = ctm; // Store the transformation matrix
-            seg.x1 = x;
-            seg.y1 = y;
-
-            segments.push_back(seg);
-
-            fCurrentX = fStartX = x;
-            fCurrentY = fStartY = y;
-
-            fHasCurrentPoint = true;
-
-            return true;
-        }
-        bool moveto(double x, double y) {
-            PSMatrix identity; // Identity matrix for no transformation
-            return moveto(identity, x, y);
-        }
-
-        bool lineto(const PSMatrix& ctm, double x, double y) {
-			if (!fHasCurrentPoint) return false;
-
-            PSPathSegment seg;
-            seg.command = PSPathCommand::LineTo;
-            seg.fTransform = ctm;
-            seg.x1 = x;
-            seg.y1 = y;
-
-            segments.push_back(seg);
-
-            fCurrentX = x;
-            fCurrentY = y;
-
-            return true;
-        }
-        bool lineto(double x, double y) {
-            PSMatrix identity; // Identity matrix for no transformation
-            return lineto(identity, x, y);
-        }
-
-
-
-        bool ellipticArcTo(double radius,bool sweepFlag,double x2, double y2) {
-
-            if (!fHasCurrentPoint) 
-                return false;
-
-            // Store the elliptic arc segment
-            PSPathSegment seg;
-            seg.command = PSPathCommand::EllipticArc;
-            seg.x1 = radius;        // radius
-            seg.y1 = sweepFlag;     // sweep flag (0 or 1)
-            seg.x2 = x2;            // endpoint x
-            seg.y2 = y2;            // endpoint y
-
-            segments.push_back( seg);
-
-            fCurrentX = x2; // Update current point to end point
-            fCurrentY = y2;
-            fHasCurrentPoint = true;
-            
-            return true;
-        }
-        
-
-        bool arcto(const PSMatrix &ctm, double x0, double y0,
-            double x1, double y1,
-            double x2, double y2,
-            double r,
-            double& xt1, double& yt1,
-            double& xt2, double& yt2)
+        static bool transformPoint_(const PSMatrix& ctm, double x, double y, float& tx, float& ty) noexcept
         {
-            // 1. Compute direction vectors away from the corner towards the tangent points
-            // From start point (x0, y0) to corner (x1, y1)
-            double dx1 = x0 - x1;
-            double dy1 = y0 - y1;
-            double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
-            double vx1 = dx1 / len1; // Normalize
-            double vy1 = dy1 / len1;
+            double dx;
+            double dy;
+            ctm.transformPoint(x, y, dx, dy);
 
-            // From end point (x2, y2) to corner (x1, y1)
-            double dx2 = x2 - x1;
-            double dy2 = y2 - y1;
-            double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
-            double vx2 = dx2 / len2; // Normalize
-            double vy2 = dy2 / len2;
-        
-            // 2. Compute the angle between the two vectors
-            // This gives us the interior angle at the corner
-            double dot = vx1 * vx2 + vy1 * vy2; // Dot product
-            double theta = std::acos(CLAMP(dot,-1.0,1.0)); // Angle in radians
-
-            // 3. Calculate the distance from the corner to the tangent points
-            // We want to back up along the vectors from the corner point along the normals
-            // This comes from from geometry of circle segments tangent to both lines
-            // Note:  if the angle is too small, we can't draw an arc, so we should exit, or
-            // just draw the two lines instead
-            double d = r / std::tan(theta / 2.0);
-
-
-            // 4.0 Compute tangent points
-            xt1 = x1 + vx1 * d; // Tangent point 1
-            yt1 = y1 + vy1 * d; // Tangent point 1
-            xt2 = x1 + vx2 * d; // Tangent point 2
-            yt2 = y1 + vy2 * d; // Tangent point 2
-
-            
-            // 5.0 Compute Arc Center
-            // 5a - We need vectors that point towards the corner from the tangent points,
-            // which are the opposite of what was previously calculated
-            double dux1 = x1 - xt1; // Inverse direction of vx1
-            double duy1 = y1 - yt1; // Inverse direction of vy1
-            double u1len = std::sqrt(dux1 * dux1 + duy1 * duy1);
-            double ux1 = dux1 / u1len;
-            double uy1 = duy1 / u1len;
-
-            double dux2 = x1 - xt2; // Inverse direction of vx2
-            double duy2 = y1 - yt2; // Inverse direction of vy2
-            double u2len = std::sqrt(dux2 * dux2 + duy2 * duy2);
-            double ux2 = dux2 / u2len;
-            double uy2 = duy2 / u2len;
-
-            // 5b - Compute the angle bisector vector
-            double bx = ux1 + ux2; // Bisector X
-            double by = uy1 + uy2; // Bisector Y
-            double blen = std::sqrt(bx * bx + by * by); // Length of bisector
-            bx /= -blen; // Normalize
-            by /= -blen; // Normalize
-
-            // 5c Compute the center of offset distance
-            // Now 'b' is a unit vector pointing from the corner towards the center of the arc
-            double h = r / std::sin(theta / 2.0); // Distance from corner to center
-
-            double cx = x1 + bx * h; // Center X
-            double cy = y1 + by * h; // Center Y
-
-            // 6.0 Determine sweep flag
-            // Take the signed area of the triangle
-            double cross = (xt1 - cx) * (yt2 - cy) - (xt2 - cx) * (yt1 - cy);
-            double sweepFlag = (cross > 0);
-            
-
-            // Build the actual path segments
-            lineto(ctm, xt1, yt1);
-            ellipticArcTo(r, sweepFlag, xt2, yt2);
-
-            fCurrentX = xt2;
-            fCurrentY = yt2;
-            fHasCurrentPoint = true;
-
+            tx = static_cast<float>(dx);
+            ty = static_cast<float>(dy);
             return true;
         }
 
-
-        bool curveto(const PSMatrix &ctm, 
-            double x1, double y1,
-            double x2, double y2,
-            double x3, double y3) {
-
-            if (!fHasCurrentPoint) 
+        bool emitArc_(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg, bool clockwise)
+        {
+            if (radius < 0.0)
                 return false;
 
-            PSPathSegment seg;
-            seg.command = PSPathCommand::CurveTo;
-            seg.fTransform = ctm;
-            seg.x1 = x1;
-            seg.y1 = y1;
-            seg.x2 = x2;
-            seg.y2 = y2;
-            seg.x3 = x3;
-            seg.y3 = y3;
-            segments.push_back(seg);
+            constexpr double pi = 3.14159265358979323846;
+            constexpr double degToRad = pi / 180.0;
+            constexpr double quarterArc = pi * 0.5;
 
-            fCurrentX = x3; // Assuming x3 is the end point of the curve
-            fCurrentY = y3;
+            double start = startDeg * degToRad;
+            double end = endDeg * degToRad;
+            double sweep = end - start;
 
-            return true;
-        }
+            if (clockwise)
+            {
+                while (sweep >= 0.0)
+                    sweep -= 2.0 * pi;
+            }
+            else
+            {
+                while (sweep <= 0.0)
+                    sweep += 2.0 * pi;
+            }
 
-        bool close() {
-            if (!fHasCurrentPoint) 
-                return false;
-            
-            PSPathSegment seg;
-            seg.command = PSPathCommand::ClosePath;
-            seg.fTransform = PSMatrix(); // No transformation for close path
-            seg.x1 = fCurrentX;
-            seg.y1 = fCurrentY;
+            int segmentCount = static_cast<int>(std::ceil(std::abs(sweep) / quarterArc));
+            if (segmentCount < 1)
+                segmentCount = 1;
 
-            segments.push_back(seg);
+            const double delta = sweep / static_cast<double>(segmentCount);
 
-            fCurrentX = fStartX; // Reset current point to start point
-			fCurrentY = fStartY;
+            double startX = cx + radius * std::cos(start);
+            double startY = cy + radius * std::sin(start);
 
-            return true;
-        }
+            if (!hasCurrentPoint())
+            {
+                if (!moveto(ctm, startX, startY))
+                    return false;
+            }
+            else
+            {
+                double curX;
+                double curY;
 
-        // Get the boundary box for the path
-        bool getBoundingBox(double& minX, double& minY, double& maxX, double& maxY) const {
-            bool found = false;
+                if (!getCurrentPoint(ctm, curX, curY))
+                    return false;
 
-            auto includePoint = [&](double x, double y) {
-                if (!found) {
-                    minX = maxX = x;
-                    minY = maxY = y;
-                    found = true;
-                }
-                else {
-                    if (x < minX) minX = x;
-                    if (x > maxX) maxX = x;
-                    if (y < minY) minY = y;
-                    if (y > maxY) maxY = y;
-                }
-                };
+                constexpr double epsilon = 1e-10;
 
-            auto includeArcBounds = [&](double cx, double cy, double r, double startDeg, double sweepDeg) {
-                auto normDeg = [](double deg) {
-                    deg = std::fmod(deg, 360.0);
-                    return deg < 0 ? deg + 360.0 : deg;
-                    };
-
-                startDeg = normDeg(startDeg);
-                double endDeg = normDeg(startDeg + sweepDeg);
-
-                auto isAngleBetween = [](double angle, double start, double end) {
-                    if (end < start) end += 360.0;
-                    if (angle < start) angle += 360.0;
-                    return angle >= start && angle <= end;
-                    };
-
-                auto include = [&](double deg) {
-                    double rad = deg * (PI / 180.0);
-                    double x = cx + r * std::cos(rad);
-                    double y = cy + r * std::sin(rad);
-                    includePoint(x, y);
-                    };
-
-                include(startDeg);
-                include(endDeg);
-
-                for (int i = 0; i < 4; ++i) {
-                    double axisDeg = i * 90.0;
-                    if (isAngleBetween(axisDeg, startDeg, endDeg))
-                        include(axisDeg);
-                }
-                };
-
-            for (const auto& seg : segments) {
-                switch (seg.command) {
-                case PSPathCommand::MoveTo:
-                case PSPathCommand::LineTo:
-                case PSPathCommand::ClosePath:
-                    includePoint(seg.x1, seg.y1);
-                    break;
-
-                case PSPathCommand::CurveTo:
-                    for (int i = 0; i < 3; ++i) {
-                        double x = (&seg.x1)[i * 2];
-                        double y = (&seg.y1)[i * 2];
-                        includePoint(x, y);
-                    }
-                    break;
-
-                case PSPathCommand::EllipticArc: {
-                    double cx = seg.x1;
-                    double cy = seg.y1;
-                    double r = seg.x2;
-                    double startDeg = seg.x3;
-                    double sweepDeg = seg.y3;
-                    includeArcBounds(cx, cy, r, startDeg, sweepDeg);
-                    break;
-                }
-
-                default:
-                    break;
+                if (std::abs(curX - startX) > epsilon || std::abs(curY - startY) > epsilon)
+                {
+                    if (!lineto(ctm, startX, startY))
+                        return false;
                 }
             }
 
-            return found;
+            for (int i = 0; i < segmentCount; ++i)
+            {
+                const double t0 = start + static_cast<double>(i) * delta;
+                const double t1 = t0 + delta;
+
+                const double cos0 = std::cos(t0);
+                const double sin0 = std::sin(t0);
+                const double cos1 = std::cos(t1);
+                const double sin1 = std::sin(t1);
+
+                const double alpha = std::tan((t1 - t0) * 0.25) * (4.0 / 3.0);
+
+                const double x0 = cx + radius * cos0;
+                const double y0 = cy + radius * sin0;
+
+                const double x1 = x0 - radius * alpha * sin0;
+                const double y1 = y0 + radius * alpha * cos0;
+
+                const double x3 = cx + radius * cos1;
+                const double y3 = cy + radius * sin1;
+
+                const double x2 = x3 + radius * alpha * sin1;
+                const double y2 = y3 - radius * alpha * cos1;
+
+                if (!curveto(ctm, x1, y1, x2, y2, x3, y3))
+                    return false;
+            }
+
+            return true;
+        }
+
+    public:
+        PSPath() = default;
+
+
+        // ------------------------------------------------------------
+        // Lifecycle / state
+        // ------------------------------------------------------------
+
+        bool reset() noexcept
+        {
+            fBuilder.reset();
+            return true;
+        }
+
+        bool empty() const noexcept
+        {
+            return fBuilder.prog.ops.empty();
+        }
+
+        bool rsetCurrentPoint(const PSMatrix& ctm, double dx, double dy)
+        {
+            double x;
+            double y;
+
+            if (!getCurrentPoint(ctm, x, y))
+                return false;
+
+            return setCurrentPoint(ctm, x + dx, y + dy);
+        }
+
+        bool setCurrentPoint(const PSMatrix& ctm, double x, double y)
+        {
+            float tx;
+            float ty;
+
+            if (!transformPoint_(ctm, x, y, tx, ty))
+                return false;
+
+            return fBuilder.setCurrentPoint(tx, ty);
+        }
+
+        bool hasCurrentPoint() const noexcept
+        {
+            return fBuilder.hasCurrentPoint();
+        }
+
+        const PathProgram& program() const noexcept
+        {
+            return fBuilder.prog;
+        }
+
+        //PathProgram& program() noexcept
+        //{
+        //    return fBuilder.prog;
+        //}
+
+        bool replaceProgram(const PathProgram& prog)
+        {
+            PathProgramBuilder builder;
+            builder.reserve(prog.ops.size(), prog.args.size());
+
+            if (!pathprogram_dispatch(prog, builder))
+                return false;
+
+            fBuilder = std::move(builder);
+            return true;
+        }
+
+
+        // ------------------------------------------------------------
+        // Current point
+        //
+        // Internally the builder current point is in canonical path space.
+        // PostScript currentpoint must be returned in CURRENT user space.
+        // ------------------------------------------------------------
+
+        bool getCurrentPointCanonical(double& x, double& y) const noexcept
+        {
+            if (!fBuilder.hasCurrentPoint())
+                return false;
+
+            x = static_cast<double>(fBuilder.curX());
+            y = static_cast<double>(fBuilder.curY());
+            return true;
+        }
+
+        bool getCurrentPoint(const PSMatrix& ctm, double& x, double& y) const
+        {
+            if (!fBuilder.hasCurrentPoint())
+                return false;
+
+            PSMatrix inverse;
+            if (!ctm.inverse(inverse))
+                return false;
+
+            inverse.transformPoint(
+                static_cast<double>(fBuilder.curX()),
+                static_cast<double>(fBuilder.curY()),
+                x, y);
+
+            return true;
+        }
+
+
+        // ------------------------------------------------------------
+        // Basic path construction
+        //
+        // Input coordinates are PostScript user-space coordinates.
+        // They are transformed immediately and stored canonically.
+        // ------------------------------------------------------------
+
+        bool moveto(const PSMatrix& ctm, double x, double y)
+        {
+            float tx;
+            float ty;
+
+            if (!transformPoint_(ctm, x, y, tx, ty))
+                return false;
+
+            return fBuilder.moveTo(tx, ty);
+        }
+
+        bool lineto(const PSMatrix& ctm, double x, double y)
+        {
+            if (!fBuilder.hasCurrentPoint())
+                return false;
+
+            float tx;
+            float ty;
+
+            if (!transformPoint_(ctm, x, y, tx, ty))
+                return false;
+
+            return fBuilder.lineTo(tx, ty);
+        }
+
+        bool curveto(const PSMatrix& ctm,
+            double x1, double y1,
+            double x2, double y2,
+            double x3, double y3)
+        {
+            if (!fBuilder.hasCurrentPoint())
+                return false;
+
+            float tx1;
+            float ty1;
+            float tx2;
+            float ty2;
+            float tx3;
+            float ty3;
+
+            if (!transformPoint_(ctm, x1, y1, tx1, ty1) ||
+                !transformPoint_(ctm, x2, y2, tx2, ty2) ||
+                !transformPoint_(ctm, x3, y3, tx3, ty3))
+                return false;
+
+            return fBuilder.cubicTo(tx1, ty1, tx2, ty2, tx3, ty3);
+        }
+
+        bool quadto(const PSMatrix& ctm, double x1, double y1, double x2, double y2)
+        {
+            if (!fBuilder.hasCurrentPoint())
+                return false;
+
+            float tx1;
+            float ty1;
+            float tx2;
+            float ty2;
+
+            if (!transformPoint_(ctm, x1, y1, tx1, ty1) ||
+                !transformPoint_(ctm, x2, y2, tx2, ty2))
+                return false;
+
+            return fBuilder.quadTo(tx1, ty1, tx2, ty2);
+        }
+
+        bool close() noexcept
+        {
+            return fBuilder.close();
+        }
+
+
+        // ------------------------------------------------------------
+        // Relative PostScript operations
+        //
+        // These are useful here because PSPath owns the coordinate-space
+        // transition. Operators do not need to know how the path is stored.
+        // ------------------------------------------------------------
+
+        bool rmoveto(const PSMatrix& ctm, double dx, double dy)
+        {
+            double x;
+            double y;
+
+            if (!getCurrentPoint(ctm, x, y))
+                return false;
+
+            return moveto(ctm, x + dx, y + dy);
+        }
+
+        bool rlineto(const PSMatrix& ctm, double dx, double dy)
+        {
+            double x;
+            double y;
+
+            if (!getCurrentPoint(ctm, x, y))
+                return false;
+
+            return lineto(ctm, x + dx, y + dy);
+        }
+
+        bool rcurveto(const PSMatrix& ctm,
+            double dx1, double dy1,
+            double dx2, double dy2,
+            double dx3, double dy3)
+        {
+            double x;
+            double y;
+
+            if (!getCurrentPoint(ctm, x, y))
+                return false;
+
+            return curveto(ctm,
+                x + dx1, y + dy1,
+                x + dx2, y + dy2,
+                x + dx3, y + dy3);
+        }
+
+
+        // ------------------------------------------------------------
+        // Circular PostScript arcs
+        //
+        // Arcs are normalized immediately to cubic Beziers. This avoids
+        // retaining PostScript arc semantics or CTM state in PathProgram.
+        // ------------------------------------------------------------
+
+        bool arc(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg)
+        {
+            return emitArc_(ctm, cx, cy, radius, startDeg, endDeg, false);
+        }
+
+        bool arcn(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg)
+        {
+            return emitArc_(ctm, cx, cy, radius, startDeg, endDeg, true);
+        }
+
+
+        // ------------------------------------------------------------
+        // arcto
+        //
+        // All geometry is computed in current user space, then normalized
+        // into line/cubic operations through the same CTM-aware interface.
+        // ------------------------------------------------------------
+
+        bool arcto(const PSMatrix& ctm,
+            double x1, double y1,
+            double x2, double y2,
+            double radius,
+            double& xt1, double& yt1,
+            double& xt2, double& yt2)
+        {
+            if (radius < 0.0)
+                return false;
+
+            double x0;
+            double y0;
+
+            if (!getCurrentPoint(ctm, x0, y0))
+                return false;
+
+            double dx1 = x0 - x1;
+            double dy1 = y0 - y1;
+            double dx2 = x2 - x1;
+            double dy2 = y2 - y1;
+
+            double len1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+            double len2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+
+            constexpr double epsilon = 1e-12;
+
+            if (len1 <= epsilon || len2 <= epsilon)
+                return false;
+
+            double vx1 = dx1 / len1;
+            double vy1 = dy1 / len1;
+            double vx2 = dx2 / len2;
+            double vy2 = dy2 / len2;
+
+            double dot = vx1 * vx2 + vy1 * vy2;
+
+            if (dot < -1.0)
+                dot = -1.0;
+            else if (dot > 1.0)
+                dot = 1.0;
+
+            double theta = std::acos(dot);
+
+            if (theta <= epsilon || std::abs(3.14159265358979323846 - theta) <= epsilon)
+                return false;
+
+            double distance = radius / std::tan(theta * 0.5);
+
+            xt1 = x1 + vx1 * distance;
+            yt1 = y1 + vy1 * distance;
+            xt2 = x1 + vx2 * distance;
+            yt2 = y1 + vy2 * distance;
+
+            if (!lineto(ctm, xt1, yt1))
+                return false;
+
+            if (radius <= epsilon)
+                return lineto(ctm, xt2, yt2);
+
+            // Unit vectors from corner toward tangent points.
+            double ux1 = xt1 - x1;
+            double uy1 = yt1 - y1;
+            double ux2 = xt2 - x1;
+            double uy2 = yt2 - y1;
+
+            double ulen1 = std::sqrt(ux1 * ux1 + uy1 * uy1);
+            double ulen2 = std::sqrt(ux2 * ux2 + uy2 * uy2);
+
+            if (ulen1 <= epsilon || ulen2 <= epsilon)
+                return false;
+
+            ux1 /= ulen1;
+            uy1 /= ulen1;
+            ux2 /= ulen2;
+            uy2 /= ulen2;
+
+            double bx = ux1 + ux2;
+            double by = uy1 + uy2;
+            double blen = std::sqrt(bx * bx + by * by);
+
+            if (blen <= epsilon)
+                return false;
+
+            bx /= blen;
+            by /= blen;
+
+            double centerDistance = radius / std::sin(theta * 0.5);
+
+            double cx = x1 + bx * centerDistance;
+            double cy = y1 + by * centerDistance;
+
+            double startAngle = std::atan2(yt1 - cy, xt1 - cx);
+            double endAngle = std::atan2(yt2 - cy, xt2 - cx);
+
+            double cross =
+                (xt1 - cx) * (yt2 - cy) -
+                (yt1 - cy) * (xt2 - cx);
+
+            constexpr double radToDeg = 180.0 / 3.14159265358979323846;
+
+            double startDeg = startAngle * radToDeg;
+            double endDeg = endAngle * radToDeg;
+
+            bool clockwise = cross < 0.0;
+
+            return emitArc_(ctm, cx, cy, radius, startDeg, endDeg, clockwise);
         }
     };
 
 } // namespace waavs
-

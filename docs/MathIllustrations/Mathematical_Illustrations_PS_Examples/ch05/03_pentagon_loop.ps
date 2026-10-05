@@ -1,0 +1,19 @@
+%!PS-Adobe-3.0
+%%Title: Pentagon using loop/exit - Chapter 5
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 5.5 translate
+1 72 div setlinewidth
+newpath
+1 0 moveto
+/A 72 def
+{ A cos A sin lineto
+  /A A 72 add def
+  A 360 gt { exit } if
+} loop
+closepath
+stroke
+showpage
+%%EOF

@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: transform-line procedure - Chapter 4
+%%Pages: 1
+%%EndComments
+
+/transform-line { 1 dict begin
+  aload pop
+  /C exch def /B exch def /A exch def /M exch def
+  /Minv M matrix invertmatrix def
+  [
+    A Minv 0 get mul B Minv 1 get mul add
+    A Minv 2 get mul B Minv 3 get mul add
+    A Minv 4 get mul B Minv 5 get mul add C add
+  ]
+end } def
+/Helvetica findfont 12 scalefont setfont
+72 720 moveto
+([1 1 -300] transformed by [1 0 0 1 50 20] -> ) show
+[1 0 0 1 50 20] [1 1 -300] transform-line ==
+showpage
+%%EOF

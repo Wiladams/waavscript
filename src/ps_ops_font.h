@@ -8,13 +8,14 @@
 namespace waavs {
 
 
-    inline bool op_findfont(PSVirtualMachine& vm) {
+    inline bool op_findfont(PSVirtualMachine& vm) 
+    {
         auto* g = vm.graphics();
         auto& s = vm.opStack();
 
         PSObject param;
         if (!s.pop(param))
-            return vm.error("of_findfont: stackunderflow");
+            return vm.error("op_findfont: stackunderflow");
 
         // There are two cases for findfont:
         // 1. A name is on the stack (e.g., "Helvetica")
@@ -22,7 +23,7 @@ namespace waavs {
 
         // For now, we'll only deal with the first case
         if (!param.isName() && !param.isString())
-            return vm.error("typecheck: expected name for findfont");
+            return vm.error("op_findfont: typecheck - expected name for findfont");
 
         if (param.isString())
         {
@@ -179,37 +180,32 @@ namespace waavs {
         return vm.error("undefinefont not implemented");
     }
 
-    inline bool op_stringwidth(PSVirtualMachine &vm) {
+    inline bool op_stringwidth(PSVirtualMachine& vm)
+    {
         auto& ostk = vm.opStack();
         auto* grph = vm.graphics();
-        auto& ctm = grph->getCTM();
 
-        if (ostk.size() < 1)
-            return vm.error("op_stringwidth: stackunderflow;");
-        
-        PSObject fontObj, stringObj;
+        if (ostk.empty())
+            return vm.error("op_stringwidth: stackunderflow");
+
+        PSObject stringObj;
         if (!ostk.pop(stringObj) || !stringObj.isString())
-            return vm.error("op_stringwidth: typecheck; expected string");
-        
-        auto fontHandle = vm.graphics()->currentFont(); // Ensure current font is set
-        if (fontHandle == nullptr)
-            return vm.error("op_stringwidth: no current font set");
+            return vm.error("op_stringwidth: typecheck");
 
-        // ask the graphics sub-system to tell us the string width
-        double dx = 0.0, dy = 0.0;
-        grph->getStringWidth(fontHandle, stringObj.asString(), dx, dy);
+        auto fontHandle = grph->currentFont();
+        if (!fontHandle)
+            return vm.error("op_stringwidth: invalidfont");
 
-        // Update the current path's current position, using non-transformed coordinates
-        grph->currentPath().fCurrentX += dx;
-        grph->currentPath().fCurrentY += dy;
+        double wx = 0.0;
+        double wy = 0.0;
 
-        // transform by ctm, and return that
-        ctm.dtransform(dx, dy, dx, dy);
+        if (!grph->getStringWidth(fontHandle, stringObj.asString(), wx, wy))
+            return vm.error("op_stringwidth: invalidfont");
 
-        ostk.pushReal(dx);
-        ostk.pushReal(dy);
-        
-        return true;
+        if (!ostk.pushReal(wx))
+            return false;
+
+        return ostk.pushReal(wy);
     }
 
     bool op_charpath(PSVirtualMachine& vm) 

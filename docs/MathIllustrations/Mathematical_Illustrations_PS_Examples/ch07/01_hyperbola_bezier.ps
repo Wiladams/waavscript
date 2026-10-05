@@ -1,0 +1,31 @@
+%!PS-Adobe-3.0
+%%Title: Hyperbola approximated by Bezier curves - Chapter 7
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 4.5 translate
+1 72 div setlinewidth
+/f { 2 dict begin
+  /x exch def
+  /y 1 x x mul add sqrt def
+  [ y x y div ]
+end } def
+/hyperbola { 16 dict begin
+  /N exch def /x1 exch def /x0 exch def
+  /h x1 x0 sub N div def
+  /x x0 def /F x f def /y F 0 get def /s F 1 get def
+  x y moveto
+  N {
+    x h 3 div add y h 3 div s mul add
+    /x x h add def
+    /F x f def /y F 0 get def /s F 1 get def
+    x h 3 div sub y h 3 div s mul sub
+    x y curveto
+  } repeat
+end } def
+newpath
+-2 2 8 hyperbola
+stroke
+showpage
+%%EOF

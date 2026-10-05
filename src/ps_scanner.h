@@ -91,28 +91,7 @@ namespace waavs
         return true;
     }
 
-    // Decrypt eexec-encrypted data
-    // seed
-    //   55665 - exec seed (default)
-    //   4330 - eexec seed (used in Type 1 fonts)
-    inline bool eexecDecrypt(const std::vector<uint8_t>& in, std::vector<uint8_t>& out, uint16_t seed = 55665)
-    {
-        constexpr uint16_t c1 = 52845u;
-        constexpr uint16_t c2 = 22719u;
-        constexpr uint16_t R = 55665;
 
-        out.resize(in.size());
-        uint16_t key = R;
-
-        for (size_t i = 0; i < in.size(); ++i) {
-            uint16_t cipher = in[i];
-            uint16_t plain = cipher ^ (key >> 8);
-            out[i] = plain;
-            key = static_cast<uint16_t>(((cipher + key) * c1 + c2) & 0xFFFF);
-        }
-
-        return true;
-    }
 
 
 

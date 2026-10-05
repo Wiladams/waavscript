@@ -61,7 +61,11 @@ gsave colorfill grestore gsave eocolorfill grestore colorstroke
 } def
 
 1 setlinewidth
-clippath pathbbox /ury exch def /urx exch def /lly exch def /llx exch def
+clippath pathbbox 
+/ury exch def 
+/urx exch def 
+/lly exch def 
+/llx exch def
 /minsize 250 def
 /pagewidth urx llx sub def
 /pageheight ury lly sub def

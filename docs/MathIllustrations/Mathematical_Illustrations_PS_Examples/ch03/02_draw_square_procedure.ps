@@ -1,0 +1,23 @@
+%!PS-Adobe-3.0
+%%Title: draw-square procedure - Chapter 3
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 5.5 translate
+1 72 div setlinewidth
+/s 0.6 def
+/draw-square {
+  newpath
+  0 0 moveto
+  s 0 rlineto
+  0 s rlineto
+  s neg 0 rlineto
+  closepath
+  stroke
+} def
+draw-square
+gsave -0.6 -0.6 translate draw-square grestore
+0.6 -0.6 translate draw-square
+showpage
+%%EOF

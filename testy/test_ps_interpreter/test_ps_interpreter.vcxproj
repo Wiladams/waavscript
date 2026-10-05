@@ -228,12 +228,6 @@
     <ClInclude Include="..\..\src\ps_ops_vm.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\docs\code_style.md">
-      <SubType>
-      </SubType>
-    </None>
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

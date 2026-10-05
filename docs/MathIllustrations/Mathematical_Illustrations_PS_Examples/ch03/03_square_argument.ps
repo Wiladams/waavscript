@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: draw-square with argument - Chapter 3
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 5.5 translate
+1 72 div setlinewidth
+/draw-square {
+  /s exch def
+  newpath
+  0 0 moveto
+  s 0 rlineto
+  0 s rlineto
+  s neg 0 rlineto
+  closepath
+  stroke
+} def
+1.2 draw-square
+showpage
+%%EOF

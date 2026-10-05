@@ -1,10 +1,35 @@
+// ps_ops_file.h
 #pragma once
 
 #include "psvm.h"
 #include "ps_type_file.h"
 #include "ps_file_filter.h"
 
-namespace waavs {
+namespace waavs 
+{
+
+    // Decrypt eexec-encrypted data
+    // seed
+    //   55665 - exec seed (default)
+    //   4330 - eexec seed (used in Type 1 fonts)
+    inline bool eexecDecrypt(const std::vector<uint8_t>& in, std::vector<uint8_t>& out, uint16_t seed = 55665)
+    {
+        constexpr uint16_t c1 = 52845u;
+        constexpr uint16_t c2 = 22719u;
+
+        out.resize(in.size());
+        uint16_t key = seed;
+
+        for (size_t i = 0; i < in.size(); ++i) 
+        {
+            uint16_t cipher = in[i];
+            uint16_t plain = cipher ^ (key >> 8);
+            out[i] = plain;
+            key = static_cast<uint16_t>((static_cast<uint32_t>(cipher + key) * c1 + c2) & 0xFFFFu);
+        }
+
+        return true;
+    }
 
     //
     // PostScript File Operators (Structured Stubs)
@@ -36,21 +61,26 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_closefile(PSVirtualMachine& vm) {
+    inline bool op_closefile(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.size() < 1) return vm.error("stackunderflow");
 
-        PSObject file;
-        s.pop(file);
+        if (s.empty())
+            return vm.error("op_closefile: stackunderflow");
 
-        if (!file.isFile())
-            return vm.error("typecheck: expected file");
+        PSObject fileObj;
+        if (!s.pop(fileObj))
+            return vm.error("op_closefile: stackunderflow");
 
-        auto fileHandle = file.asFile();
+        if (!fileObj.isFile())
+            return vm.error("op_closefile: typecheck");
 
-        //file->close();
+        auto file = fileObj.asFile();
+        if (!file)
+            return vm.error("op_closefile: invalidfileaccess");
 
-        return vm.error("closefile operator not yet implemented");
+        file->finalize();
+        return true;
     }
 
     inline bool op_deletefile(PSVirtualMachine& vm) {
@@ -124,40 +154,51 @@ namespace waavs {
     }
 
 
-    inline bool op_readstring(PSVirtualMachine& vm) {
+    inline bool op_readstring(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
+
         if (s.size() < 2)
-            return vm.error("stackunderflow");
+            return vm.error("op_readstring: stackunderflow");
 
         PSObject strObj, fileObj;
         s.pop(strObj);
         s.pop(fileObj);
 
         if (!fileObj.isFile() || !strObj.isString())
-            return vm.error("typecheck: expected file and string");
+            return vm.error("op_readstring: typecheck");
 
         auto file = fileObj.asFile();
         if (!file || !file->isValid())
-            return vm.error("invalidfileaccess: file not valid");
+            return vm.error("op_readstring: invalidfileaccess");
 
         PSString str = strObj.asString();
-        size_t count = str.capacity();
+        const size_t count = str.length();
         size_t actual = 0;
 
-        for (; actual < count; ++actual) {
+        std::printf("\nREADSTRING count=%zu start=%zu\n", count, file->position());
+
+        for (; actual < count; ++actual)
+        {
             uint8_t b;
+
             if (!file->readByte(b))
                 break;
 
+            std::printf("%02X ", static_cast<unsigned>(b));
+
             if (!str.put(static_cast<uint32_t>(actual), b))
-                break;
+                return vm.error("op_readstring: string write failed");
         }
 
-        str.setLength(static_cast<uint32_t>(actual));
-        s.push(PSObject::fromString(str));
-        s.push(PSObject::fromBool(actual == count));
+        std::printf("\nREADSTRING actual=%zu end=%zu\n", actual, file->position());
 
-        return true;
+        str.setLength(static_cast<uint32_t>(actual));
+
+        if (!s.push(PSObject::fromString(str)))
+            return false;
+
+        return s.pushBool(actual == count);
     }
 
 
@@ -179,7 +220,7 @@ namespace waavs {
             return vm.error("invalidfileaccess: file not valid");
 
         PSString str = strObj.asString();
-        size_t count = str.capacity();
+        size_t count = str.length();
         size_t written = 0;
 
         auto isHexDigit = [](uint8_t ch) -> bool {
@@ -255,7 +296,7 @@ namespace waavs {
             return vm.error("invalidfileaccess: file not valid");
 
         PSString str = strObj.asString();
-        size_t cap = str.capacity();
+        size_t cap = str.length();
         size_t len = 0;
         bool sawChar = false;
 
@@ -326,7 +367,7 @@ namespace waavs {
         s.pop(ch);
         s.pop(file);
 
-        if (!file.isFile() || !ch.isInt())
+        if (!file.isFile() || !ch.isIntegralNumber())
             return vm.error("typecheck: expected file and integer");
 
         return vm.error("write operator not yet implemented");
@@ -414,7 +455,7 @@ namespace waavs {
         s.pop(posObj);
         s.pop(fileObj);
 
-        if (!fileObj.isFile() || !posObj.isInt())
+        if (!fileObj.isFile() || !posObj.isIntegralNumber())
             return vm.error("typecheck: expected file and integer");
 
         auto file = fileObj.asFile();
@@ -550,48 +591,77 @@ namespace waavs {
         return true;
     }
 
-    inline bool op_run(PSVirtualMachine& vm) {
+    inline bool op_run(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.size() < 1)
-            return vm.error("stackunderflow");
+
+        if (s.empty())
+            return vm.error("op_run: stackunderflow");
 
         PSObject srcObj;
-        s.pop(srcObj);
+        if (!s.pop(srcObj))
+            return vm.error("op_run: stackunderflow");
 
         PSFileHandle file;
 
-        if (srcObj.isString()) {
-            // (filename) run
+        if (srcObj.isString())
+        {
             const PSString& name = srcObj.asString();
             PSString access = PSString::fromCString("r");
+
             file = PSDiskFile::create(name, access);
+
             if (!file || !file->isValid())
-                return vm.error("invalidfileaccess: cannot open file");
+                return vm.error("op_run: invalidfileaccess");
         }
-        else if (srcObj.isFile()) {
-            // (file) run
+        else if (srcObj.isFile())
+        {
             file = srcObj.asFile();
+
             if (!file || !file->isValid())
-                return vm.error("invalidfileaccess: file not valid");
+                return vm.error("op_run: invalidfileaccess");
         }
         else {
-            return vm.error("typecheck: expected file or filename");
+            return vm.error("op_run: typecheck; expected filename or file");
         }
 
-        // Push currentFile and run the content
-        // BUGBUG - maybe just pushing is good enough, and the run
-        // loop can take care of popping when it's exhausted?
-        vm.pushCurrentFile(file);
-
-        bool ok = vm.interpret(file);
-
-        PSFileHandle lastOne;
-
-        vm.popCurrentFile(lastOne); // restore
-
-        return ok;
+        return vm.scheduleFile(file);
     }
 
+    inline bool op_eexec(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.empty())
+            return vm.error("op_eexec: stackunderflow");
+
+        PSObject sourceObj;
+        if (!s.pop(sourceObj))
+            return vm.error("op_eexec: stackunderflow");
+
+        PSFileHandle source;
+
+        if (sourceObj.isFile())
+        {
+            source = sourceObj.asFile();
+        }
+        else if (sourceObj.isString())
+        {
+            const PSString& str = sourceObj.asString();
+            source = PSMemoryFile::create(OctetCursor(str.data(), str.length()));
+        }
+        else
+        {
+            return vm.error("op_eexec: typecheck");
+        }
+
+        auto decoded = std::make_shared<EExecDecodeFilter>(source);
+
+        if (!decoded || !decoded->isValid())
+            return vm.error("op_eexec: invalidfileaccess");
+
+        return vm.scheduleEexec(decoded);
+    }
 
     //
     // Operator Registration Table
@@ -628,8 +698,10 @@ namespace waavs {
             // File environment
             { "currentfile",     op_currentfile },
             { "filter",          op_filter },
-            { "run",             op_run }
+            { "run",             op_run },
+            { "eexec",           op_eexec }
         };
+
         return table;
     }
 

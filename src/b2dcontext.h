@@ -52,7 +52,62 @@ namespace waavs {
         }
     }
 
-    
+    struct BLPathSink
+    {
+        BLPath& path;
+
+        bool onMoveTo(float x, float y) noexcept
+        {
+            path.move_to(x, y);
+            return true;
+        }
+
+        bool onLineTo(float x, float y) noexcept
+        {
+            path.line_to(x, y);
+            return true;
+        }
+
+        bool onQuadTo(float, float, float, float) noexcept
+        {
+            // PSPath should already be normalized to moveto/lineto/cubicto/close.
+            assert(false && "BLPathSink: unexpected quadratic segment");
+            return false;
+        }
+
+        bool onCubicTo(float x1, float y1, float x2, float y2, float x, float y) noexcept
+        {
+            path.cubic_to(x1, y1, x2, y2, x, y);
+            return true;
+        }
+
+        bool onArcTo(float, float, float, float, float, float, float) noexcept
+        {
+            // PostScript arcs are normalized to cubic Beziers in PSPath.
+            assert(false && "BLPathSink: unexpected arc segment");
+            return false;
+        }
+
+        bool onClose() noexcept
+        {
+            path.close();
+            return true;
+        }
+
+        bool onEnd() noexcept
+        {
+            return true;
+        }
+    };
+
+
+    inline bool convertPSPathToBLPath(const PSPath& path, BLPath& out)
+    {
+        BLPathSink sink{ out };
+        return pathprogram_dispatch(path.program(), sink);
+    }
+
+/*
     static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1, const PSMatrix &ctm) {
         double cos0 = std::cos(t0), sin0 = std::sin(t0);
         double cos1 = std::cos(t1), sin1 = std::sin(t1);
@@ -83,8 +138,9 @@ namespace waavs {
 
         out.cubic_to(tx1, ty1, tx2, ty2, tx3, ty3);
     }
-    
+    */
 
+    /*
     bool convertPSPathToBLPath(const PSPath &path, BLPath& out) {
         static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
         static constexpr double QUARTER_ARC = 3.14159265358979323846 / 2.0;
@@ -141,71 +197,99 @@ namespace waavs {
 
         return true;
     }
+    */
 
-    bool convertBLPathToPSPath(const BLPath& inPath, const PSMatrix& ctm, PSPath& outPSPath)
+
+    inline bool convertBLPathToPSPath(const BLPath& inPath, const PSMatrix& ctm, PSPath& outPath)
     {
         const uint8_t* cmds = inPath.command_data();
-        const BLPoint* pts = inPath.vertex_data ();
-        size_t cmdCount = inPath.size();
+        const BLPoint* pts = inPath.vertex_data();
+        const size_t count = inPath.size();
 
-        for (size_t i = 0; i < cmdCount; ++i)
+        double curX = 0.0;
+        double curY = 0.0;
+        double startX = 0.0;
+        double startY = 0.0;
+        bool hasCurrentPoint = false;
+
+        for (size_t i = 0; i < count; ++i)
         {
-            BLPathCmd cmd = (BLPathCmd)cmds[i];
-            switch (cmd) {
+            const BLPathCmd cmd = static_cast<BLPathCmd>(cmds[i]);
+
+            switch (cmd)
+            {
             case BLPathCmd::BL_PATH_CMD_MOVE:
-                outPSPath.moveto(ctm, pts[i].x, pts[i].y);
+                if (!outPath.moveto(ctm, pts[i].x, pts[i].y))
+                    return false;
+
+                curX = startX = pts[i].x;
+                curY = startY = pts[i].y;
+                hasCurrentPoint = true;
                 break;
 
             case BLPathCmd::BL_PATH_CMD_ON:
-                outPSPath.lineto(ctm, pts[i].x, pts[i].y);
+                if (!hasCurrentPoint)
+                    return false;
+
+                if (!outPath.lineto(ctm, pts[i].x, pts[i].y))
+                    return false;
+
+                curX = pts[i].x;
+                curY = pts[i].y;
                 break;
-
-
 
             case BL_PATH_CMD_QUAD:
             {
-                const BLPoint& p0 = outPSPath.hasCurrentPoint()
-                    ? BLPoint(outPSPath.fCurrentX, outPSPath.fCurrentY)
-                    : pts[i];  // fallback if no current point (unlikely for charpath)
+                if (!hasCurrentPoint || i + 1 >= count)
+                    return false;
 
-                const BLPoint& p1 = pts[i + 0]; // control
-                const BLPoint& p2 = pts[i + 1]; // end
+                const BLPoint& p1 = pts[i];
+                const BLPoint& p2 = pts[i + 1];
 
-                // Convert quad to cubic
-                BLPoint c1 = BLPoint(
-                    p0.x + (2.0 / 3.0) * (p1.x - p0.x),
-                    p0.y + (2.0 / 3.0) * (p1.y - p0.y)
-                );
+                const double c1x = curX + (2.0 / 3.0) * (p1.x - curX);
+                const double c1y = curY + (2.0 / 3.0) * (p1.y - curY);
+                const double c2x = p2.x + (2.0 / 3.0) * (p1.x - p2.x);
+                const double c2y = p2.y + (2.0 / 3.0) * (p1.y - p2.y);
 
-                BLPoint c2 = BLPoint(
-                    p2.x + (2.0 / 3.0) * (p1.x - p2.x),
-                    p2.y + (2.0 / 3.0) * (p1.y - p2.y)
-                );
+                if (!outPath.curveto(ctm, c1x, c1y, c2x, c2y, p2.x, p2.y))
+                    return false;
 
-                // Emit as cubic
-                outPSPath.curveto(ctm, c1.x, c1.y, c2.x, c2.y, p2.x, p2.y);
-                i++;
+                curX = p2.x;
+                curY = p2.y;
+
+                ++i;
                 break;
             }
 
             case BLPathCmd::BL_PATH_CMD_CUBIC:
-                outPSPath.curveto(
-                    ctm,
-                    pts[i + 0].x, pts[i + 0].y,
-                    pts[i + 1].x, pts[i + 1].y,
-                    pts[i + 2].x, pts[i + 2].y
-                );
+            {
+                if (!hasCurrentPoint || i + 2 >= count)
+                    return false;
+
+                const BLPoint& p1 = pts[i];
+                const BLPoint& p2 = pts[i + 1];
+                const BLPoint& p3 = pts[i + 2];
+
+                if (!outPath.curveto(ctm, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y))
+                    return false;
+
+                curX = p3.x;
+                curY = p3.y;
+
                 i += 2;
                 break;
+            }
 
             case BL_PATH_CMD_CLOSE:
-                outPSPath.close();
+                if (!outPath.close())
+                    return false;
+
+                curX = startX;
+                curY = startY;
                 break;
 
             default:
-                // Skip unsupported/unknown commands
-                printf("UNKNOWN COMMAND: %d\n", cmd);
-                break;
+                return false;
             }
         }
 
@@ -319,28 +403,41 @@ namespace waavs {
             return true;
         }
 
-        bool stroke() override {
+        bool stroke() override
+        {
             BLPath blPath;
 
             if (!convertPSPathToBLPath(currentPath(), blPath))
                 return false;
 
-			ctx.save(); // Save current state
+            ctx.save();
 
             BLRgba32 strokeColor = convertPaint(currentState()->strokePaint);
-            double lineWidth = currentState()->lineWidth;
+
+            double wx;
+            double wy;
+            getCTM().dtransform(currentState()->lineWidth, 0.0, wx, wy);
+            double lineWidth = std::hypot(wx, wy);
+
             BLStrokeJoin join = convertLineJoin(currentState()->lineJoin);
+
+            if (lineWidth <= 0.0) {
+                // If the line width is zero or negative, we can choose a hairline
+                // stroke
+                ctx.set_stroke_transform_order(BL_STROKE_TRANSFORM_ORDER_BEFORE);
+                lineWidth = 1.0; // Hairline stroke
+            }
 
             ctx.set_stroke_style(strokeColor);
             ctx.set_stroke_width(lineWidth);
             ctx.set_stroke_caps(static_cast<BLStrokeCap>(currentState()->lineCap));
             ctx.set_stroke_join(join);
             ctx.set_stroke_miter_limit(currentState()->miterLimit);
-
             ctx.stroke_path(blPath);
+
             currentPath().reset();
 
-			ctx.restore(); // Restore to previous state
+            ctx.restore();
 
             return true;
         }
@@ -368,8 +465,8 @@ namespace waavs {
 
             //BLMatrix2D blTrans = blTransform(img.transform);
             ctx.save();
-            double cx, cy;
-            currentState()->fCurrentPath.getCurrentPoint(cx, cy);
+            //double cx, cy;
+            //currentState()->fCurrentPath.getCurrentPoint(cx, cy);
 
             ctx.blit_image(BLPoint(0, 0), blimg);
             ctx.restore();
@@ -391,80 +488,69 @@ namespace waavs {
 
         }
 
-        bool showText(const PSMatrix& ctm, const PSString& text) override
+        bool showText(const PSMatrix& ctm, const uint8_t *txt, const size_t txtSize) override
         {
-            // select the current font
-            // encode the string
-            // draw it
-            auto fontHandle =  currentState()->getFont();
-            BLFont* font = (BLFont *)fontHandle->fSystemHandle;
-            double x, y;
-            currentState()->fCurrentPath.getCurrentPoint(x, y);
+            auto fontHandle = currentState()->getFont();
+            BLFont* font = static_cast<BLFont*>(fontHandle->fSystemHandle);
 
-            double dx, dy;
-            getStringWidth(fontHandle, text, dx, dy); 
+            PSPath& path = currentState()->fCurrentPath;
+
+            double x;
+            double y;
+            if (!path.getCurrentPoint(ctm, x, y))
+                return false;
+
+            double dx;
+            double dy;
+            if (!getStringWidth(fontHandle, txt, txtSize, dx, dy))
+                return false;
 
             ctx.save();
 
-            // DEBUG - Postscript axis before anything else
-            //ctx.setStrokeWidth(12.0);
-            //strokeAxis(BLRgba32(0xff0000ff), BLRgba32(0xffff0000));
-
-
-            // Apply CTM matrix before the coordinates of the text
-           // PSMatrix ctm = currentState()->ctm;
+            // Text position is expressed in current PostScript user space.
             BLMatrix2D bctm(ctm.m[0], ctm.m[1], ctm.m[2], ctm.m[3], ctm.m[4], ctm.m[5]);
             ctx.apply_transform(bctm);
-
-            // Finally, get into the right coordinate space 
-            // To draw the text
             ctx.translate(x, y);
 
-            // draw translated axis
-            //ctx.setStrokeWidth(3.0);
-            //strokeAxis(BLRgba32(0xff0000ff), BLRgba32(0xffff0000));
+            // Blend2D glyph outlines use the opposite Y orientation.
+            ctx.scale(1.0, -1.0);
 
-            // flip the y-axis
-            ctx.scale(1, -1);
+            ctx.set_fill_style(convertPaint(currentState()->fillPaint));
+            ctx.fill_utf8_text(BLPoint(0, 0), *font, reinterpret_cast<const char*>(txt), txtSize);
 
-            // draw final flipped axes
-            //ctx.setStrokeWidth(1.0);
-            //strokeAxis(BLRgba32(0xff000000), BLRgba32(0xffff00ff));
-
-            // Finally, draw the actual text
-            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
-            ctx.set_fill_style(fillColor);
-            ctx.fill_utf8_text(BLPoint(0, 0), *font, (const char *)text.data(), text.length());
-            
             ctx.restore();
 
-            // Reset the current path after drawing text
-            currentState()->fCurrentPath.fCurrentX = x + dx; 
-            currentState()->fCurrentPath.fCurrentY = y + dy;
+            // show advances the PostScript current point.
+            if (!path.setCurrentPoint(ctm, x + dx, y + dy))
+                return false;
 
-            return false;
+            return true;
+        }
+
+
+        bool getStringWidth(PSFontHandle fontHandle, const uint8_t *txt, const size_t txtSize, double& dx, double& dy) const
+        {
+            dx = 0.0;
+            dy = 0.0;
+
+            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
+
+            BLTextMetrics tm;
+            BLGlyphBuffer gb;
+
+            gb.set_utf8_text(txt, txtSize);
+            font->shape(gb);
+            font->get_text_metrics(gb, tm);
+
+            dx = tm.advance.x;
+            dy = tm.advance.y;
+
+            return true;
         }
 
         bool getStringWidth(PSFontHandle fontHandle, const PSString& str, double& dx, double& dy) const override
         {
-            dx = 0;
-            dy = 0;
-
-            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
-            PSMatrix ctm = currentState()->ctm;
-
-            BLTextMetrics tm;
-            BLGlyphBuffer gb;
-            BLFontMetrics fm = font->metrics();
-
-            gb.set_utf8_text(str.data(), str.length());
-            font->shape(gb);
-            font->get_text_metrics(gb, tm);
-
-            dx = tm.bounding_box.x1 - tm.bounding_box.x0;
-            dy = 0.0;
-
-            return true;
+            return getStringWidth(fontHandle, str.data(), str.length(), dx, dy);
         }
 
         bool getCharPath(PSFontHandle fontHandle, const PSMatrix& ctm, const PSString& str, PSPath &outPSPath) const // override 

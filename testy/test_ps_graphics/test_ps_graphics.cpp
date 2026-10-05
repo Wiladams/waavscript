@@ -1,5 +1,6 @@
 #include <memory>
 #include <cstdio>
+#include <filesystem>
 
 #include "psvmfactory.h"
 #include "b2dcontext.h"
@@ -7,6 +8,24 @@
 
 
 using namespace waavs;
+
+size_t loadFontsInDirectory(PSVirtualMachine* vm, const char* dirpath) {
+    namespace fs = std::filesystem;
+    size_t count = 0;
+    for (const auto& entry : fs::directory_iterator(dirpath)) {
+        if (!entry.is_regular_file()) continue;
+
+        auto ext = entry.path().extension().string();
+        if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
+            PSObject pathObj = PSObject::fromString(entry.path().string().c_str());
+            vm->opStack().push(pathObj);
+            if (FontMonger::instance()->loadFontResource(*vm))
+                ++count;
+        }
+    }
+    return count;
+}
+
 
 // Utility to wrap input and run interpreter
 static void runPostscript(const char* sourceText) 
@@ -18,6 +37,7 @@ static void runPostscript(const char* sourceText)
     printf("+-----------------------------------------+\n");
 
     auto vm = PSVMFactory::createVM();
+    loadFontsInDirectory(vm.get(), "c:/windows/fonts");
 
     if (!vm) {
         printf("Failed to create virtual machine\n");
@@ -25,7 +45,7 @@ static void runPostscript(const char* sourceText)
     }
 
     // Setup the VM and run the interpreter
-    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(800,800);
+    auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(1700, 2200);
     vm->setGraphicsContext(std::move(ctx));
     vm->interpret(input);
 
@@ -78,6 +98,24 @@ grestore
 % so a skinny black line atop a thicker red line should be visible.
 stroke        
 
+)||";
+    runPostscript(test_s1);
+}
+
+static void test_path_forall()
+{
+    const char* test_s1 = R"||(
+newpath
+10 20 moveto
+30 40 lineto
+50 60 70 80 90 100 curveto
+closepath
+
+{ (M ) print exch = = }
+{ (L ) print exch = = }
+{ (C ) print 6 { = } repeat }
+{ (Z) = }
+pathforall
 )||";
     runPostscript(test_s1);
 }
@@ -145,6 +183,100 @@ rbox
     //runPostscript(numeric_s2);
 
 }
+
+static void test_op_widthshow()
+{
+    const char* test_s1 = R"||(
+%!PS
+
+/Helvetica findfont 30 scalefont setfont
+
+70 280 moveto
+0 0 0 setrgbcolor
+(BANANA) show
+
+70 220 moveto
+0 0 1 setrgbcolor
+12 0 65 (BANANA) widthshow
+
+showpage
+)||";
+    runPostscript(test_s1);
+}
+
+static void test_op_awidthshow()
+{
+    const char* test_s1 = R"||(
+%!PS
+
+/Helvetica findfont 28 scalefont setfont
+
+% Normal reference
+70 300 moveto
+0 0 0 setrgbcolor
+(This is awidthshow) show
+
+% Add 2 units after every character,
+% and an additional 12 units after every space.
+70 240 moveto
+1 0 0 setrgbcolor
+12 0 32 2 0 (This is awidthshow) awidthshow
+
+showpage
+)||";
+    runPostscript(test_s1);
+}
+
+static void test_text_along_curve()
+{
+    const char* test_s1 = R"||(
+%!PS
+
+/Helvetica-Bold findfont 28 scalefont setfont
+0 0 0 setrgbcolor
+
+/cx 300 def         % circle center x
+/cy 250 def         % circle center y
+/r 140 def          % radius
+
+/angle 180 def      % start at left side of upper semicircle
+/step 20 def        % 10 chars -> 9 gaps -> 180 / 9 = 20 degrees
+
+/base matrix currentmatrix def
+
+/placeAtAngle {
+    % stack: angle
+    /a exch def
+
+    base setmatrix
+
+    % Move origin to the point on the circle
+    cx a cos r mul add
+    cy a sin r mul add
+    translate
+
+    % Rotate baseline to follow the tangent
+    a 90 sub rotate
+
+    0 0 moveto
+} def
+
+% Position the first character
+angle placeAtAngle
+
+% Between each character pair, advance to the next angle
+{
+    pop pop
+    /angle angle step sub def
+    angle placeAtAngle
+} (POSTSCRIPT) kshow
+
+showpage
+)||";
+    runPostscript(test_s1);
+}
+
+
 
 static void test_op_curveto()
 {
@@ -420,7 +552,7 @@ static void truchet()
 %!PS-Adobe-3.0 EPSF-3.0 
 %%BoundingBox: 0 0 595 842 
 2.835 dup scale 
-5 4 translate 
+% 5 4 translate 
 1 setlinecap 
 0 0 200 290 rectstroke 
 100 145 translate 
@@ -503,14 +635,16 @@ showpage
 
 static void test_core()
 {
-    test_lines();
+    //test_lines();
     //test_op_curveto();
     //test_op_arc();
     //test_op_arcto();
     //test_current_path();
+    //test_path_forall();
     //test_numeric();
     //test_simple();
-
+    //test_op_widthshow();
+    test_op_awidthshow();
 }
 
 static void test_idioms()
@@ -522,14 +656,14 @@ static void test_idioms()
     //grid();
     //truchet();
     //pbourke_example9();
-    star();
-
+    //star();
+    test_text_along_curve();
 }
 
 int main() {
 
-    test_core();
-    //test_idioms();
+    //test_core();
+    test_idioms();
 
     return 0;
 }

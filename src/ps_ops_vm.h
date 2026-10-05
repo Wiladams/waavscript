@@ -17,6 +17,7 @@ namespace waavs {
         const char* fontMapPS = R"||(
 /FontMap <<
   % Times family
+  /TimesRoman              /timesnewromanpsmt
   /Times-Roman             /timesnewromanpsmt
   /Times-Bold              /timesnewromanps-boldmt
   /Times-Italic            /timesnewromanps-italicmt
@@ -26,6 +27,7 @@ namespace waavs {
   /Arial              /arialmt  
   /Helvetica               /arialmt
   /Helvetica-Bold          /arial-boldmt
+  /Helvetica-Italic        /arial-italicmt
   /Helvetica-Oblique       /arial-italicmt
   /Helvetica-BoldOblique   /arial-bolditalicmt
 

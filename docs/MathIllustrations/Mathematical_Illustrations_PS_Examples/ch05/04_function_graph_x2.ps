@@ -1,0 +1,21 @@
+%!PS-Adobe-3.0
+%%Title: Graph y=x^2 - Chapter 5
+%%Pages: 1
+%%EndComments
+
+72 72 scale
+4.25 4 translate
+1 72 div setlinewidth
+/N 100 def
+/x -1 def
+/dx 2 N div def
+/f { dup mul } def
+newpath
+x dup f moveto
+N {
+  /x x dx add def
+  x dup f lineto
+} repeat
+stroke
+showpage
+%%EOF

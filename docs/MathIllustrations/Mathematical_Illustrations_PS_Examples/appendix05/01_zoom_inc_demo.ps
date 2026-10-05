@@ -1,0 +1,17 @@
+%!PS-Adobe-3.0
+%%Title: zoom.inc demo - Appendix 5
+%%Pages: 1
+%%EndComments
+
+(zoom.inc) run
+/box {
+  newpath -36 -36 moveto 72 0 rlineto 0 72 rlineto -72 0 rlineto closepath
+} def
+306 396 translate
+box stroke
+newpath -50 0 moveto 100 0 rlineto 0 -50 moveto 0 100 rlineto stroke
+[306 396] [0 0] 2 zoom
+0.5 setgray
+box stroke
+showpage
+%%EOF

@@ -1,0 +1,25 @@
+%!PS-Adobe-3.0
+%%Title: 3D square example - requires ps3d.inc
+%%Pages: 1
+%%EndComments
+% This example is transcribed from the 3D chapter.
+% It requires the ps3d.inc package named by the tutorial; that file was not
+% among the supplied uploads, so this example is intentionally not in the
+% validation set.
+(ps3d.inc) run
+[0 0 3 1] set-eye
+[0 1 0] -45 rotate3d
+newpath
+-0.5 -0.5 0 moveto3d
+0.5 -0.5 0 lineto3d
+0.5 0.5 0 lineto3d
+-0.5 0.5 0 lineto3d
+-0.5 -0.5 0 lineto3d
+closepath
+gsave
+0.7 0 0 setrgbcolor
+fill
+grestore
+stroke
+showpage
+%%EOF

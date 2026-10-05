@@ -105,7 +105,7 @@ namespace waavs
 		Comment,
         DSCComment,		// %%DSCKeyword value
 		Delimiter,
-        EexecSwitch,	// eexec switch
+        //EexecSwitch,	// eexec switch
 		Eof
 	};
 
@@ -341,7 +341,7 @@ namespace waavs {
 			return false;
 
 		// Set span from beginning to just before the match
-		lex.type = PSLexType::EexecSwitch;
+		//lex.type = PSLexType::EexecSwitch;
 		lex.span = OctetCursor(begin.begin(), cursor.begin() - begin.begin());
 
 		// Advance *past* the matched keyword
@@ -355,16 +355,17 @@ namespace waavs {
 
 	static bool scanNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
 	{
-		const uint8_t * start = src.begin();
+		const uint8_t* start = src.begin();
+
 		skipWhile(src, PS_NAME_CHAR);
+
 		lex.type = PSLexType::Name;
 		lex.span = OctetCursor(start, src.begin() - start);
 
-		if (lex.span == "eexec") {
-            if (!scanEncryptedBlock(src, lex))
-				return false;
-
-        }
+		// An executable token may inspect currentfile immediately.
+		// Consume the single whitespace byte that terminated the token.
+		if (!src.empty() && PSCharClass::isWhitespace(*src))
+			src.advance(1);
 
 		return true;
 	}

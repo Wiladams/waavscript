@@ -165,12 +165,12 @@ namespace waavs {
             currentState()->fCurrentPath = path;
         }
 
-
-
-
         //virtual bool closepath() {
         //    return currentPath().close();
         //}
+
+
+
 
         // Font handling
         virtual bool findFont(PSVirtualMachine &vm, const PSName & name, PSObject &outObj)
@@ -218,7 +218,7 @@ namespace waavs {
 
         // --- Drawing operations (stubs) ---
         virtual bool stroke() {
-            printf("stroke: %zu path segments\n", currentPath().segments.size());
+            printf("stroke: %zu path segments\n", currentPath().program().ops.size());
             return false;
         }
 
@@ -239,9 +239,14 @@ namespace waavs {
             return false;
         }
 
-        virtual bool showText(const PSMatrix &ctm, const PSString& text) {
+        virtual bool showText(const PSMatrix& ctm, const uint8_t* txt, const size_t txtSize)
+        {
             printf("PSGraphicsContext::showText() [not implemented]\n");
             return false;
+        }
+
+        bool showText(const PSMatrix &ctm, const PSString& text) {
+            return showText(ctm, text.data(), text.length());
         }
     };
 

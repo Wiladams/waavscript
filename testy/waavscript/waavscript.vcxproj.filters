@@ -41,9 +41,6 @@
     <ClInclude Include="..\..\src\pscore.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_type_path.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\psvmfactory.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -92,7 +89,7 @@
     <ClInclude Include="..\..\src\ps_type_name.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_type_dictionary.h">
+    <ClInclude Include="..\..\src\ps_type_dictionary.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ps_ops_math.h">
@@ -128,9 +125,6 @@
     <ClInclude Include="..\..\src\ps_ops_text.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ps_ops_path.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\stopwatch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -159,6 +153,30 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\corebits\bithacks.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type_path.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\pathprogram.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\pathprogram_builder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_ops_path.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\pathprogram_flattener.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_type_dictionary.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ps_ops_enviro.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\type1_charstring_decoder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
