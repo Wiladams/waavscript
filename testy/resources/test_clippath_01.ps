@@ -1,0 +1,22 @@
+%!PS
+
+% Establish a triangular clipping region.
+newpath
+100 100 moveto
+400 100 lineto
+250 400 lineto
+closepath
+clip
+
+% Draw a rectangle extending beyond that region.
+newpath
+50 150 moveto
+450 150 lineto
+450 350 lineto
+50 350 lineto
+closepath
+
+0.15 0.45 0.85 setrgbcolor
+fill
+
+showpage

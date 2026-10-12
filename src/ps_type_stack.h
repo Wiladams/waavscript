@@ -183,7 +183,7 @@ namespace waavs
         bool pushDictionary(const PSDictionaryHandle value) { return push(PSObject::fromDictionary(value)); }
         bool pushFile(const PSFileHandle value) { return push(PSObject::fromFile(value)); }
         bool pushFontFace(const PSFontFaceHandle value) { return push(PSObject::fromFontFace(value)); }
-        bool pushFont(const PSFontHandle value) { return push(PSObject::fromFont(value)); }
+        //bool pushFont(const PSFontHandle value) { return push(PSObject::fromDictionary(value)); }
         bool pushOperator(PSOperator value) { return push(PSObject::fromOperator(value)); }
         bool pushMark(const PSMark& value) { return push(PSObject::fromMark(value)); }
 
@@ -274,11 +274,14 @@ namespace waavs
             return true;
         }
 
-        bool popFont(PSFontHandle& out) {
+        bool popFont(PSDictionaryHandle& out) 
+        {
             PSObject obj;
-            if (!pop(obj) || !obj.isFont())
+            if (!pop(obj) || !obj.isDictionary())
                 return false;
-            out = obj.asFont();
+            
+            out = obj.asDictionary();
+
             return true;
         }
 

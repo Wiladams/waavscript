@@ -1,0 +1,30 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 07_nested_forall_dictionary.ps ===) Log
+(QR option dictionary and mapping scan; nested forall) Log
+/opts << /a [1 2] /b [3 4 5] /c [6] >> def
+/entries 0 def /total 0 def /keys 0 def
+opts { % key value; dictionary iteration order is unspecified
+  /value exch def /key exch def /keys keys 1 add def
+  value { /v exch def /total total v add def /entries entries 1 add def } forall
+} forall
+keys 3 (dictionary key count) Assert
+entries 6 (visited array entries) Assert
+total 21 (sum of values) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

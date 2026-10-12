@@ -1,3 +1,4 @@
+// ps_type_graphicstate.h
 #pragma once
 
 #include <vector>
@@ -23,6 +24,11 @@ namespace waavs {
         Bevel = 2
     };
 
+    enum class PSColorSpace : uint8_t {
+        DeviceGray,
+        DeviceRGB,
+        DeviceCMYK
+    };
 } // namespace waavs
 
 namespace waavs {
@@ -34,6 +40,7 @@ namespace waavs {
         // Future state
         bool fStrokeAdjust = false;
         bool fOverprint = false;
+        PSColorSpace fColorSpace = PSColorSpace::DeviceGray;
 
         // Stroke Style
         double lineWidth = 1.0;
@@ -69,6 +76,12 @@ namespace waavs {
         PSGraphicsState(const PSGraphicsState& other) = default;
         PSGraphicsState& operator=(const PSGraphicsState& other) = default;
 
+        void setColorSpace(PSColorSpace cs) { fColorSpace = cs; }
+        PSColorSpace getColorSpace() const { return fColorSpace; }
+
+        void setTransferFunction(PSObject transfer) { /* not implemented */ }
+        PSObject getTransferFunction() const { return PSObject(); /* not implemented */ }   
+
         bool strokeAdjust() const { return fStrokeAdjust; }
         void setStrokeAdjust(bool adjust) { fStrokeAdjust = adjust; }
 
@@ -82,7 +95,7 @@ namespace waavs {
         PSLineJoin getLineJoin() const { return lineJoin; }
         const std::vector<double>& getDashArray() const { return dashArray; }
         double getDashOffset() const { return dashOffset; }
-        PSFontHandle getFont() const { return fCurrentFont.asFont(); }
+        PSDictionaryHandle getFont() const { return fCurrentFont.asDictionary(); }
     };
 
 
@@ -105,6 +118,12 @@ namespace waavs {
                     pool.push_back(std::make_unique<PSGraphicsState>());
             }
             return pool[currentIndex++].get();
+        }
+
+        void release()
+        {
+            if (currentIndex > 0)
+                --currentIndex;
         }
 
         void reset() { currentIndex = 0; }
@@ -131,15 +150,19 @@ namespace waavs {
             stack.push_back(newState);
         }
 
+
+
         // Pop previous state from the stack (grestore)
-        void grestore() {
-            if (!stack.empty()) {
-                current = std::make_unique<PSGraphicsState>(*stack.back());
-                stack.pop_back();
+        void grestore()
+        {
+            if (stack.empty()) {
+                std::printf("PSGraphicsStack::grestore(): stack underflow\n");
+                return;
             }
-            else {
-                printf("PSGraphicsStack::grestore(): stack underflow\n");
-            }
+
+            *current = *stack.back();
+            stack.pop_back();
+            pool->release();
         }
 
         void reset() {

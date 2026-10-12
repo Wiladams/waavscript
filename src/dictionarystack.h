@@ -8,7 +8,10 @@
 
 
 namespace waavs {
+
     struct PSDictionaryStack {
+        static constexpr size_t kPermanentDepth = 2;
+
     private:
         std::vector<PSDictionaryHandle> stack;
 
@@ -24,7 +27,7 @@ namespace waavs {
         }
 
         bool pop() {
-            if (stack.size() > 1) // don't remove global
+            if (stack.size() > kPermanentDepth) // don't remove systemdict or userdict
                 stack.pop_back();
 
             return true;
@@ -96,14 +99,15 @@ namespace waavs {
             return true;
         }
 
-        bool clear() {
+        bool clear() 
+        {
             // traverse the stack in reverse order, popping entries
-            // leaving the gobal dictionary intact
-
-            if (stack.empty())
+            // We leave 2 (systemdict, userdict) on the stack, but clear all other dictionaries
+            if (stack.size() < kPermanentDepth)
                 return false;
 
-            while (stack.size() > 1) {
+
+            while (stack.size() > kPermanentDepth) {
                 stack.pop_back();
             }
 

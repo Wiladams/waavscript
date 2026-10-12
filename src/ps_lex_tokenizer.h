@@ -1,589 +1,181 @@
+// ps_lex_tokenizer.h
 #pragma once
-
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 #include <memory>
-
 #include "pscore.h"
 #include "ocspan.h"
 #include "ps_type_name.h"
 #include "ps_type_file.h"
-
-#include "typeconv.h"
-
-
-
+#include "ps_charclass.h"
+#include "ps_lexeme.h"
 
 namespace waavs {
-
-	// Skip characters in the input stream that match the given category mask
-	static inline const uint8_t* skipWhile(OctetCursor& src, uint8_t categoryMask) noexcept
-	{
-		const uint8_t* p = src.begin();
-		const uint8_t* end = src.end();
-
-		if (p == end) return p;  // Empty input
-
-		while (p < end && PSCharClass::is(*p, categoryMask))
-		{
-			++p;
-		}
-
-		src.fStart = p;  // Update cursor position
-
-		return p;
-	}
-
-	// Skip characters in the input stream until a character matching the given category mask is found
-	static inline const uint8_t* skipUntil(OctetCursor& src, uint8_t categoryMask) noexcept
-	{
-		const uint8_t* p = src.begin();
-		const uint8_t* end = src.end();
-
-		if (p == end) return p;  // Empty input
-
-
-		while (p < end && !PSCharClass::is(*p, categoryMask))
-		{
-			++p;
-		}
-		src.fStart = p;  // Update cursor position
-		return p;
-	}
-
-    // Advance the cursor until the first occurence of the exact keyword is found.
-	inline bool skipUntilKeyword(OctetCursor& src, const OctetCursor& keyword) noexcept
-	{
-		size_t len = keyword.size();
-		if (len == 0 || src.size() < len)
-			return false;
-
-		const uint8_t* start = src.begin();
-		const uint8_t* end = src.end();
-		const uint8_t* key = keyword.begin();
-		uint8_t first = key[0];
-
-		while (start <= end - len) {
-			// Look for first matching byte
-			start = static_cast<const uint8_t*>(std::memchr(start, first, end - start));
-			if (!start)
-				return false;
-
-			// Compare remaining bytes
-			if (std::memcmp(start, key, len) == 0) {
-				src = OctetCursor(start, end - start); // Stop at keyword start
-				return true;
-			}
-
-			++start;
-		}
-
-		return false;
-	}
-
-
-
-}
-
-
-namespace waavs 
-{
-	enum class PSLexType {
-		Invalid = 0,
-		Whitespace,
-        Name,			// name without leading /, e.g. moveto
-        LiteralName,	// /name with leading /, e.g. /moveto
-        SystemName,		// //moveto
-		Number,
-		String,
-		UnterminatedString,
-		HexString,
-		LBRACE,			// {
-		RBRACE,			// }
-		LBRACKET,		// [
-		RBRACKET,		// ]
-		LLANGLE,		// for <<
-		RRANGLE,		// for >>
-		Comment,
-        DSCComment,		// %%DSCKeyword value
-		Delimiter,
-        //EexecSwitch,	// eexec switch
-		Eof
-	};
-
-	struct PSLexeme 
-	{
-		PSLexType type = PSLexType::Invalid;
-		OctetCursor span; // points to original data slice
-	};
-
-}
-
-namespace waavs {
-
-    // scanCommentLexeme
-    // Scans a comment lexeme from the input stream.
-    // Comments start with '%' and can be either a single-line comment or a DSC (Document Structuring Convention) comment.
-
-	inline bool scanCommentLexeme(OctetCursor& src, PSLexeme& tok) {
-		const uint8_t* begin = src.fStart;
-		const uint8_t* end = src.fEnd;
-		if (begin >= end || *begin != '%')
-			return false;
-
-		const uint8_t* p = begin + 1;
-
-		// Optional second %
-		bool isDSC = (p < end && *p == '%');
-		if (isDSC) ++p;
-
-		//const uint8_t* commentStart = p;
-
-		// Scan to end of line, allowing \n, \r, or \r\n
-		while (p < end && *p != '\n' && *p != '\r')
-			++p;
-
-		const uint8_t* commentEnd = p;
-
-		// Consume line ending
-		if (p < end && *p == '\r') {
-			++p;
-			if (p < end && *p == '\n') ++p;  // handle \r\n
-		}
-		else if (p < end && *p == '\n') {
-			++p;
-		}
-
-		src.fStart = p;
-
-		tok.type = isDSC ? PSLexType::DSCComment : PSLexType::Comment;
-		tok.span = OctetCursor(begin, commentEnd - begin);  // includes leading %, %% etc.
-		return true;
-	}
-
-
-	// scanStringLexeme
-	//
-	// Strings are probably the most complex of the data structures in Postscript,
-	// at least from a scanning perspective.  This routine isolates that complexity.
-	//
-	static bool scanStringLexeme(OctetCursor& src, PSLexeme& lex) noexcept 
-	{
-		const uint8_t* start = src.begin(); // points to '('
-		const uint8_t* p = start + 1;
-		const uint8_t* end = src.end();
-
-		int depth = 1;
-		bool inEscape = false;
-
-		while (p < end && depth > 0) {
-			uint8_t c = *p++;
-
-			if (inEscape) {
-				if (c >= '0' && c <= '7') {
-					// Consume up to 2 more octal digits
-					int count = 0;
-					while (count < 2 && p < end && *p >= '0' && *p <= '7') {
-						++p;
-						++count;
-					}
-				}
-				else if (c == '\n' || c == '\r') {
-					// Line continuation: consume \n or \r\n
-					if (c == '\r' && p < end && *p == '\n') ++p;
-				}
-				// For all other escape cases: do nothing extra
-				inEscape = false;
-			}
-			else {
-				if (c == '\\') {
-					inEscape = true;
-				}
-				else if (c == '(') {
-					++depth;
-				}
-				else if (c == ')') {
-					--depth;
-				}
-			}
-		}
-
-		const uint8_t* spanEnd = p;
-		lex.type = (depth == 0) ? PSLexType::String : PSLexType::UnterminatedString;
-		lex.span = OctetCursor(start + 1, (spanEnd - 1) - (start + 1));  // span excludes outer parens
-		src.fStart = spanEnd;
-
-		return true;
-	}
-
-	static bool scanNumberLexeme(OctetCursor& src, PSLexeme& lex) noexcept
-	{
-		const uint8_t* start = src.begin();
-		const uint8_t* p = start;
-		const uint8_t* end = src.end();
-
-		if (p >= end)
-			return false;
-
-		// Optional sign
-		if (*p == '+' || *p == '-')
-			++p;
-
-		if (p >= end)
-			return false;
-
-		// Try to detect radix format (e.g., 16#1A)
-		const uint8_t* radixStart = p;
-		while (p < end && isdigit(*p)) ++p;
-
-		if (p < end && *p == '#') {
-			++p; // skip '#'
-
-			const uint8_t* valueStart = p;
-			while (p < end && PSCharClass::isNameChar(*p)) ++p; // base-36 alphanumerics
-
-			if (valueStart < p) {
-				lex.type = PSLexType::Number;
-				lex.span = OctetCursor(start, p - start);
-				src.fStart = p;
-				return true;
-			}
-			else {
-				return false; // no valid digits after '#'
-			}
-		}
-
-		// Reset to handle regular decimal format
-		p = start;
-		if (*p == '+' || *p == '-')
-			++p;
-
-		bool hasDot = false;
-		bool hasExp = false;
-		bool hasDigitsBeforeDot = false;
-		bool hasDigitsAfterDot = false;
-
-		while (p < end) {
-			uint8_t c = *p;
-
-			if (isdigit(c)) {
-				if (!hasDot)
-					hasDigitsBeforeDot = true;
-				else
-					hasDigitsAfterDot = true;
-				++p;
-			}
-			else if (c == '.' && !hasDot && !hasExp) {
-				hasDot = true;
-				++p;
-			}
-			else if ((c == 'e' || c == 'E') && (hasDigitsBeforeDot || hasDigitsAfterDot) && !hasExp) {
-				hasExp = true;
-				++p;
-				if (p < end && (*p == '+' || *p == '-'))
-					++p;
-
-				const uint8_t* expStart = p;
-				while (p < end && isdigit(*p)) ++p;
-
-				if (expStart == p)
-					return false; // exponent with no digits
-			}
-			else {
-				break;
-			}
-		}
-
-		if ((hasDigitsBeforeDot || hasDigitsAfterDot) && p > start) {
-			lex.type = PSLexType::Number;
-			lex.span = OctetCursor(start, p - start);
-			src.fStart = p;
-			return true;
-		}
-
-		return false;
-	}
-
-	static bool scanLiteralNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
-	{
-		src.advance(1);
-
-		const uint8_t* start = src.begin();
-		const uint8_t* p = start;			// skip first '/'
-		const uint8_t* end = src.end();
-
-
-		if (p < end && *p == '/') {
-			// This is a system operator name, like //moveto, //setgray, etc.
-			++p; // skip second '/'
-			lex.type = PSLexType::SystemName;
-			src.advance(1);
-		}
-		else {
-			// Literal name: /name}
-			lex.type = PSLexType::LiteralName;
-		}
-
-		const uint8_t* nameStart = p;
-		skipWhile(src, PS_NAME_CHAR);
-		lex.span = OctetCursor(nameStart, src.begin() - nameStart);
-		
-		return true;
-	}
-
-	inline bool scanEncryptedBlock(OctetCursor& src, PSLexeme& lex) noexcept
-	{
-		static OctetCursor keyword = "cleartomark";
-		OctetCursor begin = src;
-		OctetCursor cursor = src;
-
-
-        // return false if the keyword is not found
-		if (!skipUntilKeyword(cursor, keyword))
-			return false;
-
-		// Set span from beginning to just before the match
-		//lex.type = PSLexType::EexecSwitch;
-		lex.span = OctetCursor(begin.begin(), cursor.begin() - begin.begin());
-
-		// Advance *past* the matched keyword
-		cursor.advance(keyword.size());
-		src = cursor;
-
-		return true;
-	}
-
-
-
-	static bool scanNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept
-	{
-		const uint8_t* start = src.begin();
-
-		skipWhile(src, PS_NAME_CHAR);
-
-		lex.type = PSLexType::Name;
-		lex.span = OctetCursor(start, src.begin() - start);
-
-		// An executable token may inspect currentfile immediately.
-		// Consume the single whitespace byte that terminated the token.
-		if (!src.empty() && PSCharClass::isWhitespace(*src))
-			src.advance(1);
-
-		return true;
-	}
-
-
-	// nextPSLexeme
-	// Return the next lexically significant token from the input stream.
-	// Updates the source cursor to point to the next position after the token.
-	//
-	// This is pretty low level.  It will do things like isolate a number, but 
-	// won't actually give you the decimal value for that number
-	//
-	static bool nextPSLexeme(std::shared_ptr<PSFile> file, PSLexeme& lex) noexcept 
-	{
-		using CC = PSCharClass;
-
-		if (!file->hasCursor())
-			return false;
-
-		auto& src = file->getCursor();
-
-
-
-		// Skip whitespace
-		skipWhile(src, PS_WHITESPACE);
-		// skip null bytes
-		while (!src.empty() && *src.begin() == 0) {
-			src.advance(1);
+    static inline const uint8_t* skipWhile(OctetCursor& src, uint8_t categoryMask) noexcept {
+        const uint8_t* p = src.begin();
+        const uint8_t* end = src.end();
+        while (p < end && PSCharClass::is(*p, categoryMask)) ++p;
+        src.fStart = p;
+        return p;
+    }
+
+    static inline const uint8_t* skipUntil(OctetCursor& src, uint8_t categoryMask) noexcept {
+        const uint8_t* p = src.begin();
+        const uint8_t* end = src.end();
+        while (p < end && !PSCharClass::is(*p, categoryMask)) ++p;
+        src.fStart = p;
+        return p;
+    }
+
+    inline bool skipUntilKeyword(OctetCursor& src, const OctetCursor& keyword) noexcept {
+        const size_t len = keyword.size();
+        if (!len || src.size() < len) return false;
+        const uint8_t* p = src.begin();
+        const uint8_t* end = src.end();
+        while (static_cast<size_t>(end - p) >= len) {
+            const uint8_t* found = static_cast<const uint8_t*>(std::memchr(p, *keyword.begin(), static_cast<size_t>(end - p) - len + 1));
+            if (!found) return false;
+            if (std::memcmp(found, keyword.begin(), len) == 0) { src.fStart = found; return true; }
+            p = found + 1;
         }
+        return false;
+    }
 
-		if (src.empty()) {
-			lex.type = PSLexType::Eof;
-			lex.span = src;
-			return false;
-		}
+    struct PSLexGenState {
+        PSFileHandle fFile;
+        explicit PSLexGenState(PSFileHandle file) : fFile(std::move(file)) {}
+    };
 
-		const uint8_t* start = src.begin();
-		uint8_t c = *start;
+    // A CRLF pair is one PostScript newline, not two whitespace characters.
+    static inline void consumePSWhitespace(OctetCursor& src) noexcept {
+        if (src.empty() || !PSCharClass::isWhitespace(*src)) return;
+        const uint8_t c = *src;
+        ++src;
+        if (c == '\r' && !src.empty() && *src == '\n') ++src;
+    }
 
-		// Handle comments (consume to end of line)
-		if (CC::isCommentStart(c)) {
-			return scanCommentLexeme(src, lex);
-		}
+    static inline bool scanCommentLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+        if (src.empty() || *src != '%') return false;
+        const uint8_t* start = src.begin();
+        const uint8_t* p = start + 1;
+        const uint8_t* end = src.end();
+        const bool dsc = p < end && *p == '%';
+        while (p < end && *p != '\r' && *p != '\n' && *p != '\f') ++p;
+        lex.type = dsc ? PSLexType::DSCComment : PSLexType::Comment;
+        lex.span = OctetCursor(start, static_cast<size_t>(p - start));
+        src.fStart = p;
+        consumePSWhitespace(src);
+        return true;
+    }
 
-		// Literal name: starts with '/'
-		if (c == '/') {
-			return scanLiteralNameLexeme(src, lex);
-		}
+    static inline bool scanStringLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+        const uint8_t* start = src.begin();
+        const uint8_t* p = start + 1;
+        const uint8_t* end = src.end();
+        size_t depth = 1;
+        while (p < end) {
+            const uint8_t c = *p++;
+            if (c == '\\') {
+                if (p >= end) break;
+                const uint8_t escaped = *p++;
+                if (escaped >= '0' && escaped <= '7') {
+                    for (unsigned i = 0; i < 2 && p < end && *p >= '0' && *p <= '7'; ++i) ++p;
+                }
+                else if (escaped == '\r' && p < end && *p == '\n') ++p;
+            }
+            else if (c == '(') ++depth;
+            else if (c == ')' && --depth == 0) {
+                lex.type = PSLexType::String;
+                lex.span = OctetCursor(start + 1, static_cast<size_t>(p - start - 2));
+                src.fStart = p;
+                return true;
+            }
+        }
+        lex.type = PSLexType::UnterminatedString;
+        lex.span = OctetCursor(start + 1, static_cast<size_t>(end - start - 1));
+        src.fStart = end;
+        return true;
+    }
 
-		// Procedure delimiters
-		if (c == '{') {
-			++src;
-			lex.type = PSLexType::LBRACE;
-			lex.span = OctetCursor(start, 1);
-			return true;
-		}
-		if (c == '}') {
-			++src;
-			lex.type = PSLexType::RBRACE;
-			lex.span = OctetCursor(start, 1);
-			return true;
-		}
+    static inline bool scanLiteralNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+        ++src; // first '/'
+        if (!src.empty() && *src == '/') { ++src; lex.type = PSLexType::ImmediateName; }
+        else lex.type = PSLexType::LiteralName;
+        const uint8_t* start = src.begin();
+        const uint8_t* q = start;
+        const uint8_t* end = src.end();
+        while (q < end && PSCharClass::isNameChar(*q) && !(*q >= 0x80 && *q <= 0x9F)) ++q;
+        src.fStart = q;
+        lex.span = OctetCursor(start, static_cast<size_t>(src.begin() - start));
+        consumePSWhitespace(src);
+        return true;
+    }
 
-		// Array delimiters
-		if (c == '[') {
-			++src;
-			lex.type = PSLexType::LBRACKET;
-			lex.span = OctetCursor(start, 1);
-			return true;
-		}
-		if (c == ']') {
-			++src;
-			lex.type = PSLexType::RBRACKET;
-			lex.span = OctetCursor(start, 1);
-			return true;
-		}
+    // Always scan the entire regular-character run. Numeric classification is done by the scanner.
+    static inline bool scanNameLexeme(OctetCursor& src, PSLexeme& lex) noexcept {
+        const uint8_t* start = src.begin();
+        const uint8_t* q = start;
+        const uint8_t* end = src.end();
+        while (q < end && PSCharClass::isNameChar(*q) && !(*q >= 0x80 && *q <= 0x9F)) ++q;
+        src.fStart = q;
+        lex.type = PSLexType::Name;
+        lex.span = OctetCursor(start, static_cast<size_t>(src.begin() - start));
+        consumePSWhitespace(src);
+        return true;
+    }
 
-		// Strings
-		if (c == '(') {
-			return scanStringLexeme(src, lex);
-		}
-
-		// Dictionary start or hex string
-		// Hexadecimal strings (starts with '<')
-		// <45365664>
-		// or Dictionary
-		// << /key1 (value1) /key2 <value2> >>
-		if (c == '<') {
-			const uint8_t* p = src.begin();
-			if (src.size() >= 2 && src.peek(1) == '<') {
-				// DictBegin: <<
-				lex.type = PSLexType::LLANGLE;
-				lex.span = OctetCursor(p, 2);
-				src.advance(2);
-				return true;
-			}
-			else {
-				// HexString: <...>
-				++src; // skip '<'
-				const uint8_t* strStart = src.begin();
-				const uint8_t* q = strStart;
-				const uint8_t* end = src.end();
-
-				while (q < end && *q != '>') ++q;
-
-				lex.type = (q < end) ? PSLexType::HexString : PSLexType::UnterminatedString;
-				lex.span = OctetCursor(strStart, q - strStart);
-
-				if (q < end) ++q; // skip '>'
-				src.fStart = q;
-				return true;
-			}
-		}
-
-		// End of Hexstring, or Dictionary end (>>)
-		if (c == '>') {
-			const uint8_t* p = src.begin();
-			if (src.size() >= 2 && src.peek(1) == '>') {
-				// DictEnd: >>
-				lex.type = PSLexType::RRANGLE;
-				lex.span = OctetCursor(p, 2);
-				src.advance(2);
-				return true;
-			}
-			else {
-				// Single '>' (possibly malformed)
-				lex.type = PSLexType::Delimiter;
-				lex.span = OctetCursor(p, 1);
-				src.advance(1);
-				return true;
-			}
-		}
-
-		/*
-		// Number (starts with digit, '.', '+', or '-')
-		// need to distinguish between numbers
-        // and extension operators, which begin with '.' typically (.max, .min, etc.)
-		// or anything of these starts not immediately followed by a numeric
-		if (PSCharClass::isNumericBegin(c)) {
-			// if it's a '.', it could be a number
-			// or an extension name
-			uint8_t c1 = src.peek(1);
-			if (src.size() > 1 && !CC::isNumeric(c1) && !CC::isWhitespace(c1) && !CC::isDelimiter(c1))
-				return scanNameLexeme(src, lex);
-
-			return scanNumberLexeme(src, lex);
-		}
-		*/
-
-		if (c == '+' || c == '-') {
-			uint8_t next = src.peek(1);
-
-			if (CC::isDigit(next)) {
-				// +5 or -3 etc.
-				return scanNumberLexeme(src, lex);
-			}
-
-			if (next == '.') {
-				uint8_t next2 = src.peek(2);
-				if (CC::isDigit(next2)) {
-					// +.5 or -.7
-					return scanNumberLexeme(src, lex);
-				}
-			}
-
-			// lone + or - or +name
-			return scanNameLexeme(src, lex);
-		}
-
-		if (c == '.') {
-			uint8_t next = src.peek(1);
-			if (CC::isDigit(next)) {
-				// .5
-				return scanNumberLexeme(src, lex);
-			}
-			// .foo
-			return scanNameLexeme(src, lex);
-		}
-
-		if (CC::isDigit(c)) {
-			return scanNumberLexeme(src, lex);
-		}
-
-
-		// Name token (default)
-		if (CC::isNameChar(c)) {
-			scanNameLexeme(src, lex);
-			return true;
-		}
-
-		// Fallback: single-character delimiter
-		++src.fStart;
-		lex.type = PSLexType::Delimiter;
-		lex.span = OctetCursor(start, 1);
-		return true;
-	}
-
-} // namespace waavs
-
-namespace waavs {
-	struct PSLexemeGenerator {
-		PSFileHandle fFile;
-
-		PSLexemeGenerator(PSFileHandle file) 
-            : fFile(file)
-		{
-		}
-
-		//PSLexemeGenerator(OctetCursor &input) 
-		//	: src(input) {}
-
-		bool next(PSLexeme &lex) 
-		{
-			return nextPSLexeme(fFile, lex);
-		}
-
-		//void setCursor(OctetCursor input)  { src = input;  }
-		//bool getCursor(OctetCursor &out) const { out = src; return true;  }
-
-	};
+    static inline bool nextPSLexeme(PSLexGenState& state, PSLexeme& lex) noexcept {
+        lex = PSLexeme{};
+        if (!state.fFile || !state.fFile->hasCursor()) return false;
+        OctetCursor& src = state.fFile->getCursor();
+        while (!src.empty() && PSCharClass::isWhitespace(*src)) consumePSWhitespace(src);
+        if (src.empty()) { lex.type = PSLexType::Eof; lex.span = src; return false; }
+        const uint8_t* p = src.begin();
+        const uint8_t c = *p;
+        if (c == '%') return scanCommentLexeme(src, lex);
+        if (c == '/') return scanLiteralNameLexeme(src, lex);
+        if (c == '(') return scanStringLexeme(src, lex);
+        if (c == '<' && src.size() >= 2 && src.peek(1) == '<') {
+            lex.type = PSLexType::LLANGLE; lex.span = OctetCursor(p, 2); src.advance(2); return true;
+        }
+        if (c == '>' && src.size() >= 2 && src.peek(1) == '>') {
+            lex.type = PSLexType::RRANGLE; lex.span = OctetCursor(p, 2); src.advance(2); return true;
+        }
+        if (c == '<') {
+            const bool ascii85 = src.size() >= 2 && src.peek(1) == '~';
+            src.advance(ascii85 ? 2 : 1);
+            const uint8_t* start = src.begin();
+            const uint8_t* q = start;
+            const uint8_t* end = src.end();
+            if (ascii85) {
+                while (q < end && !(end - q >= 2 && q[0] == '~' && q[1] == '>')) ++q;
+                lex.type = (end - q >= 2) ? PSLexType::ASCII85String : PSLexType::UnterminatedString;
+                lex.span = OctetCursor(start, static_cast<size_t>(q - start));
+                src.fStart = q + (end - q >= 2 ? 2 : 0);
+            }
+            else {
+                while (q < end && *q != '>') ++q;
+                lex.type = (q < end) ? PSLexType::HexString : PSLexType::UnterminatedString;
+                lex.span = OctetCursor(start, static_cast<size_t>(q - start));
+                src.fStart = q + (q < end ? 1 : 0);
+            }
+            return true;
+        }
+        switch (c) {
+        case '{': lex.type = PSLexType::LBRACE; break;
+        case '}': lex.type = PSLexType::RBRACE; break;
+        case '[': lex.type = PSLexType::LBRACKET; break;
+        case ']': lex.type = PSLexType::RBRACKET; break;
+        case '>': case ')': lex.type = PSLexType::Delimiter; break;
+        default:
+            // Binary token type bytes need their own decoder (PLRM 3.14).
+            // Reject rather than silently treating these as ordinary names.
+            if (c >= 0x80 && c <= 0x9F) { lex.type = PSLexType::Delimiter; break; }
+            return scanNameLexeme(src, lex);
+        }
+        lex.span = OctetCursor(p, 1);
+        ++src;
+        return true;
+    }
 }

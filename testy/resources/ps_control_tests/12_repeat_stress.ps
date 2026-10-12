@@ -1,0 +1,41 @@
+%!PS-Adobe-3.0
+%%Title: repeat: 100000 iterations and watchdog output
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (12_repeat_stress.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 12_repeat_stress.ps) Log
+
+/x 0 def
+(phase: 100000 iterations; progress every 10000) Log
+100000 {
+  /x x 1 add def
+  x 10000 mod 0 eq { (  progress x=) print x == } if
+} repeat
+x 100000 (stress count) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

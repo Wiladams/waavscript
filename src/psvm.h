@@ -11,6 +11,7 @@
 #include "ps_scanner.h"
 #include "ps_print.h"
 
+#include <ctime>
 #include <vector>
 #include <memory>
 #include <algorithm>
@@ -31,14 +32,26 @@ namespace waavs
 
     using PSExecutionStack = PSStack<PSExecutionItem>;
 
+    // Forward declaration of name resolver
+    static bool psvmResolveImmediateName(void* context, const PSName& name, PSObject& out);
+
+
 
     struct PSVirtualMachine
     {
     private:
+        // Language features
+        int fLanguageLevel = 2;         // Default language level
+        bool fGlobalAllocation = false; // If true, all allocations are global (not local to a save/restore)
+        bool fPacking = false;
+        bool fClippingEnabled = false;
+
+        std::clock_t fUserTimeStart{std::clock()};
         using Clock = std::chrono::steady_clock;
         Clock::time_point fStartTime = Clock::now();
 
-		int fLanguageLevel = 2; // Default language level
+
+
         std::unique_ptr<PSGraphicsContext> graphicsContext_;
         
         PSObjectStack operandStack_;
@@ -46,11 +59,13 @@ namespace waavs
         PSObjectStack fileStack;
 
 
+
         PSDictionaryHandle systemdict;
         PSDictionaryHandle statusdict;
         PSDictionaryHandle userdict;
         PSDictionaryHandle systemResourceDirectory;
-
+        PSDictionaryHandle errorDict;
+        PSDictionaryHandle errorState;
 
         PSDictionaryStack fResourceStack; // Stack of resource dictionaries, if needed
 
@@ -60,18 +75,49 @@ namespace waavs
 
         int32_t randSeed = 1;
 
+    private:
+        void initializeError()
+        {
+            errorState->put("newerror", PSObject::fromBool(false));
+            errorState->put("errorname", PSObject());
+            errorState->put("command", PSObject());
+        }
+
+        void initSystemDict()
+        {
+            systemdict->put(PSName("statusdict"), PSObject::fromDictionary(statusdict));
+            systemdict->put("errordict", PSObject::fromDictionary(errorDict));
+            systemdict->put("$error", PSObject::fromDictionary(errorState));
+            systemdict->put(PSName("version"), PSObject::fromString(PSString("3010.000")));
+            systemdict->put(PSName("product"), PSObject::fromString(PSString("WaavScript")));
+            systemdict->put("true", PSObject::fromBool(true));
+            systemdict->put("false", PSObject::fromBool(false));
+            systemdict->put("null", PSObject());
+        }
+
+
+        void initUserDict()
+        {
+            userdict->put(PSName("=string"), PSObject::fromString(PSString(128)));
+
+        }
+
     public:
+
         PSVirtualMachine()
         {
             systemdict = PSDictionary::create();
             statusdict = PSDictionary::create();
             userdict = PSDictionary::create();
+            errorDict = PSDictionary::create();
+            errorState = PSDictionary::create();
             systemResourceDirectory = PSDictionary::create();
 
             // setup for status dictionary
             // some product specific information
-            systemdict->put(PSName("statusdict"), PSObject::fromDictionary(statusdict));
-            statusdict->put(PSName("product"), PSObject::fromString(PSString("WaavScript")));
+            initSystemDict();
+            initUserDict();
+            initializeError();
 
             // Set up dictionary stack (bottom to top):
             dictionaryStack.push(systemdict); // Lowest priority
@@ -81,6 +127,14 @@ namespace waavs
         }
 
         // Access to properties and state
+        int32_t usertime() const noexcept
+        {
+            const std::clock_t elapsed = std::clock() - fUserTimeStart;
+            const uint64_t millis = static_cast<uint64_t>(elapsed) * 1000u / static_cast<uint64_t>(CLOCKS_PER_SEC);
+
+            return static_cast<int32_t>(static_cast<uint32_t>(millis));
+        }
+
         int32_t realtime() const noexcept
         {
             using namespace std::chrono;
@@ -89,19 +143,37 @@ namespace waavs
             return static_cast<int32_t>(static_cast<uint32_t>(elapsed));
         }
 
+        bool currentGlobal() const noexcept { return fGlobalAllocation; }
+        void setGlobal(bool value) noexcept { fGlobalAllocation = value; }
+
+        bool currentPacking() const noexcept { return fPacking; }
+        void setPacking(bool value) noexcept { fPacking = value; }
+
+        bool isClippingEnabled() const noexcept { return fClippingEnabled; }    
+        void setClippingEnabled(bool value) noexcept 
+        { 
+            fClippingEnabled = value; 
+            if (graphicsContext_) 
+                graphicsContext_->setClippingEnabled(value);
+        }  
+
         PSDictionaryStack& getDictionaryStack() { return dictionaryStack; }
         const PSDictionaryStack& getDictionaryStack() const { return dictionaryStack; }
         // Convenience for accessing various dictionaries
         PSDictionaryHandle getSystemDict() const { return systemdict; }
         PSDictionaryHandle getUserDict() const { return userdict; }
-        PSDictionaryHandle getStatusDict() const { return statusdict; }
-
         PSDictionaryHandle setUserDict(PSDictionaryHandle dict)
         {
             userdict = dict;
             return userdict;
         }
+        PSDictionaryHandle getStatusDict() const { return statusdict; }
+        PSDictionaryHandle getErrorDict() const { return errorDict; }
+        PSDictionaryHandle getErrorState() const { return errorState; }
+
+
         
+
         PSDictionaryHandle currentDictionary() noexcept
         {
             return dictionaryStack.currentdict();
@@ -116,6 +188,12 @@ namespace waavs
         PSDictionaryHandle getSystemResourceDirectory() const { return systemResourceDirectory; }
         PSDictionaryStack& getResourceStack() { return fResourceStack; }
         const PSDictionaryStack& getResourceStack() const { return fResourceStack; }
+
+        bool registerResourceCategory(const PSName& name)
+        {
+            auto category = PSDictionary::create();
+            return systemResourceDirectory->put(name, PSObject::fromDictionary(category));
+        }
 
         bool findResource(const PSName& key, const PSName& category, PSObject& out)
         {
@@ -195,7 +273,12 @@ namespace waavs
 
         // Graphics context access
         PSGraphicsContext* graphics() { return graphicsContext_.get(); }
-        inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) { graphicsContext_ = std::move(ctx);}
+        inline void setGraphicsContext(std::unique_ptr<PSGraphicsContext> ctx) 
+        { 
+            graphicsContext_ = std::move(ctx);
+            if (graphicsContext_) 
+                graphicsContext_->setClippingEnabled(fClippingEnabled);
+        }
 
 
 
@@ -253,6 +336,44 @@ namespace waavs
 
 
         // request a stop to the currently executing loop
+        // DIAGNOSTIC
+        bool stop()
+        {
+            std::printf("\n=== POSTSCRIPT STOP ===\n");
+
+            PSObject obj;
+
+            if (errorState->get(PSName("errorname"), obj)) {
+                std::printf("errorname: ");
+                writeObjectDeep(obj);
+                std::printf("\n");
+            }
+
+            if (errorState->get(PSName("errorinfo"), obj)) {
+                std::printf("errorinfo: ");
+                writeObjectDeep(obj);
+                std::printf("\n");
+            }
+
+            if (errorState->get(PSName("command"), obj)) {
+                std::printf("command: ");
+                writeObjectDeep(obj);
+                std::printf("\n");
+            }
+
+            dumpExecutionStack();
+
+            PSExecutionItem item;
+
+            while (execStack().pop(item)) {
+                if (std::holds_alternative<PSStoppedFrame>(item))
+                    return opStack().pushBool(true);
+            }
+
+            return error("stop: no enclosing stopped context");
+        }
+
+        /*
         bool stop()
         {
             PSExecutionItem item;
@@ -265,6 +386,7 @@ namespace waavs
 
             return error("stop: no enclosing stopped context");
         }
+        */
 
 
         
@@ -295,7 +417,7 @@ namespace waavs
             if (!file->hasCursor())
                 return error("scheduleFile: file has no cursor");
 
-            auto generator = std::make_shared<PSObjectGenerator>(file);
+            auto generator = std::make_shared<PSObjectGenState>(file, this, psvmResolveImmediateName);
 
             if (!pushCurrentFile(file))
                 return false;
@@ -321,6 +443,42 @@ namespace waavs
             return scheduleFile(file);
         }
 
+        bool scheduleFor(int32_t initial, int32_t increment, int32_t limit, const PSObject& proc)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleFor: typecheck");
+
+            if (increment == 0)
+                return error("scheduleFor: rangecheck");
+
+            PSForFrame frame;
+            frame.integerMode = true;
+            frame.intCurrent = initial;
+            frame.intIncrement = increment;
+            frame.intLimit = limit;
+            frame.procedure = proc;
+
+            return execStack().push(frame);
+        }
+
+        bool scheduleFor(double initial, double increment, double limit, const PSObject& proc)
+        {
+            if (!proc.isArray() || !proc.isExecutable())
+                return error("scheduleFor: typecheck");
+
+            if (increment == 0.0)
+                return error("scheduleFor: rangecheck");
+
+            PSForFrame frame;
+            frame.realCurrent = initial;
+            frame.realIncrement = increment;
+            frame.realLimit = limit;
+            frame.procedure = proc;
+
+            return execStack().push(frame);
+        }
+
+        /*
         bool scheduleFor(double initial, double increment, double limit, const PSObject& proc)
         {
             if (!proc.isArray() || !proc.isExecutable())
@@ -331,6 +489,7 @@ namespace waavs
 
             return execStack().push(PSForFrame{ initial, increment, limit, proc });
         }
+        */
 
         bool scheduleForAll(const PSObject& container, const PSObject& proc)
         {
@@ -445,8 +604,37 @@ namespace waavs
         }
 
         // This is meant to run executable names
+        
         bool execName(const PSObject& obj)
         {
+            auto name = obj.asName();
+
+            if (obj.isLiteralName())
+                return opStack().push(obj);
+
+            PSObject resolved;
+
+            if (!dictionaryStack.load(name, resolved))
+                return error("undefined name", name.c_str());
+
+            if (resolved.isOperator())
+                return execOperator(resolved);
+
+            if (resolved.isArray() && resolved.isExecutable())
+                return scheduleProcedure(resolved);
+
+            return opStack().push(resolved);
+        }
+        
+
+/*
+        bool execName(const PSObject& obj)
+        {
+            if (obj.isSystemOp())
+            {
+                printf("UNRESOLVED IMMEDIATE NAME REACHED EXECUTION: %s\n", obj.asName().c_str());
+            }
+
             auto name = obj.asName();
             //printf("execName: %s\n", name.c_str());
 
@@ -487,7 +675,7 @@ namespace waavs
             // 4. Otherwise, it's a literal value, push to operand stack
             return opStack().push(resolved);
         }
-
+*/        
 
 
         // --- Execute a single PSObject
@@ -518,7 +706,7 @@ namespace waavs
                 case PSObjectType::Null:
                 case PSObjectType::Save:
                 case PSObjectType::File:
-                case PSObjectType::Font:
+                //case PSObjectType::Font:
                 case PSObjectType::FontFace:
                 case PSObjectType::Array:
                 default:
@@ -538,6 +726,86 @@ namespace waavs
             return true;
         }
  
+        void dumpExecutionStack() const
+        {
+            const auto& stack = execStack();
+
+            std::printf("\nEXECUTION STACK: %zu frames (bottom to top)\n", stack.size());
+
+            size_t depth = 0;
+
+            for (const auto& item : stack)
+            {
+                std::printf("  [%zu] ", depth++);
+
+                if (auto f = std::get_if<PSProcedureFrame>(&item)) {
+                    std::printf("PROC ptr=%p index=%zu/%zu\n",
+                        static_cast<const void*>(f->procedure.get()), f->index, f->procedure->size());
+
+                    // Only inspect the current instruction window in the 22-element procedure.
+                    if (f->procedure && f->procedure->size() == 22) {
+                        const size_t count = f->procedure->size();
+                        const size_t first = f->index > 5 ? f->index - 5 : 0;
+                        const size_t last = std::min(count, f->index + 3);
+
+                        for (size_t i = first; i < last; ++i) {
+                            const PSObject& obj = (*f->procedure)[i];
+
+                            std::printf("      %s[%zu] ", i + 1 == f->index ? "=> " : "   ", i);
+
+                            if (obj.isArray())
+                                std::printf("<procedure/array>");
+                            else if (obj.isDictionary())
+                                std::printf("<dictionary>");
+                            else if (obj.isOperator())
+                                std::printf("--OP:%s--", obj.asOperator().name().c_str());
+                            else if (obj.isName())
+                                std::printf("%s%s", obj.isLiteralName() ? "/" : "", obj.asName().c_str());
+                            else if (obj.isInt())
+                                std::printf("%d", obj.asInt());
+                            else if (obj.isReal())
+                                std::printf("%.17g", obj.asReal());
+                            else
+                                std::printf("<type=%c>", obj.typeChar());
+
+                            std::printf("\n");
+                        }
+                    }
+                }
+                else if (auto f = std::get_if<PSForFrame>(&item)) {
+                    if (f->integerMode)
+                        std::printf("FOR int current=%d inc=%d limit=%d\n", f->intCurrent, f->intIncrement, f->intLimit);
+                    else
+                        std::printf("FOR real current=%.17g inc=%.17g limit=%.17g\n", f->realCurrent, f->realIncrement, f->realLimit);
+                }
+                else if (auto f = std::get_if<PSRepeatFrame>(&item)) {
+                    std::printf("REPEAT remaining=%d\n", f->remaining);
+                }
+                else if (auto f = std::get_if<PSLoopFrame>(&item)) {
+                    std::printf("LOOP proc=%p\n", static_cast<const void*>(f->procedure.asArray().get()));
+                }
+                else if (auto f = std::get_if<PSForAllFrame>(&item)) {
+                    std::printf("FORALL index=%zu\n", f->index);
+                }
+                else if (auto f = std::get_if<PSScheduledObject>(&item)) {
+                    if (f->object.isName())
+                        std::printf("SCHEDULED NAME %s\n", f->object.asName().c_str());
+                    else if (f->object.isOperator())
+                        std::printf("SCHEDULED OP %s\n", f->object.asOperator().name().c_str());
+                    else
+                        std::printf("SCHEDULED type=%c\n", f->object.typeChar());
+                }
+                else if (std::holds_alternative<PSFileFrame>(item)) {
+                    std::printf("FILE\n");
+                }
+                else {
+                    std::printf("OTHER frame variant=%zu\n", item.index());
+                }
+            }
+        }
+
+ 
+
         // =============================================================
         // run
         // 
@@ -548,12 +816,28 @@ namespace waavs
 
         bool run()
         {
+            uint64_t stepCount = 0;
+            size_t maxExecDepth = 0;
+
+            constexpr uint64_t reportInterval = 1000000; 
+
             while (!execStack().empty())
             {
-
                 PSExecutionItem item;
                 if (!execStack().pop(item))
                     return error("run(): stackunderflow");
+
+                // DIAGNOSTICS
+                {
+                    ++stepCount;
+                    maxExecDepth = std::max(maxExecDepth, execStack().size());
+
+                    if (stepCount % reportInterval == 0)
+                    {
+                        std::printf("VM steps=%llu execDepth=%zu opDepth=%zu\n",
+                            static_cast<unsigned long long>(stepCount), execStack().size(), opStack().size());
+                    }
+                }
 
                 if (auto scheduled = std::get_if<PSScheduledObject>(&item))
                 {
@@ -576,6 +860,8 @@ namespace waavs
                         opStack().push(obj);
                     }
                 }
+
+                // ---------  PSProcedureFrame  ------------------------------
                 else if (auto proc = std::get_if<PSProcedureFrame>(&item))
                 {
                     if (proc->index >= proc->procedure->size())
@@ -589,6 +875,8 @@ namespace waavs
                     if (!schedule(obj))
                         return false;
                 }
+
+                // -------------  PSForAllFrame  ------------------------------
                 else if (auto frame = std::get_if<PSForAllFrame>(&item))
                 {
                     switch (frame->container.type)
@@ -602,9 +890,7 @@ namespace waavs
 
                         PSObject value = (*arr)[frame->index++];
 
-                        if (frame->index < arr->size())
-                            execStack().push(*frame);
-
+                        execStack().push(*frame);
                         opStack().push(value);
 
                         if (!scheduleProcedure(frame->procedure))
@@ -624,9 +910,7 @@ namespace waavs
                         if (!str.get(static_cast<int>(frame->index++), byte))
                             return error("run(): forall string access failed");
 
-                        if (frame->index < static_cast<size_t>(str.length()))
-                            execStack().push(*frame);
-
+                        execStack().push(*frame);
                         opStack().pushInt(static_cast<int32_t>(byte));
 
                         if (!scheduleProcedure(frame->procedure))
@@ -639,15 +923,14 @@ namespace waavs
                     {
                         auto dict = frame->container.asDictionary();
 
-                        PSName key;
+                        PSObject key;
                         PSObject value;
 
                         if (!dict->nextEntry(frame->index, key, value))
                             break;
 
                         execStack().push(*frame);
-
-                        opStack().pushLiteralName(key);
+                        opStack().push(key);
                         opStack().push(value);
 
                         if (!scheduleProcedure(frame->procedure))
@@ -660,6 +943,8 @@ namespace waavs
                         return error("run(): invalid forall container");
                     }
                 }
+
+                //-----------------  PSPathForAllFrame  ---------------------------------
                 else if (auto frame = std::get_if<PSPathForAllFrame>(&item))
                 {
                     const PSPath& path = frame->path.asPath();
@@ -748,8 +1033,7 @@ namespace waavs
                             return error("pathforall: invalid path opcode");
                         }
 
-                        if (frame->opIndex < prog.ops.size())
-                            execStack().push(*frame);
+                        execStack().push(*frame);
 
                         if (!scheduleProcedure(proc))
                             return false;
@@ -757,6 +1041,8 @@ namespace waavs
                         break;
                     }
                 }
+
+                // ------------------  PSResourceForAllFrame -------------------
                 else if (auto frame = std::get_if<PSResourceForAllFrame>(&item))
                 {
                     auto& rs = getResourceStack();
@@ -777,7 +1063,7 @@ namespace waavs
 
                         auto categoryDict = categoryObj.asDictionary();
 
-                        PSName key;
+                        PSObject key;
                         PSObject value;
 
                         if (!categoryDict->nextEntry(frame->entryIndex, key, value))
@@ -788,8 +1074,7 @@ namespace waavs
                         }
 
                         execStack().push(*frame);
-
-                        opStack().pushLiteralName(key);
+                        opStack().push(key);
                         opStack().push(value);
 
                         if (!scheduleProcedure(frame->procedure))
@@ -798,6 +1083,8 @@ namespace waavs
                         break;
                     }
                 }
+
+                // -----------------  PSRepeatFrame  ------------------------------
                 else if (auto frame = std::get_if<PSRepeatFrame>(&item))
                 {
                     if (frame->remaining <= 0)
@@ -805,12 +1092,13 @@ namespace waavs
 
                     frame->remaining--;
 
-                    if (frame->remaining > 0)
-                        execStack().push(*frame);
+                    execStack().push(*frame);
 
                     if (!scheduleProcedure(frame->procedure))
                         return false;
                 }
+
+                // -----------------  PSLoopFrame  ------------------------------
                 else if (auto frame = std::get_if<PSLoopFrame>(&item))
                 {
                     execStack().push(*frame);
@@ -818,22 +1106,60 @@ namespace waavs
                     if (!scheduleProcedure(frame->procedure))
                         return false;
                 }
+                
+
+                // ----------------- PSForFrame ------------------------------
                 else if (auto frame = std::get_if<PSForFrame>(&item))
                 {
-                    bool inRange = frame->increment > 0 ? frame->current <= frame->limit : frame->current >= frame->limit;
+                    if (frame->integerMode)
+                    {
+                        const bool inRange = frame->intIncrement > 0
+                            ? frame->intCurrent <= frame->intLimit
+                            : frame->intCurrent >= frame->intLimit;
 
-                    if (!inRange)
-                        continue;
+                        if (!inRange)
+                            continue;
 
-                    double value = frame->current;
-                    frame->current += frame->increment;
+                        const int32_t value = frame->intCurrent;
+                        const int64_t next = static_cast<int64_t>(value) + frame->intIncrement;
 
-                    execStack().push(*frame);
-                    opStack().pushReal(value);
+                        if (next >= INT32_MIN && next <= INT32_MAX) {
+                            frame->intCurrent = static_cast<int32_t>(next);
+
+                            if (!execStack().push(*frame))
+                                return false;
+                        }
+
+                        if (!opStack().pushInt(value))
+                            return false;
+                    }
+                    else
+                    {
+                        const bool inRange = frame->realIncrement > 0.0
+                            ? frame->realCurrent <= frame->realLimit
+                            : frame->realCurrent >= frame->realLimit;
+
+                        if (!inRange)
+                            continue;
+
+                        const double value = frame->realCurrent;
+                        const double next = value + frame->realIncrement;
+
+                        if (std::isfinite(next) && next != value) {
+                            frame->realCurrent = next;
+
+                            if (!execStack().push(*frame))
+                                return false;
+                        }
+
+                        if (!opStack().pushReal(value))
+                            return false;
+                    }
 
                     if (!scheduleProcedure(frame->procedure))
                         return false;
                 }
+
                 else if (auto frame = std::get_if<PSImageFrame>(&item))
                 {
                     if (opStack().empty())
@@ -970,47 +1296,16 @@ namespace waavs
             return true;
         }
 
-        // BUGBUG - TEMPORARY compatibility shim.
-        // This no longer executes the procedure synchronously.
-        // Remaining callers must be converted to scheduling semantics.
-        bool runProc(PSObject& proc) = delete;
-        //{
-        //    return scheduleProcedure(proc);
-        //}
-
-        // This is a shim.  Mainly it needs to convert systemNamed objects
-        // into system operators, which can be executed.
-        bool genNextObject(PSObjectGenerator& objGen, PSObject& obj)
+        bool genNextObject(PSObjectGenState& genState, PSObject& obj)
         {
-            // return the next object from the object generator
-            if (!objGen.next(obj))
-                return false;
-
-            // If the object is a system name, resolve it to an operator
-            if (obj.isName() && obj.isSystemOp())
-            {
-                if (!systemdict->get(obj.asName(), obj)) {
-                    return error("genNextObject: undefined system name", obj.asName().c_str());
-                }
-
-                // If the resolved object is an operator, use it
-                if (obj.isOperator()) {
-                    return true;
-                }
-                else {
-                    return false; // Error, expected an operator
-                    // Otherwise, treat it as a literal value
-                    //return opStack().push(resolved);
-                }
-            }
-
-            return true;
+            return nextPSObject(genState, obj);
         }
+
 
         // interpret
         // deals with the stream of objects from the object generator
         //
-        bool interpret(PSObjectGenerator& objGen)
+        bool interpret(PSObjectGenState& genState)
         {
             while (true)
             {
@@ -1019,7 +1314,7 @@ namespace waavs
                 // return the next object from the object generator
                 // getting a 'false' return value means the end of the stream
                 // it does not necessarily mean an error
-                if (!genNextObject(objGen, obj))
+                if (!genNextObject(genState, obj))
                     break; //  error("END of Object stream");
 
                 if (obj.isExecutable())
@@ -1086,4 +1381,10 @@ namespace waavs
 
     };
 
+
+    static bool psvmResolveImmediateName(void* context, const PSName& name, PSObject& out)
+    {
+        auto* vm = static_cast<PSVirtualMachine*>(context);
+        return vm->dictionaryStack.load(name, out);
+    }
 }

@@ -2,299 +2,65 @@
 
 #pragma once
 
-#pragma comment(lib, "blend2d.lib")
 
 #include <algorithm>
-#include <blend2d/blend2d.h>
 
+
+#include "blend2d_connect.h"
 #include "ps_type_graphicscontext.h"
-#include "fontmonger.h"
 
 
-namespace waavs {
-    static inline BLMatrix2D blTransform(const PSMatrix& m) {
-        return BLMatrix2D(m.m[0], m.m[1], m.m[2], m.m[3], m.m[4], m.m[5]);
-    }
 
-    static inline BLStrokeJoin convertLineJoin(PSLineJoin join) {
-        switch (join) {
-        case PSLineJoin::Miter:
-            return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP;
-        case PSLineJoin::Round:
-            return BLStrokeJoin::BL_STROKE_JOIN_ROUND;
-        case PSLineJoin::Bevel:
-            return BLStrokeJoin::BL_STROKE_JOIN_BEVEL;
-        default:
-            return BLStrokeJoin::BL_STROKE_JOIN_MITER_CLIP; // Default to miter
-        }
-    }
+namespace waavs 
+{
 
-
-    static inline BLRgba32 convertPaint(const PSPaint& p)  
+    struct PSTransformedLineSink
     {
-        switch (p.kind) {
-            case PSPaintKind::GRAY:
-                return BLRgba32(uint8_t(p.gray * 255), uint8_t(p.gray * 255), uint8_t(p.gray * 255), 255);
-
-            case PSPaintKind::RGB:
-                return BLRgba32(uint8_t(p.r * 255), uint8_t(p.g * 255), uint8_t(p.b * 255), uint8_t(p.a * 255));
-
-            case PSPaintKind::CMYK: {
-                double r = std::min(1.0, (1.0 - p.c) * (1.0 - p.k));
-                double g = std::min(1.0, (1.0 - p.m) * (1.0 - p.k));
-                double b = std::min(1.0, (1.0 - p.y) * (1.0 - p.k));
-
-                return BLRgba32(uint8_t(r * 255), uint8_t(g * 255), uint8_t(b * 255), 255);
-            }
-
-            default:
-                return BLRgba32(0, 0, 0, 255); // fallback to black
-        }
-    }
-
-    struct BLPathSink
-    {
-        BLPath& path;
+        PathProgramBuilder& out;
+        const PSMatrix& transform;
 
         bool onMoveTo(float x, float y) noexcept
         {
-            path.move_to(x, y);
-            return true;
+            double tx, ty;
+            transform.transformPoint(x, y, tx, ty);
+            return out.onMoveTo(static_cast<float>(tx), static_cast<float>(ty));
         }
 
         bool onLineTo(float x, float y) noexcept
         {
-            path.line_to(x, y);
-            return true;
+            double tx, ty;
+            transform.transformPoint(x, y, tx, ty);
+            return out.onLineTo(static_cast<float>(tx), static_cast<float>(ty));
         }
 
+        // All curves must be flattened before they reach this sink.
         bool onQuadTo(float, float, float, float) noexcept
         {
-            // PSPath should already be normalized to moveto/lineto/cubicto/close.
-            assert(false && "BLPathSink: unexpected quadratic segment");
             return false;
         }
 
-        bool onCubicTo(float x1, float y1, float x2, float y2, float x, float y) noexcept
+        bool onCubicTo(float, float, float, float, float, float) noexcept
         {
-            path.cubic_to(x1, y1, x2, y2, x, y);
-            return true;
+            return false;
         }
 
         bool onArcTo(float, float, float, float, float, float, float) noexcept
         {
-            // PostScript arcs are normalized to cubic Beziers in PSPath.
-            assert(false && "BLPathSink: unexpected arc segment");
             return false;
         }
 
         bool onClose() noexcept
         {
-            path.close();
-            return true;
+            return out.onClose();
         }
 
         bool onEnd() noexcept
         {
-            return true;
+            return out.onEnd();
         }
     };
 
 
-    inline bool convertPSPathToBLPath(const PSPath& path, BLPath& out)
-    {
-        BLPathSink sink{ out };
-        return pathprogram_dispatch(path.program(), sink);
-    }
-
-/*
-    static inline void emitArcSegmentAsBezier(BLPath& out, double cx, double cy, double r, double t0, double t1, const PSMatrix &ctm) {
-        double cos0 = std::cos(t0), sin0 = std::sin(t0);
-        double cos1 = std::cos(t1), sin1 = std::sin(t1);
-
-        double alpha = std::tan((t1 - t0) / 4) * 4.0 / 3.0;
-
-        double x0 = cx + r * cos0;
-        double y0 = cy + r * sin0;
-
-        double x1 = x0 - r * alpha * sin0;
-        double y1 = y0 + r * alpha * cos0;
-
-        double x3 = cx + r * cos1;
-        double y3 = cy + r * sin1;
-
-        double x2 = x3 + r * alpha * sin1;
-        double y2 = y3 - r * alpha * cos1;
-
-        double tx0, ty0;
-        double tx1, ty1;
-        double tx2, ty2;
-        double tx3, ty3;
-
-        ctm.transformPoint(x0, y0, tx0, ty0);
-        ctm.transformPoint(x1, y1, tx1, ty1);
-        ctm.transformPoint(x2, y2, tx2, ty2);
-        ctm.transformPoint(x3, y3, tx3, ty3);
-
-        out.cubic_to(tx1, ty1, tx2, ty2, tx3, ty3);
-    }
-    */
-
-    /*
-    bool convertPSPathToBLPath(const PSPath &path, BLPath& out) {
-        static constexpr double DEG_TO_RAD = 3.14159265358979323846 / 180.0;
-        static constexpr double QUARTER_ARC = 3.14159265358979323846 / 2.0;
-
-        for (const auto& seg : path.segments) {
-            switch (seg.command) {
-            case PSPathCommand::MoveTo: {
-                double tx, ty;
-                seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
-                out.move_to(tx, ty);
-            }
-
-            break;
-
-            case PSPathCommand::LineTo: {
-                double tx, ty;
-                seg.fTransform.transformPoint(seg.x1, seg.y1, tx, ty);
-
-                out.line_to(tx, ty);
-            }
-            break;
-
-            case PSPathCommand::CurveTo:
-                // transform the points using the segment's transformation matrix
-                //out.cubicTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x3, seg.y3);
-
-                double tx1, ty1;
-                double tx2, ty2;
-                double tx3, ty3;
-
-                seg.fTransform.transformPoint(seg.x1, seg.y1, tx1, ty1);
-                seg.fTransform.transformPoint(seg.x2, seg.y2, tx2, ty2);
-                seg.fTransform.transformPoint(seg.x3, seg.y3, tx3, ty3);
-
-                out.cubic_to(tx1, ty1, tx2, ty2, tx3, ty3);
-            break;
-
-
-            case PSPathCommand::EllipticArc: {
-                double x1 = seg.x2;
-                double y1 = seg.y2;
-                double r = seg.x1; // Radius
-                bool sweepFlag = seg.y1>0.0 ? true : false;
-               
-                out.elliptic_arc_to(r, r, 0.0, false, sweepFlag, x1, y1);
-                break;
-            }
-
-            case PSPathCommand::ClosePath:
-                out.close();
-                break;
-            }
-        }
-
-        return true;
-    }
-    */
-
-
-    inline bool convertBLPathToPSPath(const BLPath& inPath, const PSMatrix& ctm, PSPath& outPath)
-    {
-        const uint8_t* cmds = inPath.command_data();
-        const BLPoint* pts = inPath.vertex_data();
-        const size_t count = inPath.size();
-
-        double curX = 0.0;
-        double curY = 0.0;
-        double startX = 0.0;
-        double startY = 0.0;
-        bool hasCurrentPoint = false;
-
-        for (size_t i = 0; i < count; ++i)
-        {
-            const BLPathCmd cmd = static_cast<BLPathCmd>(cmds[i]);
-
-            switch (cmd)
-            {
-            case BLPathCmd::BL_PATH_CMD_MOVE:
-                if (!outPath.moveto(ctm, pts[i].x, pts[i].y))
-                    return false;
-
-                curX = startX = pts[i].x;
-                curY = startY = pts[i].y;
-                hasCurrentPoint = true;
-                break;
-
-            case BLPathCmd::BL_PATH_CMD_ON:
-                if (!hasCurrentPoint)
-                    return false;
-
-                if (!outPath.lineto(ctm, pts[i].x, pts[i].y))
-                    return false;
-
-                curX = pts[i].x;
-                curY = pts[i].y;
-                break;
-
-            case BL_PATH_CMD_QUAD:
-            {
-                if (!hasCurrentPoint || i + 1 >= count)
-                    return false;
-
-                const BLPoint& p1 = pts[i];
-                const BLPoint& p2 = pts[i + 1];
-
-                const double c1x = curX + (2.0 / 3.0) * (p1.x - curX);
-                const double c1y = curY + (2.0 / 3.0) * (p1.y - curY);
-                const double c2x = p2.x + (2.0 / 3.0) * (p1.x - p2.x);
-                const double c2y = p2.y + (2.0 / 3.0) * (p1.y - p2.y);
-
-                if (!outPath.curveto(ctm, c1x, c1y, c2x, c2y, p2.x, p2.y))
-                    return false;
-
-                curX = p2.x;
-                curY = p2.y;
-
-                ++i;
-                break;
-            }
-
-            case BLPathCmd::BL_PATH_CMD_CUBIC:
-            {
-                if (!hasCurrentPoint || i + 2 >= count)
-                    return false;
-
-                const BLPoint& p1 = pts[i];
-                const BLPoint& p2 = pts[i + 1];
-                const BLPoint& p3 = pts[i + 2];
-
-                if (!outPath.curveto(ctm, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y))
-                    return false;
-
-                curX = p3.x;
-                curY = p3.y;
-
-                i += 2;
-                break;
-            }
-
-            case BL_PATH_CMD_CLOSE:
-                if (!outPath.close())
-                    return false;
-
-                curX = startX;
-                curY = startY;
-                break;
-
-            default:
-                return false;
-            }
-        }
-
-        return true;
-    }
 
 
     // Use blend2d library to do actual rendering
@@ -340,6 +106,8 @@ namespace waavs {
         void showPage() override {
             //printf("onShowPage: show the current page\n", pageWidth, pageHeight);
             ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
+
+            // write out to a file with a page number in the filename???
         }
 
         void erasePage() override {
@@ -348,66 +116,168 @@ namespace waavs {
             ctx.flush(BLContextFlushFlags::BL_CONTEXT_FLUSH_SYNC);
         }
 
-        // Font related methods
-        bool findFont(PSVirtualMachine& vm, const PSName& faceName, PSObject& outObj) override
-        {
-            if (!vm.findResource(faceName, "Font", outObj))
-                return vm.error("findFont: font resource not found", faceName.c_str());
 
-            return true;
-        }
 
         // Painting - filling and stroking paths
-        bool fill() override {
+
+        bool fillWithRule(PathFillRule rule) override
+        {
             BLPath blPath;
-            if (!convertPSPathToBLPath(currentPath(), blPath))
-                return false;
+            const bool clipped = isClippingEnabled() && currentState()->hasClip;
 
+            if (clipped) {
+                PathProgram prepared;
 
-            ctx.save(); // Save current state
+                if (!prepareClippedFillPath(currentPath(), rule, prepared))
+                    return false;
 
-            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
-            BLFillRule fillRule = BL_FILL_RULE_NON_ZERO;
+                if (!convertPSPathToBLPath(prepared, blPath))
+                    return false;
+            }
+            else {
+                if (!convertPSPathToBLPath(currentPath().program(), blPath))
+                    return false;
+            }
 
-            ctx.set_fill_rule(fillRule);
+            ctx.save();
+
+            const BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
+            const BLFillRule blRule = clipped || rule == PathFillRule::NonZero ? BL_FILL_RULE_NON_ZERO : BL_FILL_RULE_EVEN_ODD;
+
+            ctx.set_fill_rule(blRule);
             ctx.set_fill_style(fillColor);
 
-            ctx.fill_path(blPath);
+            const BLResult err = ctx.fill_path(blPath);
+
+            ctx.restore();
+
+            if (err != BL_SUCCESS)
+                return false;
 
             currentPath().reset();
+            return true;
+        }
 
-            ctx.restore(); // Restore to previous state
+
+        bool stroke() override
+        {
+            auto* state = currentState();
+
+            BLPath blPath;
+            if (!convertPSPathToBLPath(currentPath().program(), blPath))
+                return false;
+
+            const BLRgba32 strokeColor = convertPaint(state->strokePaint);
+
+            double wx;
+            double wy;
+            getCTM().dtransform(state->lineWidth, 0.0, wx, wy);
+            double lineWidth = std::hypot(wx, wy);
+
+            const BLStrokeJoin join = convertLineJoin(state->lineJoin);
+            const BLStrokeCap cap = static_cast<BLStrokeCap>(state->lineCap);
+
+            const bool hairline = lineWidth <= 0.0;
+            if (hairline)
+                lineWidth = 1.0;
+
+            // Preserve the original Blend2D stroke behavior when clipping
+            // is not required.
+            if (!isClippingEnabled() || !state->hasClip)
+            {
+                ctx.save();
+
+                if (hairline)
+                    ctx.set_stroke_transform_order(BL_STROKE_TRANSFORM_ORDER_BEFORE);
+
+                ctx.set_stroke_style(strokeColor);
+                ctx.set_stroke_width(lineWidth);
+                ctx.set_stroke_caps(cap);
+                ctx.set_stroke_join(join);
+                ctx.set_stroke_miter_limit(state->miterLimit);
+
+                const BLResult err = ctx.stroke_path(blPath);
+
+                ctx.restore();
+
+                if (err != BL_SUCCESS)
+                    return false;
+
+                currentPath().reset();
+                return true;
+            }
+
+            // ------------------------------------------------------
+            // Expand the stroke into a filled outline.
+
+            BLStrokeOptions strokeOptions;
+            strokeOptions.width = lineWidth;
+            strokeOptions.join = join;
+            strokeOptions.miter_limit = state->miterLimit;
+            strokeOptions.set_caps(cap);
+
+            BLApproximationOptions approximationOptions{};
+
+            BLPath strokeOutline;
+
+            if (strokeOutline.add_stroked_path(blPath, strokeOptions, approximationOptions) != BL_SUCCESS)
+                return false;
+
+            // ------------------------------------------------------
+            // Convert the Blend2D stroke outline into PathProgram.
+
+            PathProgram outlineProgram;
+
+            if (!convertBLPathToPathProgram(strokeOutline, outlineProgram))
+                return false;
+
+            PSPath outlinePath;
+
+            if (!outlinePath.replaceProgram(outlineProgram))
+                return false;
+
+            // ------------------------------------------------------
+            // Intersect the expanded stroke with the effective clip.
+
+            PathProgram clippedProgram;
+
+            if (!prepareClippedFillPath(outlinePath, PathFillRule::NonZero, clippedProgram))
+                return false;
+
+            // ------------------------------------------------------
+            // Render the resulting geometry as a fill, using the
+            // original stroke color.
+
+            BLPath clippedPath;
+
+            if (!convertPSPathToBLPath(clippedProgram, clippedPath))
+                return false;
+
+            ctx.save();
+
+            ctx.set_fill_rule(BL_FILL_RULE_NON_ZERO);
+            ctx.set_fill_style(strokeColor);
+
+            const BLResult err = ctx.fill_path(clippedPath);
+
+            ctx.restore();
+
+            if (err != BL_SUCCESS)
+                return false;
+
+            // PostScript stroke consumes the current path.
+            currentPath().reset();
 
             return true;
         }
 
-        bool eofill() override {
-            BLPath blPath;
 
-            if (!convertPSPathToBLPath(currentPath(), blPath))
-                return false;
-
-            ctx.save(); // Save current state
-
-            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
-            BLFillRule fillRule = BL_FILL_RULE_EVEN_ODD;
-
-            ctx.set_fill_rule(fillRule); // Set even-odd fill rule
-            ctx.set_fill_style(fillColor);
-            ctx.fill_path(blPath);
-
-            currentPath().reset();
-
-            ctx.restore(); // Restore to previous state
-
-            return true;
-        }
-
+        /*
         bool stroke() override
         {
             BLPath blPath;
 
-            if (!convertPSPathToBLPath(currentPath(), blPath))
+            if (!convertPSPathToBLPath(currentPath().program(), blPath))
                 return false;
 
             ctx.save();
@@ -441,6 +311,7 @@ namespace waavs {
 
             return true;
         }
+        */
 
 
         bool image(PSImage& img, PSFileHandle src) override
@@ -488,93 +359,106 @@ namespace waavs {
 
         }
 
-        bool showText(const PSMatrix& ctm, const uint8_t *txt, const size_t txtSize) override
+
+        bool fillGlyphPath(const PathProgram& path, const PSMatrix& transform) override
         {
-            auto fontHandle = currentState()->getFont();
-            BLFont* font = static_cast<BLFont*>(fontHandle->fSystemHandle);
+            // Fast path: preserve the original Blend2D glyph rendering.
+            if (!isClippingEnabled() || !currentState()->hasClip)
+            {
+                BLPath blPath;
+                
+                if (!convertPSPathToBLPath(path, blPath))
+                    return false;
 
-            PSPath& path = currentState()->fCurrentPath;
+                ctx.save();
 
-            double x;
-            double y;
-            if (!path.getCurrentPoint(ctm, x, y))
+                ctx.set_fill_rule(BL_FILL_RULE_NON_ZERO);
+                ctx.set_fill_style(convertPaint(currentState()->fillPaint));
+                ctx.set_transform(blTransform(transform));
+
+                const BLResult err = ctx.fill_path(blPath);
+
+                ctx.restore();
+                return err == BL_SUCCESS;
+            }
+
+            // The glyph transform maps glyph-local coordinates into
+            // the same canonical space as the current clipping path.
+            PathProgramBuilder builder;
+            PSTransformedLineSink transformed{ builder, transform };
+            PathFlattener<PSTransformedLineSink> flattener(transformed);
+
+            // Estimate the maximum scaling of the affine transform.
+            // This keeps the flattening tolerance in device-space units.
+            const double sx = std::hypot(transform.m[0], transform.m[1]);
+            const double sy = std::hypot(transform.m[2], transform.m[3]);
+            const double scaleBound = sx + sy;
+
+            flattener.opt.flatness = scaleBound > 0.0 ? currentState()->flatness / scaleBound : currentState()->flatness;
+            flattener.opt.maxDepth = 16;
+
+            if (!pathprogram_dispatch(path, flattener))
                 return false;
 
-            double dx;
-            double dy;
-            if (!getStringWidth(fontHandle, txt, txtSize, dx, dy))
+            // Glyph programs may not contain OP_END.
+            if (path.ops.empty() || path.ops.back() != OP_END) {
+                if (!flattener.onEnd())
+                    return false;
+            }
+
+            PSPath canonicalGlyph;
+
+            if (!canonicalGlyph.replaceProgram(builder.prog))
+                return false;
+
+            PathProgram clipped;
+
+            if (!prepareClippedFillPath(canonicalGlyph, PathFillRule::NonZero, clipped))
+                return false;
+
+            BLPath blPath;
+
+            if (!convertPSPathToBLPath(clipped, blPath))
                 return false;
 
             ctx.save();
 
-            // Text position is expressed in current PostScript user space.
-            BLMatrix2D bctm(ctm.m[0], ctm.m[1], ctm.m[2], ctm.m[3], ctm.m[4], ctm.m[5]);
-            ctx.apply_transform(bctm);
-            ctx.translate(x, y);
-
-            // Blend2D glyph outlines use the opposite Y orientation.
-            ctx.scale(1.0, -1.0);
-
+            ctx.set_fill_rule(BL_FILL_RULE_NON_ZERO);
             ctx.set_fill_style(convertPaint(currentState()->fillPaint));
-            ctx.fill_utf8_text(BLPoint(0, 0), *font, reinterpret_cast<const char*>(txt), txtSize);
+
+            // Do NOT set the glyph transform here.
+            // All vertices have already been transformed into canonical space.
+            const BLResult err = ctx.fill_path(blPath);
 
             ctx.restore();
 
-            // show advances the PostScript current point.
-            if (!path.setCurrentPoint(ctm, x + dx, y + dy))
+            return err == BL_SUCCESS;
+        }
+
+        /*
+        bool fillGlyphPath(const PathProgram& path, const PSMatrix& transform) override
+        {
+            BLPath blPath;
+            if (!convertPSPathToBLPath(path, blPath))
                 return false;
 
-            return true;
-        }
+            BLMatrix2D glyphTransform = blTransform(transform);
 
+            ctx.save();
 
-        bool getStringWidth(PSFontHandle fontHandle, const uint8_t *txt, const size_t txtSize, double& dx, double& dy) const
-        {
-            dx = 0.0;
-            dy = 0.0;
+            BLRgba32 fillColor = convertPaint(currentState()->fillPaint);
 
-            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
+            ctx.set_fill_rule(BL_FILL_RULE_NON_ZERO);
+            ctx.set_fill_style(fillColor);
 
-            BLTextMetrics tm;
-            BLGlyphBuffer gb;
+            ctx.set_transform(glyphTransform);
+            ctx.fill_path(blPath);
 
-            gb.set_utf8_text(txt, txtSize);
-            font->shape(gb);
-            font->get_text_metrics(gb, tm);
-
-            dx = tm.advance.x;
-            dy = tm.advance.y;
+            ctx.restore();
 
             return true;
         }
-
-        bool getStringWidth(PSFontHandle fontHandle, const PSString& str, double& dx, double& dy) const override
-        {
-            return getStringWidth(fontHandle, str.data(), str.length(), dx, dy);
-        }
-
-        bool getCharPath(PSFontHandle fontHandle, const PSMatrix& ctm, const PSString& str, PSPath &outPSPath) const // override 
-        {
-            BLFont* font = (BLFont*)fontHandle->fSystemHandle;
-
-            BLGlyphBuffer gb;
-            gb.set_utf8_text(str.data(), str.length());
-            font->shape(gb);
-
-            const BLGlyphRun& grun = gb.glyph_run();
-
-            BLPath glyphPath{};
-            font->get_glyph_run_outlines(grun, glyphPath);
-
-            // Now turn the BLPath into a PSPath
-            //double h = fCanvas.height();
-            PSMatrix tmat = ctm;
-            tmat.scale(1, -1);
-
-            bool success = convertBLPathToPSPath(glyphPath, tmat, outPSPath);
-
-            return success;
-        }
+        */
 
     };
 

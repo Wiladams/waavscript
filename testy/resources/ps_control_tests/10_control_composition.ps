@@ -1,0 +1,44 @@
+%!PS-Adobe-3.0
+%%Title: if and ifelse inside scheduled loop bodies
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (10_control_composition.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 10_control_composition.ps) Log
+
+/x 0 def /yes 0 def /no 0 def
+(phase: if inside repeat) Log
+10 { true { /x x 1 add def } if } repeat
+x 10 (true if scheduled ten times) CheckEq
+(phase: ifelse inside repeat) Log
+/x 0 def
+10 { false { /yes yes 1 add def /x x 1000 add def } { /no no 1 add def /x x 1 add def } ifelse } repeat
+x 10 (false branch executes) CheckEq
+yes 0 (true branch never executes) CheckEq
+no 10 (false branch count) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

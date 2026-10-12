@@ -1,0 +1,42 @@
+%!PS-Adobe-3.0
+%%Title: forall: string yields unsigned integer bytes
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (06_forall_string.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 06_forall_string.ps) Log
+
+/sum 0 def /n 0 def /bytes 3 array def
+(phase: iterate ABC) Log
+(ABC) { /v exch def (  byte=) print v == bytes n v put /sum sum v add def /n n 1 add def } forall
+n 3 (string iteration count) CheckEq
+sum 198 (ASCII sum) CheckEq
+bytes 0 get 65 (A) CheckEq
+bytes 1 get 66 (B) CheckEq
+bytes 2 get 67 (C) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

@@ -2,6 +2,7 @@
 
 #include "pscore.h"
 #include "psvm.h"
+#include "ps_print.h"
 
 namespace waavs {
 
@@ -33,30 +34,77 @@ namespace waavs {
     }
 
     /*
-    static bool op_def(PSVirtualMachine& vm) 
+    // DIAGNOSTIC
+    static bool op_undef(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        
-        if (ostk.size() < 2)
-            return vm.error("op_def: stackunderflow");
+        auto& s = vm.opStack();
 
-        PSObject value;
-        PSObject keyObj;
+        if (s.size() < 2)
+            return vm.error("op_undef: stackunderflow");
 
-        ostk.pop(value);
-        ostk.pop(keyObj);
+        PSObject key;
+        PSObject dictObj;
 
-        if (!keyObj.isLiteralName())
+        if (!s.pop(key) || !s.pop(dictObj))
+            return vm.error("op_undef: stackunderflow");
+
+        if (!dictObj.isDictionary())
+            return vm.error("op_undef: typecheck");
+
+        auto dict = dictObj.asDictionary();
+        if (!dict)
+            return vm.error("op_undef: invalidaccess");
+
+        bool exists = dict->contains(key);
+        bool removed = dict->remove(key);
+
+        if (!removed)
         {
-            writeObjectDeep(value);
-            return vm.error("op_def:typecheck: def expects a literal name");
-        }
+            std::printf("\nUNDEF FAILED:\n");
+            std::printf("  dictionary=%p\n", static_cast<void*>(dict.get()));
+            std::printf("  key: ");
+            writeObjectDeep(key);
+            std::printf("\n");
+            std::printf("  contains(key)=%s\n", exists ? "true" : "false");
 
-        vm.dictionaryStack.define(keyObj.asName(), value);
+            return vm.error("op_undef: undefined");
+        }
 
         return true;
     }
     */
+
+    
+    static bool op_undef(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.size() < 2)
+            return vm.error("op_undef: stackunderflow");
+
+        PSObject key;
+        PSObject dictObj;
+
+        if (!s.pop(key) || !s.pop(dictObj))
+            return vm.error("op_undef: stackunderflow");
+
+        if (!dictObj.isDictionary())
+            return vm.error("op_undef: typecheck");
+
+        auto dict = dictObj.asDictionary();
+        if (!dict)
+            return vm.error("op_undef: invalidaccess");
+
+        // Attempt to remove the key, 
+        // but do not treat failure as an error
+        dict->remove(key);  
+
+        //if (!dict->remove(key))
+        //    return vm.error("op_undef: undefined");
+
+        return true;
+    }
+    
 
     static bool op_dict(PSVirtualMachine& vm) {
         auto& s = vm.opStack();
@@ -91,28 +139,36 @@ namespace waavs {
         return true;
     }
 
-    static bool op_known(PSVirtualMachine& vm) {
+    static bool op_known(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.size() < 2) 
+
+        if (s.size() < 2)
             return vm.error("op_known: stackunderflow");
 
         PSObject key;
-        PSObject dictObj;
+        PSObject obj;
 
-        s.pop(key);
-        s.pop(dictObj);
+        if (!s.pop(key) || !s.pop(obj))
+            return vm.error("op_known: stackunderflow");
 
-        if (!key.isName() || !dictObj.isDictionary()) 
+        PSDictionaryHandle dict;
+
+        if (obj.isDictionary())
+        {
+            dict = obj.asDictionary();
+        }
+        //else if (obj.isFont())
+        //{
+        //    auto font = obj.asFont();
+        //    if (font)
+        //        dict = font->dictionary;
+        //}
+
+        if (!dict)
             return vm.error("op_known: typecheck");
 
-        auto dict = dictObj.asDictionary();
-        if (!dict) 
-            return vm.error("op_known: typecheck; expected dictionary");
-
-        bool exists = dict->contains(key.asName());
-        s.pushBool(exists);
-
-        return true;
+        return s.pushBool(dict->contains(key));
     }
 
 
@@ -123,9 +179,11 @@ namespace waavs {
         return s.pushMark(PSMark("dictbegin"));
     }
 
-    static bool op_dictend(PSVirtualMachine& vm) {
+    static bool op_dictend(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        int count{ 0 };
+
+        int count = 0;
         s.countToMark(count);
 
         if (count < 0)
@@ -136,21 +194,20 @@ namespace waavs {
 
         auto dict = PSDictionary::create();
 
-        for (int i = 0; i < count / 2; ++i) {
-            PSObject val;
+        for (int i = 0; i < count / 2; ++i)
+        {
+            PSObject value;
             PSObject key;
 
-            s.pop(val);
+            s.pop(value);
             s.pop(key);
 
-            if (!key.isLiteralName())
-                return vm.error("op_dictend: key must be a literal name");
-
-            dict->put(key.asName(), val);
+            if (!dict->put(key, value))
+                return vm.error("op_dictend: invalid dictionary key");
         }
 
-        PSObject top;
-        s.pop(top); // pop the mark
+        PSObject mark;
+        s.pop(mark);
 
         return s.pushDictionary(dict);
     }
@@ -160,6 +217,7 @@ namespace waavs {
     inline const PSOperatorFuncMap& getDictionaryOps() {
         static const PSOperatorFuncMap table = {
             { "def",               op_def },
+            { "undef",             op_undef },
             { "dict",              op_dict },
             { "maxlength",         op_maxlength },
             { "known",             op_known },

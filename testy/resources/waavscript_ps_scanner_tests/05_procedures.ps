@@ -1,0 +1,28 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% Procedure scan and delimiter distinctions.
+{ 1 2 add } type /arraytype eq (procedure is array type) check
+{ 1 2 add } xcheck (procedure executable flag) check
+{ { 3 } exec 4 add } exec 7 eq (nested procedure) check
+[1 2 3] length 3 eq (array delimiters work by execution) check
+<< /A 1 /B 2 >> /B get 2 eq (dictionary delimiters) check
+% Executable names in procedure resolve at execution, not definition.
+/a 10 def
+/p { a } def
+/a 20 def
+p 20 eq (late executable name resolution) check
+summary

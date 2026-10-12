@@ -203,7 +203,7 @@ Legend:
 | Operator     | Description            | Status |
 | ------------ | ---------------------- | ------ |
 | `file`       | Open file              | ✅     |
-| `closefile`  | Close file             | ⬜     |
+| `closefile`  | Close file             | ✅     |
 | `read`       | Read one byte          | ⬜     |
 | `write`      | Write one byte         | ⬜     |
 | `readline`   | Read a line            | ✅     |

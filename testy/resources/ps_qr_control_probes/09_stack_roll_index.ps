@@ -1,0 +1,30 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 09_stack_roll_index.ps ===) Log
+(BWIPP-style stack-heavy body plus nested branches) Log
+/acc 0 def /n 0 def
+0 1 15 {
+  /i exch def
+  i dup 3 mod 0 eq { 2 mul } { 1 add } ifelse
+  /v exch def /acc acc v add def
+  /n n 1 add def
+} for
+acc 175 (mixed branch accumulator) Assert
+n 16 (iterations) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

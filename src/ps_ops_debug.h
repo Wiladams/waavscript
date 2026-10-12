@@ -43,6 +43,22 @@ namespace waavs {
         return true;
     }
 
+    // ==only (Ghostscript extension)
+    static bool op_eqeqonly(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.empty())
+            return vm.error("op_eqeqonly: stackunderflow");
+
+        PSObject obj;
+        if (!s.pop(obj))
+            return vm.error("op_eqeqonly: stackunderflow");
+
+        writeObjectDeep(obj, std::cout);
+        return true;
+    }
+
     // print
     static bool op_print(PSVirtualMachine& vm) {
         if (vm.opStack().empty())
@@ -82,11 +98,7 @@ namespace waavs {
         return true;
     }
 
-    static bool op_errordict(PSVirtualMachine& vm) {
-        auto dict = PSDictionary::create();
-        vm.opStack().push(PSObject::fromDictionary(dict));
-        return true;
-    }
+
 
     static bool op_handleerror(PSVirtualMachine&) {
         std::cerr << "An error occurred." << std::endl;
@@ -102,10 +114,10 @@ namespace waavs {
             { "==",         op_eqeq },
             { "=",          op_eq },
             { "=only",      op_eqonly },
+            { "==only",     op_eqeqonly },
             { "print",      op_print },
             { "stack",      op_stack },
             { "pstack",     op_pstack },
-            { "errordict",  op_errordict },
             { "handleerror",op_handleerror },
         };
         return table;

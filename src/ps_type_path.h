@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "pathprogram_builder.h"
+#include "pathprogram_metrics.h"
 #include "ps_type_matrix.h"
 
 namespace waavs {
@@ -25,6 +26,98 @@ namespace waavs {
             return true;
         }
 
+        bool emitArc_(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg, bool clockwise)
+        {
+            constexpr double pi = 3.14159265358979323846;
+            constexpr double degToRad = pi / 180.0;
+            constexpr double quarterArc = pi * 0.5;
+
+            // Negative radius is equivalent to a 180-degree rotation about the center.
+            if (radius < 0.0) {
+                radius = -radius;
+                startDeg += 180.0;
+                endDeg += 180.0;
+            }
+
+            // Normalize the sweep without discarding complete revolutions.
+            double sweepDeg = endDeg - startDeg;
+
+            if (clockwise) {
+                if (sweepDeg > 0.0)
+                    sweepDeg -= 360.0 * std::ceil(sweepDeg / 360.0);
+            }
+            else {
+                if (sweepDeg < 0.0)
+                    sweepDeg += 360.0 * std::ceil(-sweepDeg / 360.0);
+            }
+
+            // Reduce only the starting angle to improve trigonometric precision.
+            const double start = std::remainder(startDeg, 360.0) * degToRad;
+            const double sweep = sweepDeg * degToRad;
+
+            // Calculate the starting point in PostScript user space.
+            const double startX = cx + radius * std::cos(start);
+            const double startY = cy + radius * std::sin(start);
+
+            // Connect the current path to the beginning of the arc.
+            if (!hasCurrentPoint()) {
+                if (!moveto(ctm, startX, startY))
+                    return false;
+            }
+            else {
+                double curX;
+                double curY;
+
+                if (!getCurrentPoint(ctm, curX, curY))
+                    return false;
+
+                constexpr double epsilon = 1e-10;
+
+                if (std::abs(curX - startX) > epsilon || std::abs(curY - startY) > epsilon) {
+                    if (!lineto(ctm, startX, startY))
+                        return false;
+                }
+            }
+
+            // A zero-length arc establishes its starting point but adds no curve.
+            if (sweep == 0.0)
+                return true;
+
+            // Approximate the arc using cubic Beziers, each spanning at most 90 degrees.
+            const int segmentCount = std::max(1, static_cast<int>(std::ceil(std::abs(sweep) / quarterArc)));
+            const double delta = sweep / static_cast<double>(segmentCount);
+
+            for (int i = 0; i < segmentCount; ++i) {
+                const double t0 = start + static_cast<double>(i) * delta;
+                const double t1 = t0 + delta;
+
+                const double cos0 = std::cos(t0);
+                const double sin0 = std::sin(t0);
+                const double cos1 = std::cos(t1);
+                const double sin1 = std::sin(t1);
+
+                const double alpha = std::tan((t1 - t0) * 0.25) * (4.0 / 3.0);
+
+                const double x0 = cx + radius * cos0;
+                const double y0 = cy + radius * sin0;
+
+                const double x1 = x0 - radius * alpha * sin0;
+                const double y1 = y0 + radius * alpha * cos0;
+
+                const double x3 = cx + radius * cos1;
+                const double y3 = cy + radius * sin1;
+
+                const double x2 = x3 + radius * alpha * sin1;
+                const double y2 = y3 - radius * alpha * cos1;
+
+                if (!curveto(ctm, x1, y1, x2, y2, x3, y3))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /*
         bool emitArc_(const PSMatrix& ctm, double cx, double cy, double radius, double startDeg, double endDeg, bool clockwise)
         {
             if (radius < 0.0)
@@ -110,7 +203,7 @@ namespace waavs {
 
             return true;
         }
-
+        */
     public:
         PSPath() = default;
 
@@ -162,10 +255,6 @@ namespace waavs {
             return fBuilder.prog;
         }
 
-        //PathProgram& program() noexcept
-        //{
-        //    return fBuilder.prog;
-        //}
 
         bool replaceProgram(const PathProgram& prog)
         {
@@ -214,6 +303,32 @@ namespace waavs {
             return true;
         }
 
+        bool getBounds(const PSMatrix& ctm, double& xMin, double& yMin, double& xMax, double& yMax) const
+        {
+            PSMatrix inverse;
+            if (!ctm.inverse(inverse))
+                return false;
+
+            PathBoundsSink sink(inverse);
+
+            if (!pathprogram_dispatch(fBuilder.prog, sink))
+                return false;
+
+            double x;
+            double y;
+            double width;
+            double height;
+
+            if (!sink.getBounds(x, y, width, height))
+                return false;
+
+            xMin = x;
+            yMin = y;
+            xMax = x + width;
+            yMax = y + height;
+
+            return true;
+        }
 
         // ------------------------------------------------------------
         // Basic path construction
@@ -290,6 +405,111 @@ namespace waavs {
         bool close() noexcept
         {
             return fBuilder.close();
+        }
+
+        bool appendPath(const PathProgram& prog, const PSMatrix& transform)
+        {
+            size_t ip = 0;
+            size_t ap = 0;
+
+            while (ip < prog.ops.size())
+            {
+                const PathOp op = static_cast<PathOp>(prog.ops[ip++]);
+                const uint8_t arity = pathOpArity(op);
+
+                if (arity == kPathOpInvalidArity)
+                    return false;
+
+                if (ap + arity > prog.args.size())
+                    return false;
+
+                const float* args = prog.args.data() + ap;
+                ap += arity;
+
+                switch (op)
+                {
+                case OP_END:
+                    return true;
+
+                case OP_MOVETO:
+                {
+                    float x;
+                    float y;
+
+                    if (!transformPoint_(transform, args[0], args[1], x, y))
+                        return false;
+
+                    if (!fBuilder.moveTo(x, y))
+                        return false;
+
+                    break;
+                }
+
+                case OP_LINETO:
+                {
+                    float x;
+                    float y;
+
+                    if (!transformPoint_(transform, args[0], args[1], x, y))
+                        return false;
+
+                    if (!fBuilder.lineTo(x, y))
+                        return false;
+
+                    break;
+                }
+
+                case OP_QUADTO:
+                {
+                    float x1;
+                    float y1;
+                    float x2;
+                    float y2;
+
+                    if (!transformPoint_(transform, args[0], args[1], x1, y1) ||
+                        !transformPoint_(transform, args[2], args[3], x2, y2))
+                        return false;
+
+                    if (!fBuilder.quadTo(x1, y1, x2, y2))
+                        return false;
+
+                    break;
+                }
+
+                case OP_CUBICTO:
+                {
+                    float x1;
+                    float y1;
+                    float x2;
+                    float y2;
+                    float x3;
+                    float y3;
+
+                    if (!transformPoint_(transform, args[0], args[1], x1, y1) ||
+                        !transformPoint_(transform, args[2], args[3], x2, y2) ||
+                        !transformPoint_(transform, args[4], args[5], x3, y3))
+                        return false;
+
+                    if (!fBuilder.cubicTo(x1, y1, x2, y2, x3, y3))
+                        return false;
+
+                    break;
+                }
+
+                case OP_CLOSE:
+                    if (!fBuilder.close())
+                        return false;
+                    break;
+
+                case OP_ARCTO:
+                    return false;
+
+                default:
+                    return false;
+                }
+            }
+
+            return true;
         }
 
 

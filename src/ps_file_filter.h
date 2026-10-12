@@ -3,7 +3,8 @@
 #include "ps_type_file.h"
 #include "ps_type_dictionary.h"
 #include "psvm.h"
-#include "ps_charcats.h"
+//#include "ps_charcats.h"
+#include "ps_charclass.h"
 
 #include <memory>
 #include <vector>

@@ -1,0 +1,102 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript pathand - Blend2D Charpath Regression
+%%BoundingBox: 0 0 612 420
+%%Pages: 1
+%%EndComments
+
+% WaavScript extensions: currentpath, setpath, pathand.
+% Uses standard charpath to make the word Blend2D into geometric outlines.
+% The red third panel MUST be obtained from pathand, not clip/eoclip.
+
+/blue { 0.18 0.43 0.76 setrgbcolor } def
+/gold { 0.89 0.55 0.16 setrgbcolor } def
+/red  { 0.81 0.22 0.27 setrgbcolor } def
+/ink  { 0.16 0.20 0.27 setrgbcolor } def
+/pale { 0.83 0.86 0.90 setrgbcolor } def
+
+% Text outline is a genuine path: no show/fill during construction.
+% Keep its fill rule nonzero; charpath and pathand share canonical geometry.
+/wordfont /Helvetica-Bold findfont 25 scalefont def
+/makeText {
+    wordfont setfont
+    newpath
+    3 34 moveto
+    (Blend2D) false charpath
+} def
+
+% A sloping banner behind the word. The overlap cuts through the glyphs.
+% Designed for the same local coordinates as makeText.
+/makeBanner {
+    newpath
+    2 21 moveto
+    155 53 lineto
+    155 77 lineto
+    2 45 lineto
+    closepath
+} def
+
+/Helvetica-Bold findfont 20 scalefont setfont
+ink 40 373 moveto (PATH AND: TYPE MEETS GEOMETRY) show
+/Helvetica findfont 10 scalefont setfont
+0.36 setgray 40 353 moveto (WaavScript regression: text charpath  AND  sloping background shape) show
+
+% Cards, as in the rectangle-only regression.
+pale 1 setlinewidth
+newpath 35 126 170 206 rectpath stroke
+newpath 221 126 170 206 rectpath stroke
+newpath 407 126 170 206 rectpath stroke
+
+/Helvetica-Bold findfont 12 scalefont setfont
+blue 49 308 moveto (A: BLEND2D) show
+gold 235 308 moveto (B: BANNER) show
+red 421 308 moveto (A AND B) show
+
+% LEFT: show the glyph outlines as a filled blue path.
+gsave
+    49 166 translate
+    makeBanner pale 0.9 setlinewidth [4 3] 0 setdash stroke
+    [] 0 setdash
+    makeText blue fill
+    makeText ink 0.55 setlinewidth stroke
+grestore
+
+% MIDDLE: show the filled background, with word outline for reference.
+gsave
+    235 166 translate
+    makeBanner gold fill
+    makeBanner ink 0.9 setlinewidth stroke
+    makeText pale 0.8 setlinewidth stroke
+grestore
+
+% RIGHT: actual geometry/VM test; store PSPaths and intersect them.
+gsave
+    421 166 translate
+    makeText /A currentpath def
+    makeBanner /B currentpath def
+
+    % Reference outlines only; no clipping operation involved.
+    makeText pale 0.8 setlinewidth [4 3] 0 setdash stroke
+    makeBanner pale 0.8 setlinewidth stroke
+    [] 0 setdash
+
+    A B pathand setpath
+    red fill
+    A B pathand setpath
+    ink 0.65 setlinewidth stroke
+grestore
+
+/Helvetica findfont 10 scalefont setfont
+ink 49 143 moveto (Text as PSPath) show
+ink 235 143 moveto (Sloping filled region) show
+ink 421 143 moveto (Only shared area) show
+
+/Helvetica-Bold findfont 16 scalefont setfont
+ink 40 92 moveto (GLYPH OUTLINES) show
+red 190 92 moveto (AND) show
+ink 235 92 moveto (BACKGROUND) show
+/Helvetica findfont 11 scalefont setfont
+ink 40 69 moveto (= letter shapes intersected with the sloping banner.) show
+0.38 setgray 40 48 moveto (Result is a new PSPath; no Blend2D path clip or rasterizer required.) show
+
+showpage
+%%EOF

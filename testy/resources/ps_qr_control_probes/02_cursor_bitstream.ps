@@ -1,0 +1,31 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 02_cursor_bitstream.ps ===) Log
+(QR-style variable-width cursor; nested repeat and conditional) Log
+/bytes [173 90 255 0 17] def /cursor 0 def /bits 0 def /ones 0 def /watchdog 0 def
+{ /watchdog watchdog 1 add def watchdog 20 (cursor) Watch
+  cursor bytes length ge { exit } if
+  /b bytes cursor get def
+  8 { /ones ones b 1 and add def /b b -1 bitshift def /bits bits 1 add def } repeat
+  /cursor cursor 1 add def
+  (cursor=) print cursor == (bits=) print bits ==
+} loop
+cursor 5 (five bytes) Assert bits 40 (40 bits) Assert
+ones 19 (number of set bits) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

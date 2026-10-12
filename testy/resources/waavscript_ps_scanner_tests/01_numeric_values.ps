@@ -1,0 +1,67 @@
+
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+
+/total 0 def
+/failed 0 def
+
+/check { % bool (description) check -
+  /label exch def
+  /ok exch def
+  /total total 1 add def
+  ok {
+    (PASS ) print
+  } {
+    /failed failed 1 add def
+    (FAIL ) print
+  } ifelse
+  label print (\n) print
+} bind def
+
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+
+% Decimal integers
+0 0 eq (integer zero) check
+1 1 eq (integer one) check
+-1 -1 eq (negative integer) check
++42 42 eq (leading plus) check
+
+% Decimal reals
+.5 0.5 eq (leading dot) check
+-.5 -0.5 eq (negative leading dot) check
+1. 1.0 eq (trailing dot) check
+
+% Exponents
+1e2 100 eq (lowercase exponent) check
+1E-2 0.01 eq (uppercase signed exponent) check
+1.25e2 125 eq (fractional exponent) check
+
+% Radix numbers
+16#FF 255 eq (radix hex) check
+2#1011 11 eq (radix binary) check
+36#Z 35 eq (radix base 36) check
+
+% Signed 32-bit radix boundaries (WaavScript integer model)
+16#7FFFFFFF 2147483647 eq (radix signed maximum) check
+16#80000000 -2147483648 eq (radix sign bit) check
+16#FFFFFFFF -1 eq (radix all bits set) check
+
+% Grayscale candidates
+0.9 0.9 eq (gray 0.9) check
+0.8 0.8 eq (gray 0.8) check
+0.7 0.7 eq (gray 0.7) check
+0.5 0.5 eq (gray 0.5) check
+0.3 0.3 eq (gray 0.3) check
+0.2 0.2 eq (gray 0.2) check
+0.1 0.1 eq (gray 0.1) check
+
+% Floating-point arithmetic tolerance
+0.1 0.2 add 0.3 sub abs 0.00000001 lt (fraction arithmetic) check
+
+summary

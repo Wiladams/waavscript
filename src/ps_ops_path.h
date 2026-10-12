@@ -6,7 +6,8 @@
 #include "ps_type_matrix.h"
 #include "ps_type_path.h"
 
-#include "pathprogram_flattener.h"
+#include "pathprogram_sinks.h"
+#include "pathprogram_intersection.h"
 
 namespace waavs {
 
@@ -38,20 +39,48 @@ namespace waavs {
         return true;
     }
 
-
     inline bool op_currentpoint(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
-        auto& path = vm.graphics()->currentPath();
-        const PSMatrix& ctm = vm.graphics()->getCTM();
+        auto* gs = vm.graphics();
 
-        double x;
-        double y;
+        auto& path = gs->currentPath();
+        const auto& ctm = gs->getCTM();
 
-        if (!path.getCurrentPoint(ctm, x, y))
+        const bool hasPoint = path.hasCurrentPoint();
+        const bool isEmpty = path.empty();
+
+        PSMatrix inverse;
+        const bool invertible = ctm.inverse(inverse);
+
+        double cx = 0.0;
+        double cy = 0.0;
+        const bool hasCanonical = path.getCurrentPointCanonical(cx, cy);
+
+        double x = 0.0;
+        double y = 0.0;
+        const bool success = path.getCurrentPoint(ctm, x, y);
+
+        if (!success) {
+            std::printf("\n=== CURRENTPOINT FAILURE ===\n");
+            std::printf("  hasCurrentPoint: %d\n", hasPoint ? 1 : 0);
+            std::printf("  pathEmpty:       %d\n", isEmpty ? 1 : 0);
+            std::printf("  pathOps:         %zu\n", path.program().ops.size());
+            std::printf("  canonicalValid:  %d\n", hasCanonical ? 1 : 0);
+            std::printf("  canonicalPoint:  %.9g %.9g\n", cx, cy);
+            std::printf("  ctmInvertible:   %d\n", invertible ? 1 : 0);
+            std::printf("  gsDepth:         %zu\n", vm.graphics()->states().depth());
+
+            // Dump the PostScript procedure responsible for this failure.
+            //vm.dumpExecutionStack();
+
             return vm.error("op_currentpoint: nocurrentpoint");
+        }
 
-        return s.pushReal(x) && s.pushReal(y);
+        if (!s.pushReal(x) || !s.pushReal(y))
+            return vm.error("op_currentpoint: stackoverflow");
+
+        return true;
     }
 
 
@@ -173,8 +202,10 @@ namespace waavs {
             !s.popReal(cy) || !s.popReal(cx))
             return vm.error("op_arc: typecheck");
 
-        if (radius < 0.0)
-            return vm.error("op_arc: rangecheck");
+
+
+        //if (radius < 0.0)
+        //    return vm.error("op_arc: rangecheck");
 
         if (!path.arc(ctm, cx, cy, radius, startDeg, endDeg))
             return vm.error("op_arc: path error");
@@ -345,6 +376,31 @@ namespace waavs {
         return true;
     }
 
+    inline bool op_pathbbox(PSVirtualMachine& vm)
+    {
+        auto* grph = vm.graphics();
+        auto& path = grph->currentPath();
+
+        if (!path.hasCurrentPoint())
+            return vm.error("op_pathbbox: nocurrentpoint");
+
+        double xMin;
+        double yMin;
+        double xMax;
+        double yMax;
+
+        if (!path.getBounds(grph->getCTM(), xMin, yMin, xMax, yMax))
+            return vm.error("op_pathbbox: undefinedresult");
+
+        auto& s = vm.opStack();
+        s.pushReal(xMin);
+        s.pushReal(yMin);
+        s.pushReal(xMax);
+        s.pushReal(yMax);
+
+        return true;
+    }
+
 
     inline bool op_flattenpath(PSVirtualMachine& vm)
     {
@@ -422,6 +478,53 @@ namespace waavs {
         return vm.opStack().push(PSObject::fromPath(vm.graphics()->currentPath()));
     }
 
+    // pathA pathB pathand -> intersectionPath
+    inline bool op_pathand(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.size() < 2)
+            return vm.error("pathand: stackunderflow");
+
+        PSObject bObj;
+        PSObject aObj;
+
+        if (!s.pop(bObj) || !s.pop(aObj))
+            return vm.error("pathand: stackunderflow");
+
+        if (!aObj.isPath() || !bObj.isPath())
+            return vm.error("pathand: typecheck");
+
+        const PSPath& a = aObj.asPath();
+        const PSPath& b = bObj.asPath();
+
+        const double flatness = vm.graphics()->getFlatness();
+
+        // Convert both paths into closed, flattened fill geometry.
+        PathProgram preparedA;
+        PathProgram preparedB;
+
+        if (!flattenPathForFill(a.program(), preparedA, flatness))
+            return vm.error("pathand: failed to prepare first path");
+
+        if (!flattenPathForFill(b.program(), preparedB, flatness))
+            return vm.error("pathand: failed to prepare second path");
+
+        // Intersect the filled regions using nonzero winding.
+        PathProgram intersection;
+
+        if (!intersectPreparedPathPrograms(preparedA, PathFillRule::NonZero, preparedB, PathFillRule::NonZero, intersection))
+            return vm.error("pathand: intersection failed");
+
+        // Construct a new PSPath containing the resulting geometry.
+        PSPath result;
+
+        if (!result.replaceProgram(intersection))
+            return vm.error("pathand: invalid intersection path");
+
+        return s.push(PSObject::fromPath(result));
+    }
+
 
     inline const PSOperatorFuncMap& getPathOps()
     {
@@ -443,11 +546,15 @@ namespace waavs {
             { "curveto",       op_curveto },
             { "rcurveto",      op_rcurveto },
             { "closepath",     op_closepath },
+            { "pathbbox",      op_pathbbox },
 
             { "flattenpath",   op_flattenpath },
             { "pathforall",    op_pathforall },
             { "setpath",       op_setpath },
-            { "currentpath",   op_currentpath }
+            { "currentpath",   op_currentpath },
+
+            // path boolean operators
+            { "pathand",       op_pathand },
         };
 
         return table;

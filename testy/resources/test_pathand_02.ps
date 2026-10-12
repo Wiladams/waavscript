@@ -1,0 +1,95 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript pathand - Visual Regression
+%%BoundingBox: 0 0 612 420
+%%Pages: 1
+%%EndComments
+
+% WaavScript extensions used: rectpath, currentpath, setpath, pathand.
+% This diagram exercises actual pathand geometry in the RESULT panel.
+
+/Helvetica findfont 11 scalefont setfont
+/blue  { 0.18 0.43 0.76 setrgbcolor } def
+/gold  { 0.89 0.55 0.16 setrgbcolor } def
+/red   { 0.81 0.22 0.27 setrgbcolor } def
+/ink   { 0.16 0.20 0.27 setrgbcolor } def
+/pale  { 0.83 0.86 0.90 setrgbcolor } def
+
+% Two overlapping rectangles in local coordinates.
+/makeA { newpath 0 0 98 85 rectpath } def
+/makeB { newpath 50 33 98 85 rectpath } def
+
+% Page title.
+/Helvetica-Bold findfont 21 scalefont setfont
+ink 40 373 moveto (PATH BOOLEAN INTERSECTION) show
+/Helvetica findfont 11 scalefont setfont
+0.36 setgray 40 352 moveto (WaavScript regression: pathA pathB pathand -> intersection path) show
+
+% Three card outlines.
+pale 1 setlinewidth
+newpath 35 126 170 206 rectpath stroke
+newpath 221 126 170 206 rectpath stroke
+newpath 407 126 170 206 rectpath stroke
+
+/Helvetica-Bold findfont 13 scalefont setfont
+blue 49 308 moveto (RECTANGLE A) show
+gold 235 308 moveto (RECTANGLE B) show
+red 421 308 moveto (A AND B) show
+
+% Rectangle A: show the source in blue, with B as a gray reference outline.
+gsave
+    49 161 translate
+    makeA blue fill
+    makeA ink 1.3 setlinewidth stroke
+    makeB pale 1 setlinewidth [4 3] 0 setdash stroke
+    [] 0 setdash
+grestore
+
+% Rectangle B: show the source in gold, with A as a gray reference outline.
+gsave
+    235 161 translate
+    makeB gold fill
+    makeB ink 1.3 setlinewidth stroke
+    makeA pale 1 setlinewidth [4 3] 0 setdash stroke
+    [] 0 setdash
+grestore
+
+% RESULT: construct two actual PSPath values and intersect them.
+gsave
+    421 161 translate
+    makeA /A currentpath def
+    makeB /B currentpath def
+
+    % Draw the source outlines for context.
+    makeA pale 1 setlinewidth [4 3] 0 setdash stroke
+    makeB pale 1 setlinewidth [4 3] 0 setdash stroke
+    [] 0 setdash
+
+    % This is the regression operation under test.
+    A B pathand setpath
+    red fill
+
+    % Draw the computed intersection boundary independently.
+    A B pathand setpath
+    ink 1.3 setlinewidth stroke
+grestore
+
+% Explanatory labels.
+/Helvetica findfont 10 scalefont setfont
+ink 49 143 moveto (First filled region) show
+ink 235 143 moveto (Second filled region) show
+ink 421 143 moveto (Common area only) show
+
+% Central commentary below the cards.
+/Helvetica-Bold findfont 17 scalefont setfont
+ink 40 91 moveto (A) show
+red 59 91 moveto (AND) show
+ink 105 91 moveto (B) show
+/Helvetica findfont 12 scalefont setfont
+ink 139 92 moveto (= the area inside BOTH rectangles.) show
+
+/Helvetica findfont 10 scalefont setfont
+0.38 setgray 40 66 moveto (Result is a new PathProgram, independent of clipping or Blend2D path clipping.) show
+0.38 setgray 40 48 moveto (Expected intersection in local coordinates: x=50..98, y=33..85.) show
+
+showpage
+%%EOF

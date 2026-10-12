@@ -1,0 +1,115 @@
+%!PS
+
+% ------------------------------------------------------------
+% Minimal Type 1 font
+%
+% Defines one visible glyph:
+%     character code 65 ('A') -> /A
+%
+% CharStrings are unencrypted because lenIV is -1.
+% ------------------------------------------------------------
+
+8 dict begin
+
+/FontName /MiniType1 def
+/FontType 1 def
+/PaintType 0 def
+
+% Type 1 glyph coordinates are in 1000 units/em.
+/FontMatrix [0.001 0 0 0.001 0 0] def
+
+/FontBBox [0 0 600 700] def
+
+
+% ------------------------------------------------------------
+% Encoding
+% ------------------------------------------------------------
+
+/Encoding 256 array def
+
+0 1 255 {
+    Encoding exch /.notdef put
+} for
+
+Encoding 65 /A put
+
+
+% ------------------------------------------------------------
+% Private dictionary
+% ------------------------------------------------------------
+
+/Private 2 dict dup begin
+    /lenIV -1 def
+    /Subrs 0 array def
+end def
+
+
+% ------------------------------------------------------------
+% CharStrings
+%
+% .notdef:
+%
+%     0 600 hsbw
+%     endchar
+%
+% A:
+%
+%     0 600 hsbw
+%
+%     100 0 rmoveto
+%     200 700 rlineto
+%     200 -700 rlineto
+%     -400 0 rlineto
+%     closepath
+%
+%     endchar
+%
+% Produces a simple filled triangular glyph.
+% ------------------------------------------------------------
+
+/CharStrings 2 dict dup begin
+
+    /.notdef
+        <8BF8EC0D0E>
+    def
+
+    /A
+        <8BF8EC0DEF8B15F75CF95005F75CFD5005FC248B05090E>
+    def
+
+end def
+
+
+% Complete the font dictionary.
+currentdict
+end
+
+% Stack:
+%
+%     fontdict
+%
+% definefont expects:
+%
+%     key fontdict definefont font
+%
+/MiniType1 exch definefont pop
+
+
+% ------------------------------------------------------------
+% Find it again through the font resource system.
+% Scale it to 100 points and select it.
+% ------------------------------------------------------------
+
+/MiniType1 findfont
+100 scalefont
+setfont
+
+
+% ------------------------------------------------------------
+% Display some text.
+% ------------------------------------------------------------
+
+100 300 moveto
+(AAAAA) show
+
+showpage

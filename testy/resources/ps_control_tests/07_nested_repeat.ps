@@ -1,0 +1,44 @@
+%!PS-Adobe-3.0
+%%Title: repeat: nested scheduler frames
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (07_nested_repeat.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 07_nested_repeat.ps) Log
+
+/x 0 def /outer 0 def /inner 0 def
+(phase: 3 outer x 4 inner) Log
+3 {
+  /outer outer 1 add def
+  (  outer=) print outer ==
+  4 { /x x 1 add def /inner inner 1 add def (    inner total=) print inner == } repeat
+} repeat
+x 12 (12 inner increments) CheckEq
+outer 3 (3 outer iterations) CheckEq
+inner 12 (12 inner iterations) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

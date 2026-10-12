@@ -84,6 +84,11 @@ namespace waavs {
             : fData(PSNameTable::INTERN(span)) {
         }
 
+        size_t size() const noexcept
+        {
+            return fData ? std::strlen(fData) : 0;
+        }
+
         // comparison betwen two names is as easy as comparing
         // pointers, as they will have the same interning pointer
         // if they are equal.

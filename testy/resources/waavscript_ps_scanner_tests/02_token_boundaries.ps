@@ -1,0 +1,33 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% token reads a single token, without executing a name.
+% /name token from string should yield name object; empty remainder is discarded.
+(123abc) token { dup type /nametype eq exch (123abc) cvn eq and exch pop } { false } ifelse (123abc is one name) check
+(23A) token { dup type /nametype eq exch (23A) cvn eq and exch pop } { false } ifelse (23A is a name) check
+(1.2.3) token { dup type /nametype eq exch (1.2.3) cvn eq and exch pop } { false } ifelse (multiple dots is name) check
+(1e+) token { dup type /nametype eq exch (1e+) cvn eq and exch pop } { false } ifelse (incomplete exponent is name) check
+(16#GG) token { dup type /nametype eq exch (16#GG) cvn eq and exch pop } { false } ifelse (invalid radix digits is name) check
+(2#102) token { dup type /nametype eq exch (2#102) cvn eq and exch pop } { false } ifelse (invalid binary digits is name) check
+(16#FFxyz) token { dup type /nametype eq exch (16#FFxyz) cvn eq and exch pop } { false } ifelse (radix plus suffix is name) check
+(123.foo) token { dup type /nametype eq exch (123.foo) cvn eq and exch pop } { false } ifelse (numeric prefix plus suffix is name) check
+(+foo) token { dup type /nametype eq exch (+foo) cvn eq and exch pop } { false } ifelse (plus prefix name) check
+(.foo) token { dup type /nametype eq exch (.foo) cvn eq and exch pop } { false } ifelse (dot prefix name) check
+(16#FF) token { 255 eq exch pop } { false } ifelse (valid radix recognized) check
+(1e2) token { 100 eq exch pop } { false } ifelse (valid exponent recognized) check
+% The remainder from token is still available on the stack before the object.
+(12 34) token { 12 eq exch length 0 gt and } { false } ifelse (token remainder after number) check
+summary

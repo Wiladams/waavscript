@@ -1,0 +1,33 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 04_mutating_array.ps ===) Log
+(QR-style polynomial state reduction: array get/put then condition) Log
+/a [8 6 4 2 0] def /i 0 def /steps 0 def
+{ /steps steps 1 add def steps 30 (array reducer) Watch
+  i a length ge { exit } if
+  /v a i get def
+  v 0 gt { a i v 1 sub put } { /i i 1 add def } ifelse
+  (i=) print i == (last processed value=) print
+  i 0 eq { (none) == } { a i 1 sub get == } ifelse
+} loop
+steps 26 (total loop entries) Assert
+i 5 (cursor finished) Assert
+a 0 get 0 (first entry drained) Assert
+a 3 get 0 (fourth entry drained) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

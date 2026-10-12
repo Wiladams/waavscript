@@ -36,6 +36,7 @@ namespace waavs
         const uint8_t* data = str.data();
         const size_t length = str.length();
 
+
         for (size_t i = 0; i < length; ++i)
         {
             const PSMatrix& ctm = grph->getCTM();

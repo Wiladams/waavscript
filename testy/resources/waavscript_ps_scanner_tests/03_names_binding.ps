@@ -1,0 +1,39 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% true/false/null are executable systemdict bindings rather than lexical literals.
+true (true predefined) check
+false not (false predefined) check
+null type /nulltype eq (null predefined) check
+/true 731 def
+true 731 eq (true may be shadowed in userdict) check
+userdict /true undef
+true (true restored) check
+/false 732 def
+false 732 eq (false may be shadowed in userdict) check
+userdict /false undef
+false not (false restored) check
+/num 47 def
+//num 47 eq (immediate name substitute) check
+/num 99 def
+% Immediate name inside procedure should be resolved when scanning procedure.
+/a 11 def
+/testImmediate { //a } def
+/a 12 def
+testImmediate 11 eq (immediate name bound during procedure scan) check
+/emptyName / def
+emptyName type /nametype eq (empty literal name) check
+summary

@@ -5,6 +5,9 @@
 #include "ps_type_file.h"
 #include "ps_file_filter.h"
 
+#include <cstdio>
+
+
 namespace waavs 
 {
 
@@ -176,7 +179,7 @@ namespace waavs
         const size_t count = str.length();
         size_t actual = 0;
 
-        std::printf("\nREADSTRING count=%zu start=%zu\n", count, file->position());
+        //std::printf("\nREADSTRING count=%zu start=%zu\n", count, file->position());
 
         for (; actual < count; ++actual)
         {
@@ -417,9 +420,14 @@ namespace waavs
     }
 
 
-    inline bool op_flush(PSVirtualMachine& vm) {
-        //std::cout.flush();
-        return vm.error("flush operator not yet implemented");
+
+
+    inline bool op_flush(PSVirtualMachine& vm)
+    {
+        if (std::fflush(stdout) == EOF)
+            return vm.error("op_flush: ioerror");
+
+        return true;
     }
 
     //

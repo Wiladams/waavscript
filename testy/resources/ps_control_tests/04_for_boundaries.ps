@@ -1,0 +1,59 @@
+%!PS-Adobe-3.0
+%%Title: for: ascending descending step and boundary
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (04_for_boundaries.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 04_for_boundaries.ps) Log
+
+/sum 0 def /n 0 def
+(phase: ascending 1 1 5) Log
+1 1 5 { /v exch def (  index=) print v == /sum sum v add def /n n 1 add def } for
+sum 15 (ascending sum) CheckEq
+n 5 (ascending count) CheckEq
+/sum 0 def /n 0 def
+(phase: descending 5 -1 1) Log
+5 -1 1 { /v exch def (  index=) print v == /sum sum v add def /n n 1 add def } for
+sum 15 (descending sum) CheckEq
+n 5 (descending count) CheckEq
+/sum 0 def /n 0 def
+(phase: inclusive endpoint 2 3 11) Log
+2 3 11 { /v exch def (  index=) print v == /sum sum v add def /n n 1 add def } for
+sum 26 (inclusive sum 2+5+8+11) CheckEq
+n 4 (inclusive count) CheckEq
+/sum 0 def /n 0 def
+(phase: overshoot 2 3 10) Log
+2 3 10 { /v exch def (  index=) print v == /sum sum v add def /n n 1 add def } for
+sum 15 (overshoot sum 2+5+8) CheckEq
+n 3 (overshoot count) CheckEq
+/sum 0 def /n 0 def
+(phase: negative overshoot 10 -3 2) Log
+10 -3 2 { /v exch def (  index=) print v == /sum sum v add def /n n 1 add def } for
+sum 21 (negative overshoot sum 10+7+4) CheckEq
+n 3 (negative overshoot count) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

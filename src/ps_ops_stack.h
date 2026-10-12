@@ -54,7 +54,8 @@ namespace waavs {
         return s.roll(count, shift);
     }
 
-    inline bool op_clear(PSVirtualMachine& vm) {
+    inline bool op_clear(PSVirtualMachine& vm) 
+    {
         return vm.opStack().clear();
     }
 

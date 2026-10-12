@@ -1,0 +1,147 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript Path Intersection Regression
+%%Creator: WaavScript regression suite
+%%BoundingBox: 0 0 612 792
+%%Pages: 1
+%%EndComments
+
+% This file deliberately uses ordinary PostScript clipping operators.
+% Each panel has two renderings of the same geometric intersection:
+%   LEFT  (blue): A clip, then fill B (requires backend painting clip)
+%   RIGHT (red): A clip, B clip, clippath, fill (tests path intersection)
+% They should have the same silhouette. Gray = outlines of A and B.
+% On the right, clippath must return the EFFECTIVE intersection boundary.
+%
+% Note: This does NOT test a general user-visible path Boolean operator:
+% standard PostScript has no such operator. It tests the intersection used
+% to maintain the current clipping region and exposed by clippath.
+
+/Courier findfont 8 scalefont /smallfont exch def
+/Courier-Bold findfont 13 scalefont /titlefont exch def
+/rect {
+    /h exch def /w exch def /y exch def /x exch def
+    x y moveto
+    x w add y lineto
+    x w add y h add lineto
+    x y h add lineto
+    closepath
+} bind def
+
+% Shape procedures draw in the local 0..70 x 0..70 tile.
+/Ra { 5 10 42 46 rect } bind def
+/Rb { 24 24 42 40 rect } bind def
+/Rfar { 53 10 15 22 rect } bind def
+/Rsame { 5 10 42 46 rect } bind def
+/Rtouch { 47 10 20 46 rect } bind def
+/Rinside { 17 24 19 18 rect } bind def
+/Rstrip { 26 22 36 21 rect } bind def
+/Rtop { 17 40 48 24 rect } bind def
+/Rtall { 30 16 22 48 rect } bind def
+/Rpair { 5 13 21 43 rect 43 13 21 43 rect } bind def
+/Rbridge { 12 27 46 18 rect } bind def
+
+/Lshape {
+    6 8 moveto 52 8 lineto 52 22 lineto
+    24 22 lineto 24 60 lineto 6 60 lineto closepath
+} bind def
+
+/DonutNZ {
+    % Outer CCW, inner CW: hole for nonzero winding.
+    5 5 moveto 65 5 lineto 65 65 lineto 5 65 lineto closepath
+    19 19 moveto 19 51 lineto 51 51 lineto 51 19 lineto closepath
+} bind def
+
+/DonutEO {
+    % Both CCW: hole for even-odd, NOT for nonzero.
+    5 5 moveto 65 5 lineto 65 65 lineto 5 65 lineto closepath
+    19 19 moveto 51 19 lineto 51 51 lineto 19 51 lineto closepath
+} bind def
+
+/Bowtie {
+    5 10 moveto 65 60 lineto 5 60 lineto 65 10 lineto closepath
+} bind def
+
+% label A-procedure B-procedure a-evenodd? b-evenodd? x y -> -
+/drawPanel {
+    /py exch def /px exch def
+    /be exch def /ae exch def
+    /pb exch def /pa exch def
+    /caption exch def
+
+    gsave
+        px py translate
+        0 setgray smallfont setfont
+        1 153 moveto caption show
+
+        % LEFT: paint B after intersecting the canvas with A.
+        gsave
+            0 0 translate
+            newpath pa
+            ae { eoclip } { clip } ifelse
+            newpath pb
+            0.12 0.40 0.77 setrgbcolor
+            be { eofill } { fill } ifelse
+        grestore
+
+        % RIGHT: derive the actual intersection path using clippath.
+        gsave
+            93 0 translate
+            newpath pa
+            ae { eoclip } { clip } ifelse
+            newpath pb
+            be { eoclip } { clip } ifelse
+            clippath
+            0.83 0.26 0.25 setrgbcolor
+            fill
+        grestore
+
+        % Overlay the same source outlines in both cells.
+        0.62 setgray
+        0.5 setlinewidth
+        gsave
+            newpath pa stroke
+            [2 2] 0 setdash
+            newpath pb stroke
+        grestore
+        % The outlines in the second column (deliberately separate).
+        gsave
+            93 0 translate
+            newpath pa stroke
+            [2 2] 0 setdash
+            newpath pb stroke
+        grestore
+        [] 0 setdash
+
+        0 setgray smallfont setfont
+        1 141 moveto (paint-clipped) show
+        94 141 moveto (clippath) show
+    grestore
+} bind def
+
+% Page title and legend.
+0 setgray titlefont setfont
+24 754 moveto (Path Intersection Regression - clip / eoclip / clippath) show
+smallfont setfont
+24 737 moveto (Blue: clipped painting   Red: A intersection B via clippath   Gray: input outlines) show
+24 724 moveto (Expected: blue and red silhouettes match for each case.) show
+
+% First column x=18; second x=216; third x=414.
+% Each panel occupies ~180 wide, 170 high.
+(01  Overlapping rectangles) /Ra load /Rb load false false 18 554 drawPanel
+(02  Disjoint rectangles)   /Ra load /Rfar load false false 216 554 drawPanel
+(03  Identical boundaries)   /Ra load /Rsame load false false 414 554 drawPanel
+
+(04  Shared edge only)      /Ra load /Rtouch load false false 18 379 drawPanel
+(05  Contained rectangle)   /Ra load /Rinside load false false 216 379 drawPanel
+(06  Concave L overlap)     /Lshape load /Rstrip load false false 414 379 drawPanel
+
+(07  Hole - nonzero)        /DonutNZ load /Rtop load false false 18 204 drawPanel
+(08  Hole - evenodd)        /DonutEO load /Rtop load true false 216 204 drawPanel
+(09  Self-crossing contour) /Bowtie load /Rtall load false false 414 204 drawPanel
+
+(10  T junction)           /Ra load /Rtop load false false 18 29 drawPanel
+(11  Partial shared edges) /Ra load /Rstrip load false false 216 29 drawPanel
+(12  Disconnected result)  /Rpair load /Rbridge load false false 414 29 drawPanel
+
+showpage
+%%EOF

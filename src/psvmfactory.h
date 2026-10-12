@@ -66,15 +66,48 @@ namespace waavs
 			return true;
         }
 
+		static inline bool registerPageSizes(PSVirtualMachine* vm)
+		{
+			static constexpr const char* pageSizes = R"PS(
+        userdict begin
+            /letter      { << /PageSize [612 792] >> setpagedevice } bind def
+            /legal       { << /PageSize [612 1008] >> setpagedevice } bind def
+            /ledger      { << /PageSize [1224 792] >> setpagedevice } bind def
+            /11x17       { << /PageSize [792 1224] >> setpagedevice } bind def
+            /a3          { << /PageSize [842 1191] >> setpagedevice } bind def
+            /a4          { << /PageSize [595 842] >> setpagedevice } bind def
+            /a5          { << /PageSize [420 595] >> setpagedevice } bind def
+            /b5          { << /PageSize [516 729] >> setpagedevice } bind def
+            /executive   { << /PageSize [522 756] >> setpagedevice } bind def
+            /tabloid     { << /PageSize [792 1224] >> setpagedevice } bind def
+        end
+    )PS";
+
+			return vm->interpret(pageSizes);
+		}
+
 		static inline bool registerResources(PSVirtualMachine* vm)
 		{
+			bool success = true;
+
+			success &= vm->registerResourceCategory("Font");
+			success &= vm->registerResourceCategory("Encoding");
+			success &= vm->registerResourceCategory("Form");
+			success &= vm->registerResourceCategory("Pattern");
+			success &= vm->registerResourceCategory("ProcSet");
+			success &= vm->registerResourceCategory("ColorSpace");
+			success &= vm->registerResourceCategory("Halftone");
+			success &= vm->registerResourceCategory("ColorRendering");
+			success &= vm->registerResourceCategory("Category");
+
+			auto generic = PSDictionary::create();
+			success &= vm->defineResource("Generic", "Category", PSObject::fromDictionary(generic));
 
 			PSVMEncodings encodings;
-
 			vm->interpret(encodings.fontMapPS);
 
-			return true;
-        }
+			return success;
+		}
 
 		static inline bool registerCoreOps(PSVirtualMachine *vm) 
 		{
@@ -115,6 +148,7 @@ namespace waavs
 			PSVMFactory::registerExtensionOps(vm.get());
 			PSVMFactory::registerResources(vm.get());
 			PSVMFactory::registerEncodings(vm.get());
+			PSVMFactory::registerPageSizes(vm.get());
 
 			return vm;
 		}

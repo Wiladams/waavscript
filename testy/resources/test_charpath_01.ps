@@ -1,0 +1,30 @@
+%!PS-Adobe-3.0
+%%Title: show vs charpath stroke
+%%Pages: 1
+%%BoundingBox: 0 0 792 612
+%%EndComments
+
+/Helvetica-Bold findfont 90 scalefont setfont
+
+% Same text and starting position for both operations.
+/str (POSTSCRIPT) def
+/x 60 def
+/y 260 def
+
+% First: filled glyphs using ordinary show.
+0 setgray
+newpath
+x y moveto
+str show
+
+% Second: stroke the character outlines in red.
+1 0 0 setrgbcolor
+0.8 setlinewidth
+newpath
+x y moveto
+str false charpath
+stroke
+
+showpage
+%%EOF
+

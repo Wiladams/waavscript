@@ -13,6 +13,7 @@
 
 namespace waavs {
 
+
     struct PSStringStorage
     {
         std::vector<uint8_t> bytes;
@@ -82,18 +83,16 @@ namespace waavs {
         PSString& operator=(PSString&&) noexcept = default;
 
 
-        size_t length() const noexcept
-        {
-            return fLength;
-        }
+        size_t length() const noexcept { return fLength; }
+        size_t size() const noexcept {return fLength;}
 
         // Compatibility with existing runtime code.
         // PostScript strings are fixed-length objects, so their visible
         // capacity is their current view length.
-        size_t capacity() const noexcept
-        {
-            return fLength;
-        }
+        size_t capacity() const noexcept = delete;
+        //{
+        //    return fLength;
+        //}
 
         bool empty() const noexcept
         {
@@ -209,13 +208,21 @@ namespace waavs {
         // Search for target and return views into this string.
         bool search(const PSString& target, PSString& pre, PSString& match, PSString& post) const
         {
-            if (target.length() == 0 || length() < target.length())
+            const size_t haystackLen = length();
+            const size_t needleLen = target.length();
+
+            if (needleLen > haystackLen)
                 return false;
+
+            if (needleLen == 0) {
+                pre = getInterval(0, 0);
+                match = getInterval(0, 0);
+                post = getInterval(0, static_cast<uint32_t>(haystackLen));
+                return true;
+            }
 
             const uint8_t* haystack = data();
             const uint8_t* needle = target.data();
-            size_t haystackLen = length();
-            size_t needleLen = target.length();
 
             for (size_t i = 0; i <= haystackLen - needleLen; ++i)
             {
@@ -248,4 +255,11 @@ namespace waavs {
         }
     };
 
+
+
+    INLINE const char* toLowerIntern(const char* str) {
+        std::string temp(str);
+        for (auto& c : temp) c = (char)std::tolower(c);
+        return PSNameTable::INTERN(temp.c_str(), temp.size());
+    }
 }

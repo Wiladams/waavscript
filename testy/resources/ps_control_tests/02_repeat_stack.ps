@@ -1,0 +1,46 @@
+%!PS-Adobe-3.0
+%%Title: repeat: operand stack not restored
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (02_repeat_stack.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 02_repeat_stack.ps) Log
+
+(phase: intentional growth) Log
+count /depthBefore exch def
+0 4 { dup 1 add } repeat
+(  stack after loop, top-to-bottom:) Log
+pstack
+% Operand stack is 0 1 2 3 4 (bottom-to-top).
+4 (top) CheckEq
+3 (next) CheckEq
+2 (next) CheckEq
+1 (next) CheckEq
+0 (bottom) CheckEq
+count depthBefore (stack restored after checks) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

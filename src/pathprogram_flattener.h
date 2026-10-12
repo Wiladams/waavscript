@@ -330,20 +330,6 @@ namespace waavs
     };
 
 
-    inline bool flattenPathProgram(const PathProgram& src, PathProgram& dst, double flatness = 0.25, int maxDepth = 16) noexcept
-    {
-        PathProgramBuilder builder;
-        builder.reserve(src.ops.size() * 2u, src.args.size() * 4u);
 
-        PathFlattener<PathProgramBuilder> flattener(builder);
-        flattener.opt.flatness = flatness;
-        flattener.opt.maxDepth = maxDepth;
-
-        if (!pathprogram_dispatch(src, flattener))
-            return false;
-
-        dst = std::move(builder.prog);
-        return true;
-    }
 
 } // namespace waavs

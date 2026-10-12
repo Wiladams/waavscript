@@ -1,0 +1,34 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 05_matrix_zigzag.ps ===) Log
+(QR placement-inspired zigzag grid; skip reserved cells) Log
+/w 9 def /h 9 def /placed 0 def /skipped 0 def /row 0 def /col 8 def /up true def
+9 { % column group
+  /row up { 8 } { 0 } ifelse def
+  9 { % positions
+    /reserved row 2 lt col 2 lt and def
+    reserved { /skipped skipped 1 add def } { /placed placed 1 add def } ifelse
+    up { /row row 1 sub def } { /row row 1 add def } ifelse
+  } repeat
+  /col col 1 sub def /up up not def
+} repeat
+placed 77 (unreserved cells) Assert
+skipped 4 (reserved cells) Assert
+row -1 (last row after upward sweep) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

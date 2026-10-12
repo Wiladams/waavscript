@@ -44,7 +44,7 @@ namespace waavs {
             fEntries = new PSDictEntry[fCapacity]();
         }
 
-        ~PSDictionary()
+        virtual ~PSDictionary()
         {
             delete[] fEntries;
         }
@@ -54,6 +54,21 @@ namespace waavs {
         PSDictionary(PSDictionary&&) = delete;
         PSDictionary& operator=(PSDictionary&&) = delete;
 
+        bool copyEntriesFrom(const PSDictionary& source)
+        {
+            bool success = true;
+
+            source.forEachConst([&](const PSObject& key, const PSObject& value) {
+                if (!put(key, value)) {
+                    success = false;
+                    return false;
+                }
+
+                return true;
+                });
+
+            return success;
+        }
 
         static std::shared_ptr<PSDictionary> create(size_t initialSize = 32)
         {
@@ -377,7 +392,7 @@ namespace waavs {
             case PSObjectType::Array:
             case PSObjectType::Dictionary:
             case PSObjectType::File:
-            case PSObjectType::Font:
+            //case PSObjectType::Font:
             case PSObjectType::FontFace:
             case PSObjectType::Operator:
             case PSObjectType::Mark:
@@ -457,8 +472,8 @@ namespace waavs {
             case PSObjectType::File:
                 return a.asFile().get() == b.asFile().get();
 
-            case PSObjectType::Font:
-                return a.asFont().get() == b.asFont().get();
+            //case PSObjectType::Font:
+            //    return a.asFont().get() == b.asFont().get();
 
             case PSObjectType::FontFace:
                 return a.asFontFace().get() == b.asFontFace().get();
@@ -524,8 +539,8 @@ namespace waavs {
             case PSObjectType::File:
                 return hashCombine_(7, hashPointer_(key.asFile().get()));
 
-            case PSObjectType::Font:
-                return hashCombine_(8, hashPointer_(key.asFont().get()));
+            //case PSObjectType::Font:
+            //    return hashCombine_(8, hashPointer_(key.asFont().get()));
 
             case PSObjectType::FontFace:
                 return hashCombine_(9, hashPointer_(key.asFontFace().get()));

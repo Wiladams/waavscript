@@ -23,20 +23,42 @@ namespace waavs {
 	}
 
 	// ( array -- ... elements ... array )
-	inline bool op_aload(PSVirtualMachine& vm) 
+	inline bool op_aload(PSVirtualMachine& vm)
 	{
 		auto& s = vm.opStack();
-		if (s.empty()) 
+
+		if (s.empty())
 			return vm.error("op_aload: stackunderflow");
 
-		PSArrayHandle arr;
-		if (!s.popArray(arr))
-			return vm.error("op_load: typecheck");
+		PSObject obj;
+		if (!s.pop(obj))
+			return vm.error("op_aload: stackunderflow");
 
-		for (const auto& elem : *arr)
-			s.push(elem);
+		if (obj.isMatrix()) {
+			const PSMatrix& mat = obj.asMatrix();
 
-		return s.pushArray(arr); // push original array back
+			for (size_t i = 0; i < 6; ++i) {
+				if (!s.pushReal(mat.m[i]))
+					return vm.error("op_aload: stackoverflow");
+			}
+
+			return s.push(obj);
+		}
+
+		if (obj.isArray()) {
+			auto arr = obj.asArray();
+			if (!arr)
+				return vm.error("op_aload: invalidaccess");
+
+			for (const auto& elem : *arr) {
+				if (!s.push(elem))
+					return vm.error("op_aload: stackoverflow");
+			}
+
+			return s.push(obj);
+		}
+
+		return vm.error("op_aload: typecheck");
 	}
 
 	// ( ... elements ... array -- array )
@@ -62,6 +84,81 @@ namespace waavs {
 		return s.pushArray(arr);
 	}
 
+	inline bool op_getinterval(PSVirtualMachine& vm)
+	{
+		auto& s = vm.opStack();
+
+		if (s.size() < 3)
+			return vm.error("op_getinterval: stackunderflow");
+
+		PSObject countObj;
+		PSObject startObj;
+		PSObject containerObj;
+
+		if (!s.pop(countObj) || !s.pop(startObj) || !s.pop(containerObj))
+			return vm.error("op_getinterval: stackunderflow");
+
+		/*
+        // DIAGNOSTIC
+		printf("getinterval operands:\n");
+
+		printf("  container: ");
+		writeObjectDeep(containerObj);
+		printf("\n");
+
+		printf("  start:     ");
+		writeObjectDeep(startObj);
+		printf("\n");
+
+		printf("  count:     ");
+		writeObjectDeep(countObj);
+		printf("\n");
+
+		printf("  types: container=%d start=%d count=%d\n",
+			static_cast<int>(containerObj.type),
+			static_cast<int>(startObj.type),
+			static_cast<int>(countObj.type));
+		*/
+
+		if (!startObj.isInt() || !countObj.isInt())
+			return vm.error("op_getinterval: typecheck");
+
+		if (!containerObj.isArray() && !containerObj.isString())
+			return vm.error("op_getinterval: typecheck");
+
+		int32_t start = startObj.asInt();
+		int32_t count = countObj.asInt();
+
+		if (start < 0 || count < 0)
+			return vm.error("op_getinterval: rangecheck");
+
+		size_t index = static_cast<size_t>(start);
+		size_t length = static_cast<size_t>(count);
+
+		if (containerObj.isArray())
+		{
+			auto arr = containerObj.asArray();
+
+			if (index > arr->size() || length > arr->size() - index)
+				return vm.error("op_getinterval: rangecheck");
+
+			auto sub = arr->subarray(index, length);
+			if (!sub)
+				return vm.error("op_getinterval: rangecheck");
+
+			return s.pushArray(sub);
+		}
+
+		auto str = containerObj.asString();
+
+		if (index > str.length() || length > str.length() - index)
+			return vm.error("op_getinterval: rangecheck");
+
+		auto subStr = str.getInterval(start, count);
+		return s.pushString(subStr);
+	}
+
+	/*
 	inline bool op_getinterval(PSVirtualMachine& vm)
 	{
 		auto& s = vm.opStack();
@@ -110,6 +207,7 @@ namespace waavs {
 		auto subStr = str.getInterval(start, count);
 		return s.pushString(subStr);
 	}
+	*/
 
 	// ( destArray index srcArray -- )
 	inline bool op_putinterval(PSVirtualMachine& vm)
@@ -126,6 +224,30 @@ namespace waavs {
 		s.pop(srcObj);
 		s.pop(indexObj);
 		s.pop(destObj);
+
+		// DIAGNOSTIC
+		/*
+		{
+			printf("=== putinterval ===\n");
+
+			printf("dest: ");
+			writeObjectDeep(destObj);
+			printf("\n");
+
+			printf("index: ");
+			writeObjectDeep(indexObj);
+			printf("\n");
+
+			printf("src: ");
+			writeObjectDeep(srcObj);
+			printf("\n");
+
+			printf("types: dest=%d index=%d src=%d\n",
+				static_cast<int>(destObj.type),
+				static_cast<int>(indexObj.type),
+				static_cast<int>(srcObj.type));
+		}
+		*/
 
 		if (indexObj.type != PSObjectType::Int)
 			return vm.error("op_putinterval: typecheck");
@@ -197,33 +319,65 @@ namespace waavs {
 	}
 
 
-	inline bool op_bind(PSVirtualMachine& vm) {
-        auto& ostk = vm.opStack();
+	inline bool op_bind(PSVirtualMachine& vm)
+	{
+		auto& s = vm.opStack();
 
-        if (ostk.empty())
-            return vm.error("op_bind: stackunderflow");
-		
-		PSArrayHandle arr;
-		if (!ostk.popArray(arr))
-			return vm.error("op_bind: typecheck; not array");;
+		if (s.empty())
+			return vm.error("op_bind: stackunderflow");
 
-		for (const auto& elem : *arr) {
-			if (elem.isExecutableName()) {
-				// If the name resolves to an operator, then replace it in 
-				// the array with the actual operator object.
-				PSObject resolved;
-				if (vm.dictionaryStack.load(elem.asName(), resolved)) {
-					if (resolved.isOperator()) {
-						const_cast<PSObject&>(elem).resetFromOperator(resolved.asOperator());
+		PSObject proc;
+		if (!s.pop(proc))
+			return vm.error("op_bind: stackunderflow");
+
+		if (!proc.isExecutableArray())
+			return vm.error("op_bind: typecheck");
+
+		std::function<bool(PSObject&)> bindProcedure;
+
+		bindProcedure = [&](PSObject& obj) -> bool
+			{
+				if (!obj.isExecutableArray())
+					return true;
+
+				// For now, honor the access state carried by this PSObject.
+				// A read-only ordinary array is left unchanged by bind.
+				if (!obj.isAccessWriteable())
+					return true;
+
+				auto arr = obj.asArray();
+				if (!arr)
+					return vm.error("op_bind: typecheck");
+
+				for (auto& elem : *arr)
+				{
+					if (elem.isExecutableName())
+					{
+						PSObject resolved;
+
+						if (vm.dictionaryStack.load(elem.asName(), resolved) && resolved.isOperator())
+							elem = resolved;
+
+						continue;
 					}
-				} 
-			}
-			// Do NOT recurse into nested procedures
-		}
 
-		ostk.pushProcedure(arr);
+					if (elem.isExecutableArray())
+					{
+						if (!bindProcedure(elem))
+							return false;
 
-		return true;
+						// Nested procedures are made read-only after being bound.
+						elem.setAccessWriteable(false);
+					}
+				}
+
+				return true;
+			};
+
+		if (!bindProcedure(proc))
+			return false;
+
+		return s.push(proc);
 	}
 
 	// Returns the array operator table

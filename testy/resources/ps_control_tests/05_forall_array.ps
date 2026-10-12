@@ -1,0 +1,47 @@
+%!PS-Adobe-3.0
+%%Title: forall: array values and body scheduling
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (05_forall_array.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 05_forall_array.ps) Log
+
+/sum 0 def /n 0 def
+(phase: sum elements) Log
+[10 20 30 40] { /v exch def (  value=) print v == /sum sum v add def /n n 1 add def } forall
+sum 100 (array sum) CheckEq
+n 4 (array iteration count) CheckEq
+/square { dup mul } def
+/squares 4 array def /i 0 def
+(phase: named procedure square) Log
+[1 2 3 4] { square /v exch def (  square=) print v == squares i v put /i i 1 add def } forall
+squares 0 get 1 (square[0]) CheckEq
+squares 1 get 4 (square[1]) CheckEq
+squares 2 get 9 (square[2]) CheckEq
+squares 3 get 16 (square[3]) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

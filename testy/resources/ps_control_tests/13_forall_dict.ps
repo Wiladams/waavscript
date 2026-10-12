@@ -1,0 +1,51 @@
+%!PS-Adobe-3.0
+%%Title: forall: dictionary key/value stack discipline
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (13_forall_dict.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 13_forall_dict.ps) Log
+
+/d 5 dict def
+d /alpha 11 put d /beta 22 put d /gamma 33 put
+/sum 0 def /n 0 def /alphaFound false def /betaFound false def /gammaFound false def
+(phase: dictionary pairs order unspecified) Log
+d {
+  /value exch def /key exch def
+  (  key=) print key == (    value=) print value ==
+  /sum sum value add def /n n 1 add def
+  key /alpha eq { /alphaFound value 11 eq def } if
+  key /beta eq { /betaFound value 22 eq def } if
+  key /gamma eq { /gammaFound value 33 eq def } if
+} forall
+sum 66 (dictionary value sum) CheckEq
+n 3 (dictionary entry count) CheckEq
+alphaFound true (alpha pair) CheckEq
+betaFound true (beta pair) CheckEq
+gammaFound true (gamma pair) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

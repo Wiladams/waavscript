@@ -1,0 +1,57 @@
+%!PS-Adobe-3.0
+%%Title: nested exit: innermost loop only
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (08_nested_exit.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 08_nested_exit.ps) Log
+
+/x 0 def /outer 0 def /after 0 def
+(phase: inner loop exit within outer repeat) Log
+3 {
+  /outer outer 1 add def
+  (  outer=) print outer ==
+  { /x x 1 add def (    inner x=) print x == exit /after 999 def } loop
+  /after after 1 add def
+} repeat
+x 3 (one inner loop iteration per outer iteration) CheckEq
+outer 3 (outer repeat survives inner exit) CheckEq
+after 3 (code following inner loop executes) CheckEq
+(phase: exit inside conditional and repeat) Log
+/x 0 def /outer 0 def
+3 {
+  /outer outer 1 add def
+  10 {
+    /x x 1 add def
+    (    x=) print x ==
+    x 2 mod 0 eq { (    exit inner repeat) Log exit } if
+  } repeat
+} repeat
+x 6 (exit after each second increment) CheckEq
+outer 3 (outer repeat completes) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

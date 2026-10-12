@@ -1,0 +1,169 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript pathand regression - WAAVS text mask (two-line revision)
+%%Pages: 1
+%%BoundingBox: 0 0 612 792
+%%EndComments
+
+/pw 612 def
+/ph 792 def
+
+/ink { 0.18 0.24 0.34 setrgbcolor } bind def
+/blue { 0.22 0.45 0.78 setrgbcolor } bind def
+/orange { 0.88 0.56 0.15 setrgbcolor } bind def
+/red { 0.82 0.23 0.28 setrgbcolor } bind def
+/black { 0 0 0 setrgbcolor } bind def
+/light { 0.78 0.82 0.88 setrgbcolor } bind def
+/midgray { 0.35 setgray } bind def
+
+/boxpath { % x y w h --
+    4 dict begin
+    /h exch def /w exch def /y exch def /x exch def
+    newpath
+    x y moveto
+    x w add y lineto
+    x w add y h add lineto
+    x y h add lineto
+    closepath
+    end
+} bind def
+
+/titleFont { /Helvetica-Bold findfont 18 scalefont setfont } bind def
+/labelFont { /Helvetica-Bold findfont 14 scalefont setfont } bind def
+/bodyFont { /Helvetica findfont 11 scalefont setfont } bind def
+
+/panelX1 36 def
+/panelX2 220 def
+/panelX3 404 def
+/panelY 375 def
+/panelW 172 def
+/panelH 230 def
+
+/drawPanelFrame {
+    gsave
+        light
+        0.75 setlinewidth
+        0 0 panelW panelH boxpath stroke
+    grestore
+} bind def
+
+/makeWAAVSPath {
+    /Helvetica-Bold findfont 50 scalefont setfont
+    newpath
+    12 118 moveto
+    (WAA) false charpath
+    /Helvetica-Bold findfont 24 scalefont setfont
+    16 76 moveto
+    (VENTURES) false charpath
+} bind def
+
+/makeParagraphPath {
+    /Times-Roman findfont 7.4 scalefont setfont
+    /leading 8.5 def
+    /yy 140 def
+    newpath
+    0 yy moveto (Lorem ipsum dolor sit amet, consectetur) false charpath
+    /yy yy leading sub def
+    0 yy moveto (adipiscing elit, sed do eiusmod tempor) false charpath
+    /yy yy leading sub def
+    0 yy moveto (incididunt ut labore et dolore magna) false charpath
+    /yy yy leading sub def
+    0 yy moveto (aliqua. Ut enim ad minim veniam, quis) false charpath
+    /yy yy leading sub def
+    0 yy moveto (nostrud exercitation ullamco laboris) false charpath
+    /yy yy leading sub def
+    0 yy moveto (nisi ut aliquip ex ea commodo consequat.) false charpath
+    /yy yy leading sub def
+    0 yy moveto (Duis aute irure dolor in reprehenderit) false charpath
+    /yy yy leading sub def
+    0 yy moveto (in voluptate velit esse cillum dolore) false charpath
+    /yy yy leading sub def
+    0 yy moveto (eu fugiat nulla pariatur. Excepteur) false charpath
+    /yy yy leading sub def
+    0 yy moveto (sint occaecat cupidatat non proident,) false charpath
+    /yy yy leading sub def
+    0 yy moveto (sunt in culpa qui officia deserunt) false charpath
+    /yy yy leading sub def
+    0 yy moveto (mollit anim id est laborum.) false charpath
+} bind def
+
+/drawGhostWAAVS {
+    gsave
+        makeWAAVSPath
+        light
+        1 setlinewidth
+        stroke
+    grestore
+} bind def
+
+/drawGhostParagraph {
+    gsave
+        makeParagraphPath
+        light
+        0.35 setlinewidth
+        stroke
+    grestore
+} bind def
+
+/drawPanelA {
+    gsave
+        drawPanelFrame
+        labelFont blue 14 186 moveto (A: WAA / VENTURES) show
+        gsave
+            10 38 translate
+            drawGhostParagraph
+            makeWAAVSPath
+            blue fill
+        grestore
+        bodyFont ink 14 16 moveto (Two-line text outline as PSPath) show
+    grestore
+} bind def
+
+/drawPanelB {
+    gsave
+        drawPanelFrame
+        labelFont orange 14 186 moveto (B: PARAGRAPH BLOCK) show
+        gsave
+            10 38 translate
+            drawGhostWAAVS
+            makeParagraphPath
+            orange fill
+        grestore
+        bodyFont ink 14 16 moveto (Dense paragraph text as PSPath) show
+    grestore
+} bind def
+
+/drawPanelC {
+    gsave
+        drawPanelFrame
+        labelFont red 14 186 moveto (A AND B) show
+        gsave
+            10 38 translate
+            /A makeWAAVSPath currentpath def
+            /B makeParagraphPath currentpath def
+            drawGhostWAAVS
+            A B pathand setpath
+            black fill
+        grestore
+        bodyFont ink 14 16 moveto (Paragraph text masked by the logo) show
+    grestore
+} bind def
+
+1 setgray clippath fill
+black
+
+titleFont ink 36 662 moveto (PATH AND: TEXT AS A MASK) show
+bodyFont midgray 36 635 moveto (WaavScript regression: two-line charpath logo intersected with a paragraph-sized text block) show
+
+gsave panelX1 panelY translate drawPanelA grestore
+gsave panelX2 panelY translate drawPanelB grestore
+gsave panelX3 panelY translate drawPanelC grestore
+
+titleFont ink 36 316 moveto (WAA / VENTURES) show
+titleFont red 200 316 moveto (AND) show
+titleFont ink 255 316 moveto (PARAGRAPH) show
+bodyFont ink 36 288 moveto (= only the parts of the paragraph text that fall inside the large glyph outlines.) show
+bodyFont midgray 36 260 moveto (This exercises charpath, glyph flattening, pathand, and setpath/fill without any renderer path clipping.) show
+bodyFont midgray 36 238 moveto (Result is a new PSPath, so the effect behaves like a geometric mask rather than a raster mask.) show
+
+showpage
+%%EOF

@@ -1,0 +1,64 @@
+%!PS-Adobe-3.0
+%%Title: charpath and pathbbox visual regression
+%%Pages: 1
+%%BoundingBox: 0 0 612 792
+%%EndComments
+
+/Courier-Bold findfont 24 scalefont setfont
+
+% x y (text) flatten? drawTest -
+% Black glyphs, red outline bounds, blue start-point crosshair.
+/drawTest {
+    /flatten exch def
+    /str exch def
+    /y exch def
+    /x exch def
+    gsave
+        0 setgray
+        newpath x y moveto str show
+
+        newpath x y moveto str false charpath
+        flatten { flattenpath } if
+        pathbbox
+        /ymax exch def /xmax exch def /ymin exch def /xmin exch def
+
+        1 0 0 setrgbcolor
+        0.75 setlinewidth
+        newpath
+        xmin ymin moveto
+        xmax ymin lineto
+        xmax ymax lineto
+        xmin ymax lineto
+        closepath stroke
+
+        0 0 1 setrgbcolor
+        0.5 setlinewidth
+        newpath x 5 sub y moveto x 5 add y lineto
+        x y 5 sub moveto x y 5 add lineto stroke
+    grestore
+} def
+
+/Helvetica findfont 11 scalefont setfont
+40 745 moveto (Red: pathbbox    Blue: original text position) show
+
+/Courier-Bold findfont 24 scalefont setfont
+40 670 (center line) false drawTest
+40 590 (center line) true drawTest
+
+% Rotated with respect to the current user coordinate system.
+gsave
+    270 430 translate
+    25 rotate
+    0 0 (center line) false drawTest
+grestore
+
+% Scale and rotate: isolates inverse CTM handling in pathbbox.
+gsave
+    285 265 translate
+    0.75 1.25 scale
+    -30 rotate
+    0 0 (center line) true drawTest
+grestore
+
+showpage
+%%EOF

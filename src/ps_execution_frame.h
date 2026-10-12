@@ -51,11 +51,19 @@ namespace waavs
 
     struct PSForFrame
     {
-        double current = 0;
-        double increment = 0;
-        double limit = 0;
+        bool integerMode = false;
+
+        int32_t intCurrent = 0;
+        int32_t intIncrement = 0;
+        int32_t intLimit = 0;
+
+        double realCurrent = 0.0;
+        double realIncrement = 0.0;
+        double realLimit = 0.0;
+
         PSObject procedure;
     };
+
 
     struct PSForAllFrame
     {
@@ -92,7 +100,7 @@ namespace waavs
     struct PSFileFrame
     {
         PSFileHandle file;
-        std::shared_ptr<PSObjectGenerator> generator;
+        std::shared_ptr<PSObjectGenState> generator;
     };
 
     // For showing text with adjustments, 

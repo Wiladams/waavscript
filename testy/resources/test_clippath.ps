@@ -1,0 +1,10 @@
+(clippath before rotation: ) print
+gsave clippath pathbbox grestore
+4 array astore ==
+
+gsave
+90 rotate
+(clippath after rotation: ) print
+clippath pathbbox
+4 array astore ==
+grestore

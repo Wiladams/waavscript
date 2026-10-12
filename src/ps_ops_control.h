@@ -3,6 +3,7 @@
 
 #include "pscore.h"
 #include "psvm.h"
+#include "ps_object_helpers.h"
 
 namespace waavs {
 
@@ -14,14 +15,20 @@ namespace waavs {
         if (s.empty())
             return vm.error("op_exec: stackunderflow");
 
-        PSObject proc;
-        if (!s.pop(proc))
+        PSObject obj;
+        if (!s.pop(obj))
             return vm.error("op_exec: stackunderflow");
 
-        if (!proc.isArray() || !proc.isExecutable())
-            return vm.error("op_exec: typecheck; expected procedure (array)");
+        if (obj.isArray() && obj.isExecutable())
+            return vm.scheduleProcedure(obj);
 
-        return vm.scheduleProcedure(proc);
+        if (obj.isName() || obj.isOperator())
+            return vm.schedule(obj);
+
+        if (obj.isExecutable())
+            return vm.schedule(obj);
+
+        return s.push(obj);
     }
 
 
@@ -146,7 +153,10 @@ namespace waavs {
             return vm.error("op_for: typecheck; expected numbers");
 
         if (!proc.isArray() || !proc.isExecutable())
-            return vm.error("op_for: typecheck; expected procedure (array)");
+            return vm.error("op_for: typecheck; expected procedure");
+
+        if (initial.isInt() && increment.isInt() && limit.isInt())
+            return vm.scheduleFor(initial.asInt(), increment.asInt(), limit.asInt(), proc);
 
         return vm.scheduleFor(initial.asReal(), increment.asReal(), limit.asReal(), proc);
     }
@@ -156,30 +166,27 @@ namespace waavs {
         auto& s = vm.opStack();
 
         if (s.size() < 2)
-            return vm.error("forall: stackunderflow");
+            return vm.error("op_forall: stackunderflow");
 
         PSObject proc;
         PSObject container;
 
         if (!s.pop(proc))
-            return vm.error("forall: missing procedure");
+            return vm.error("op_forall: stackunderflow");
 
         if (!s.pop(container))
-            return vm.error("forall: missing container");
+            return vm.error("op_forall: stackunderflow");
 
         if (!proc.isArray() || !proc.isExecutable())
-            return vm.error("forall: procedure must be executable");
+            return vm.error("op_forall: typecheck; expected procedure");
 
-        switch (container.type)
-        {
-        case PSObjectType::Array:
-        case PSObjectType::String:
-        case PSObjectType::Dictionary:
+        if (container.isArray() || container.isString())
             return vm.scheduleForAll(container, proc);
 
-        default:
-            return vm.error("forall: unsupported container type");
-        }
+        if (container.isDictionary())
+            return vm.scheduleForAll(container, proc);
+
+        return vm.error("op_forall: typecheck; unsupported container");
     }
 
 

@@ -61,18 +61,11 @@ namespace waavs {
     // Clear all non permanent dictionaries, down to the systemdict.  Retain the userdict 
     // on top of the stack, but empty it, or just create a new empty dictionary as the topmost
     // dictionary on the stack.
-    inline bool op_cleardictstack(PSVirtualMachine& vm) {
-        auto& ostk = vm.opStack();
+    inline bool op_cleardictstack(PSVirtualMachine& vm)
+    {
+        if (!vm.dictionaryStack.clear())
+            return vm.error("op_cleardictstack: dictstackunderflow");
 
-        vm.dictionaryStack.clear();
-
-        // Reset the userdict to an empty dictionary
-        auto userDict = PSDictionary::create();
-        vm.dictionaryStack.push(userDict);
-        vm.setUserDict(userDict);
-
-        // Push an empty dictionary onto the stack
-        ostk.push(PSObject::fromDictionary(vm.getUserDict()));
         return true;
     }
 

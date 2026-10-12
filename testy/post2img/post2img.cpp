@@ -7,7 +7,7 @@
 #include "mappedfile.h"
 #include "psvmfactory.h"
 #include "b2dcontext.h"
-
+#include "fontmonger.h"
 
 
 
@@ -17,22 +17,6 @@ using namespace waavs;
 #define CAN_HEIGHT 600
 
 
-size_t loadFontsInDirectory(PSVirtualMachine* vm, const char* dirpath) {
-	namespace fs = std::filesystem;
-	size_t count = 0;
-	for (const auto& entry : fs::directory_iterator(dirpath)) {
-		if (!entry.is_regular_file()) continue;
-
-		auto ext = entry.path().extension().string();
-		if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
-			PSObject pathObj = PSObject::fromString(entry.path().string().c_str());
-			vm->opStack().push(pathObj);
-			if (FontMonger::instance()->loadFontResource(*vm))
-				++count;
-		}
-	}
-	return count;
-}
 
 // Utility to wrap input and run interpreter
 static bool runFile(const char *filename, const char *outfilename) 
@@ -44,9 +28,16 @@ static bool runFile(const char *filename, const char *outfilename)
 		return false;
 	}
 
+    // some ghostpdl examples have QUIET set to true, 
+	// which suppresses error messages.  We want to see errors, so we set it to false.
+    // this is very specific to ghostscript examples, but it doesn't hurt to set it here.
+	vm->getUserDict()->put("QUIET", PSObject::fromBool(false));
+
 	auto ctx = std::make_unique<waavs::Blend2DGraphicsContext>(1700, 2200);	// US Letter size in points (8.5 x 11 inches, 200dpi)
 	ctx->initGraphics();
 	vm->setGraphicsContext(std::move(ctx));
+	
+	// load opentype fonts
 	loadFontsInDirectory(vm.get(), "c:/windows/fonts");
 
 	// Run the interpreter

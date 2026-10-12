@@ -1,8 +1,9 @@
+// typeconv.h
 #pragma once
 
 
 #include "ocspan.h"
-#include "ps_charcats.h"
+#include "ps_charclass.h"
 
 
 namespace waavs {
@@ -64,109 +65,124 @@ namespace waavs {
         return true;
     }
 
-    // Assumption:  We're sitting at beginning of a number, all whitespace handling
-    // has already occured.
-    static bool inline readNumber(OctetCursor& s, double& value, bool &isInteger) noexcept
+    /*
+    // Parse a complete PostScript numeric token.
+    // Supports decimal integers, real numbers, exponents, and radix integers.
+    static inline bool readPSNumber(OctetCursor& s, double& value, bool& isInteger) noexcept
     {
-        const unsigned char* startAt = s.begin();
-        const unsigned char* endAt = s.end();
+        const uint8_t* p = s.begin();
+        const uint8_t* end = s.end();
 
-        bool isNegative = false;
-        double res = 0.0;
+        if (p == end) return false;
 
-        // integer part
-        uint64_t intPart = 0;
+        bool negative = false;
 
-        // fractional part
-        uint64_t fracPart = 0;
-        uint64_t fracBase = 1;
-
-
-        bool hasIntPart = false;
-        bool hasFracPart = false;
-
-        // Parse optional sign
-        if (*startAt == '+') {
-            startAt++;
-        }
-        else if (*startAt == '-') {
-            isNegative = true;
-            startAt++;
+        if (*p == '+' || *p == '-') {
+            negative = (*p == '-');
+            ++p;
         }
 
-        // The beginning can either be a digit, or a decimal point
-        // Parse integer part
-        unsigned char c = *startAt;
-        if (PSCharClass::isDigit(c))
-        {
-            hasIntPart = true;
-            s.fStart = startAt;
-            read_u64(s, intPart);
-            startAt = s.fStart;
-            res = static_cast<double>(intPart);
+        if (p == end) return false;
+
+        const uint8_t* digits = p;
+        uint64_t integerPart = 0;
+
+        while (p < end && *p >= '0' && *p <= '9') {
+            uint32_t digit = *p++ - '0';
+            if (integerPart > (UINT64_MAX - digit) / 10) return false;
+            integerPart = integerPart * 10 + digit;
+        }
+
+        // PostScript radix integer: radix#digits
+        if (p < end && *p == '#') {
+            if (negative || digits == p || integerPart < 2 || integerPart > 36)
+                return false;
+
+            uint32_t radix = static_cast<uint32_t>(integerPart);
+            uint32_t result = 0;
+            ++p;
+
+            if (p == end) return false;
+
+            while (p < end) {
+                uint8_t ch = *p++;
+                uint32_t digit;
+
+                if (ch >= '0' && ch <= '9')
+                    digit = ch - '0';
+                else if (ch >= 'A' && ch <= 'Z')
+                    digit = ch - 'A' + 10;
+                else if (ch >= 'a' && ch <= 'z')
+                    digit = ch - 'a' + 10;
+                else
+                    return false;
+
+                if (digit >= radix) return false;
+                if (result > (UINT32_MAX - digit) / radix) return false;
+
+                result = result * radix + digit;
+            }
+
+            value = static_cast<double>(std::bit_cast<int32_t>(result));
             isInteger = true;
-        } else if (c!= '.') {
-            // if the first thing we see is not a digit, or a decimal, 
-            // then we're not parsing a number, so just return false, 
-            // although we might have already consumed the '+' or '-' sign
-            return false;
+            s.fStart = p;
+            return true;
         }
 
-        // Check to see if there's a fractional part to be parsed
-        if ((startAt < endAt) && (*startAt == '.'))
-        {
-            isInteger = false;
-            hasFracPart = true;
-            startAt++; // move past '.'
+        bool hasIntegerDigits = (p != digits);
+        bool hasFraction = false;
+        double result = static_cast<double>(integerPart);
 
-            fracBase = 1;
+        if (p < end && *p == '.') {
+            hasFraction = true;
+            ++p;
 
-            // Add the fraction portion without calling out to powd
-            while ((startAt < endAt) && PSCharClass::isDigit(*startAt)) {
-                fracPart = fracPart * 10 + static_cast<uint64_t>(*startAt - '0');
-                fracBase *= 10;
-                startAt++;
-            }
-            res += (static_cast<double>(fracPart) / static_cast<double>(fracBase));
+            double scale = 0.1;
 
-
-            // Parse optional exponent
-            // mostly we don't see this, so we won't bother trying
-            // to optimize it beyond using powd
-            if ((startAt < endAt) && (((*startAt == 'e') || (*startAt == 'E')) && PSCharClass::isDigit(startAt[1])))
-            {
-                // exponent parts
-                uint64_t expPart = 0;
-                double expSign = 1.0;
-
-                startAt++; // skip 'E'
-                if (*startAt == '+') {
-                    startAt++;
-                }
-                else if (*startAt == '-') {
-                    expSign = -1.0;
-                    startAt++;
-                }
-
-
-                if (PSCharClass::isDigit(*startAt)) {
-                    s.fStart = startAt;
-                    read_u64(s, expPart);
-                    startAt = s.fStart;
-                    res = res * std::pow(10, double(expSign * double(expPart)));
-                }
+            while (p < end && *p >= '0' && *p <= '9') {
+                result += static_cast<double>(*p++ - '0') * scale;
+                scale *= 0.1;
             }
         }
 
-        // If we don't have an integer or fractional
-        // part, then just return false
-        if (!hasIntPart && !hasFracPart)
-            return false;
+        if (!hasIntegerDigits && !hasFraction) return false;
 
-        s.fStart = startAt;
+        bool hasExponent = false;
 
-        value = (!isNegative) ? res : -res;
+        if (p < end && (*p == 'e' || *p == 'E')) {
+            hasExponent = true;
+            ++p;
+
+            bool negativeExponent = false;
+
+            if (p < end && (*p == '+' || *p == '-')) {
+                negativeExponent = (*p == '-');
+                ++p;
+            }
+
+            if (p == end || *p < '0' || *p > '9') return false;
+
+            int exponent = 0;
+
+            while (p < end && *p >= '0' && *p <= '9') {
+                int digit = *p++ - '0';
+                if (exponent > (10000 - digit) / 10) return false;
+                exponent = exponent * 10 + digit;
+            }
+
+            result *= std::pow(10.0, negativeExponent ? -exponent : exponent);
+        }
+
+        if (p != end) return false;
+
+        if (negative) result = -result;
+        if (!std::isfinite(result)) return false;
+
+        isInteger = !hasFraction && !hasExponent && result >= INT32_MIN && result <= INT32_MAX;
+        value = result;
+        s.fStart = p;
 
         return true;
     }
+    */
 }

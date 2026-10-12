@@ -1,0 +1,35 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 03_gf256_division.ps ===) Log
+(QR Reed-Solomon-like GF(256) multiply: shifting and conditional reduction) Log
+/gmul { % a b -- product
+  /b exch def /a exch def /v 0 def /steps 0 def
+  { /steps steps 1 add def
+    steps 9 gt { (WATCHDOG gf multiply) Log /Failures Failures 1 add def exit } if
+    b 0 eq { exit } if
+    b 1 and 0 ne { /v v a xor def } if
+    /a a 1 bitshift def
+    a 256 and 0 ne { /a a 285 xor def } if
+    /b b -1 bitshift def
+  } loop v
+} def
+(try 87*131) Log 87 131 gmul 49 (GF product) Assert
+(try identity) Log 255 1 gmul 255 (multiply by one) Assert
+(try zero) Log 123 0 gmul 0 (multiply by zero) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

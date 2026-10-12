@@ -3,12 +3,34 @@
 #include "pscore.h"
 #include "ps_type_font.h"
 
-namespace waavs {
+#include <iomanip>
+#include <limits>
+#include <sstream>
+#include <string>
+
+
+namespace waavs 
+{
+
+    static void writeReal(double value, std::ostream& os)
+    {
+        std::ostringstream ss;
+        ss.copyfmt(os);
+        ss << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+
+        std::string text = ss.str();
+
+        if (text.find_first_of(".eE") == std::string::npos)
+            text += ".0";
+
+        os << text;
+    }
+
     static void writeObjectShallow(const PSObject& obj, std::ostream& os = std::cout)
     {
         switch (obj.type) {
         case PSObjectType::Int:      os << obj.asInt(); break;
-        case PSObjectType::Real:     os << obj.asReal(); break;
+        case PSObjectType::Real:     writeReal(obj.asReal(), os); break;
         case PSObjectType::Bool:     os << (obj.asBool() ? "true" : "false"); break;
 
         case PSObjectType::Name:
@@ -35,8 +57,8 @@ namespace waavs {
                                  break;
         case PSObjectType::FontFace:
             os << "--FONTFACE--"; break;
-        case PSObjectType::Font:
-            os << "--FONT--"; break;
+        //case PSObjectType::Font:
+        //    os << "--FONT--"; break;
         case PSObjectType::File:
             os << "--FILE--"; break;
         default:
@@ -78,12 +100,12 @@ namespace waavs {
             return;
         }
 
-        os << "<<";
+        os << "<<\n";
         bool first = true;
 
         dict->forEach([&](const PSObject& key, const PSObject& val) {
             if (!first)
-                os << " ";
+                os << "\n ";
 
             first = false;
 
@@ -94,7 +116,7 @@ namespace waavs {
             return true;
             });
 
-        os << ">>";
+        os << "\n>>";
     }
 
     static void writeMatrix(std::ostream& os, const PSMatrix& m) {
@@ -120,7 +142,7 @@ namespace waavs {
 
             os << "(";
             if (strPs.length() == 0) {
-                os << strPs.capacity();
+                os << strPs.length();
             }
             else {
                 os << strPs.toString();
@@ -157,7 +179,7 @@ namespace waavs {
             break;
         case PSObjectType::FontFace:
             os << "--FONTFACE:" << std::endl;
-            writeObjectDeep(PSObject::fromDictionary(obj.asFontFace()->getDictionary()), os);
+            writeObjectDeep(PSObject::fromDictionary(obj.asDictionary()), os);
             break;
 
         case PSObjectType::Path:

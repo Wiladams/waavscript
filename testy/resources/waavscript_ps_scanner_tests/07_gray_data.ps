@@ -1,0 +1,27 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% Verify gray operands without relying on graphics implementation.
+/g { /_g exch def /p { _g setgray } def } bind def
+% Setgray changes currentgray and must be stable across gsave/grestore.
+0.9 setgray currentgray 0.9 eq (setgray 0.9) check
+0.5 setgray currentgray 0.5 eq (setgray 0.5) check
+0 setgray currentgray 0 eq (setgray 0) check
+1 setgray currentgray 1 eq (setgray 1) check
+0.8 g p currentgray 0.8 eq (indirect gray helper 0.8) check
+0.3 g p currentgray 0.3 eq (indirect gray helper 0.3) check
+0.7 setgray gsave 0 setgray grestore currentgray 0.7 eq (restore gray) check
+summary

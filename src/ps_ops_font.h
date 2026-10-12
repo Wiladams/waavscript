@@ -1,264 +1,385 @@
+// ps_ops_font.h
 #pragma once
 
 #include "pscore.h"
 #include "psvm.h"
-#include "fontmonger.h"
-
+#include "ps_object_helpers.h"
+#include "ps_type_font.h"
+#include "ps_type_type1fontresource.h"
 
 namespace waavs {
 
-
-    inline bool op_findfont(PSVirtualMachine& vm) 
+    inline bool op_findfont(PSVirtualMachine& vm)
     {
-        auto* g = vm.graphics();
         auto& s = vm.opStack();
 
-        PSObject param;
-        if (!s.pop(param))
-            return vm.error("op_findfont: stackunderflow");
+        PSObject nameObj;
+        if (!s.pop(nameObj))
+            return vm.error("findfont: stackunderflow");
 
-        // There are two cases for findfont:
-        // 1. A name is on the stack (e.g., "Helvetica")
-        // 2. A dictionary is on the stack (e.g., a font dictionary)
-
-        // For now, we'll only deal with the first case
-        if (!param.isName() && !param.isString())
-            return vm.error("op_findfont: typecheck - expected name for findfont");
-
-        if (param.isString())
-        {
-            auto psStr = param.asString();
-            const uint8_t* data = psStr.data();
-            size_t len = psStr.length();
-            OctetCursor oc(data, len);
-
-            param = PSObject::fromName(oc);
+        if (nameObj.isString()) {
+            const PSString& str = nameObj.asString();
+            nameObj = PSObject::fromName(PSName(reinterpret_cast<const char*>(str.data()), str.length()));
         }
 
-        PSName faceName = param.asName();
+        if (!nameObj.isName())
+            return vm.error("findfont: typecheck");
 
-        // First, lookup the name in the FontMap to see if we have
-        // a mapping of the name to a system postscript name
-        // a) get the FontMap dictionary from the system
+        // DIAGNOSTIC
+        {
+            printf("findfont: ");
+            writeObjectDeep(nameObj);
+            printf("\n");
+        }
+
+        PSName fontName = nameObj.asName();
+
+        // Honor FontMap aliases if present.
         PSObject fontMapObj;
-        if (vm.dictionaryStack.load("FontMap", fontMapObj))
-        {
-            // try to lookup the systemname
-            PSObject systemNameObj;
-            if (fontMapObj.asDictionary()->get(param.asName(), systemNameObj))
-            {
-                if (systemNameObj.isName())
-                    faceName = systemNameObj.asName();
-            }
+        if (vm.dictionaryStack.load("FontMap", fontMapObj) && fontMapObj.isDictionary()) {
+            PSObject mappedObj;
+            if (fontMapObj.asDictionary()->get(fontName, mappedObj) && mappedObj.isName())
+                fontName = mappedObj.asName();
         }
-
-        // Query FontMonger for the fonthandle associated with the name
-        PSObject fontFace;
-        if (!g->findFont(vm, faceName, fontFace))
-            return vm.error("failed to find font", faceName.c_str());
-
-        // Push the font object onto the stack
-        return s.push(fontFace);
-    }
-
-    inline bool op_scalefont(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-
-        if (s.empty())
-            return vm.error("op_scalefont: stackunderflow;");
-
-        PSObject sizeObj;
-        PSObject faceObj;
-
-        if (!s.pop(sizeObj) || !sizeObj.isNumber())
-            return vm.error("typecheck: expected number");
-
-        if (!s.pop(faceObj) || !faceObj.isFontFace())
-            return vm.error("typecheck: expected font face");
-
-        double size = sizeObj.asReal();
-        auto face = faceObj.asFontFace();
-
 
         PSObject fontObj;
-        if (!FontMonger::createFont(faceObj, size, fontObj))
-            return vm.error("op_scalefont: createFont failed");
+        if (!vm.findResource(fontName, PSName("Font"), fontObj))
+            return vm.error("findfont: undefined");
+
+        if (!fontObj.isDictionary())
+            return vm.error("findfont: typecheck, resource is not a dictionary");
 
         return s.push(fontObj);
     }
 
 
-    inline bool op_makefont(PSVirtualMachine& vm) {
+    inline bool op_scalefont(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        PSObject matrix, font;
-        if (!s.pop(matrix) || !matrix.isArray())
-            return vm.error("typecheck: expected array (matrix)");
-        if (!s.pop(font) || !font.isFont())
-            return vm.error("typecheck: expected font");
 
-        // Stub: Return a transformed font object
-        return vm.error("invalidfont: makefont not implemented");
+        PSObject scaleObj;
+        PSObject fontObj;
+
+        if (!s.pop(scaleObj))
+            return vm.error("scalefont: stackunderflow");
+
+        if (!scaleObj.isNumber())
+            return vm.error("scalefont: typecheck");
+
+        if (!s.pop(fontObj))
+            return vm.error("scalefont: stackunderflow");
+
+        PSFontHandle source = getNativeFont(fontObj);
+
+        if (!source || !source->valid())
+            return vm.error("scalefont: invalidfont");
+
+        const double scale = scaleObj.asReal();
+
+        PSMatrix matrix = source->matrix();
+        matrix.scale(scale, scale);
+
+        PSFontHandle font = PSFont::create(source->resource, source, matrix);
+        return s.push(PSObject::fromDictionary(std::move(font)));
     }
 
-    inline bool op_setfont(PSVirtualMachine& vm) {
-        auto& ostk = vm.opStack();
-        if (ostk.empty())
-            return vm.error("op_setfont: stackunderflow;");
+
+    inline bool op_makefont(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        PSObject matrixObj;
+        PSObject fontObj;
+
+        if (!s.pop(matrixObj))
+            return vm.error("makefont: stackunderflow");
+
+        PSMatrix transform;
+        if (!extractMatrix(matrixObj, transform))
+            return vm.error("makefont: typecheck");
+
+        if (!s.pop(fontObj))
+            return vm.error("makefont: stackunderflow");
+
+        PSFontHandle fontHand = getNativeFont(fontObj);
+
+        if (!fontHand || !fontHand->valid())
+            return vm.error("makefont: invalid font object");
+
+        PSMatrix matrix = fontHand->matrix();
+        matrix.preMultiply(transform);
+
+        PSFontHandle newFont = PSFont::create(fontHand->resource, fontHand,  matrix);
+        return s.push(PSObject::fromDictionary(std::move(newFont )));
+    }
+
+
+    inline bool op_setfont(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
 
         PSObject fontObj;
-        if (!ostk.pop(fontObj) || !fontObj.isFont())
-            return vm.error("op_setfont: typecheck; expected font");
+        if (!s.pop(fontObj))
+            return vm.error("setfont: stackunderflow");
 
-        vm.graphics()->setFont(fontObj.asFont());
+        PSFontHandle font = getNativeFont(fontObj);
+
+        if (!font || !font->valid())
+            return vm.error("setfont: invalidfont");
+
+        vm.graphics()->setFont(font);
 
         return true;
     }
 
-    // fontname size selectfont -- font
-    // fontname matrix selectfont -- font
+
+    inline bool op_currentfont(PSVirtualMachine& vm)
+    {
+        PSFontHandle font = vm.graphics()->currentFont();
+
+        if (!font || !font->valid())
+            return vm.error("currentfont: invalidfont");
+
+        return vm.opStack().push(PSObject::fromDictionary(font));
+    }
+
+
+    inline bool op_definefont(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        PSObject fontDictObj;
+        PSObject nameObj;
+
+        if (!s.pop(fontDictObj))
+            return vm.error("definefont: stackunderflow");
+
+        if (!fontDictObj.isDictionary())
+            return vm.error("definefont: typecheck (fontDictObj)");
+
+        if (!s.pop(nameObj))
+            return vm.error("definefont: stackunderflow");
+
+        if (!nameObj.isName())
+            return vm.error("definefont: typecheck (nameObj)");
+
+        PSDictionaryHandle fontDict = fontDictObj.asDictionary();
+
+        PSObject fontTypeObj;
+        if (!fontDict->get(PSName("FontType"), fontTypeObj) || !fontTypeObj.isIntegralNumber())
+            return vm.error("definefont: invalidfont");
+
+        std::shared_ptr<PSFontResource> resource;
+
+        switch (fontTypeObj.asInt()) {
+        case 1:
+            resource = PSType1FontResource::create(fontDict);
+            break;
+
+        default:
+            return vm.error("definefont: invalidfont");
+        }
+
+        if (!resource)
+            return vm.error("definefont: invalidfont");
+
+        auto newFont = PSFont::create(std::move(resource), fontDict);
+        PSObject newFontObj = PSObject::fromDictionary(newFont);
+
+        if (!vm.defineResource(nameObj.asName(), PSName("Font"), newFontObj))
+            return vm.error("definefont: invalidfont");
+
+        return s.push(newFontObj);
+    }
+
+
     inline bool op_selectfont(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        if (ostk.size() < 2)
-            return vm.error("op_selectfont: stackunderflow;");
+        auto& s = vm.opStack();
 
-        PSObject sizeObj;
-        PSObject fontNameObj;
+        PSObject scaleObj;
+        PSObject nameObj;
 
-        if (!ostk.pop(sizeObj) || !sizeObj.isNumber())
-            return vm.error("op_selectfont: typecheck; expected number for size");
+        if (!s.pop(scaleObj))
+            return vm.error("selectfont: stackunderflow");
 
-        if (!ostk.pop(fontNameObj) || !fontNameObj.isName())
-            return vm.error("op_selectfont: typecheck; expected font name");
+        if (!s.pop(nameObj))
+            return vm.error("selectfont: stackunderflow");
 
-        // try to find font by name
-        ostk.push(fontNameObj); // push name back for findfont
+        if (!nameObj.isName() && !nameObj.isString())
+            return vm.error("selectfont: typecheck");
+
+        if (!scaleObj.isNumber() && !scaleObj.isArray() && !scaleObj.isMatrix())
+            return vm.error("selectfont: typecheck");
+
+        if (!s.push(nameObj))
+            return false;
+
         if (!op_findfont(vm))
-            return vm.error("op_selectfont: font not found - ", fontNameObj.asName().c_str());
+            return false;
 
-        PSObject faceObj;
-        ostk.pop(faceObj);
+        if (!s.push(scaleObj))
+            return false;
 
-        // Now do scale font
-        PSObject fontObj;
-        if (!FontMonger::createFont(faceObj, sizeObj.asReal(), fontObj))
-            return vm.error("op_selectfont: createFont failed");
+        if (scaleObj.isNumber()) {
+            if (!op_scalefont(vm))
+                return false;
+        }
+        else {
+            if (!op_makefont(vm))
+                return false;
+        }
 
-        // and last, do setfont
-        vm.graphics()->setFont(fontObj.asFont());
-
-        return true;
+        return op_setfont(vm);
     }
 
-    inline bool op_currentfont(PSVirtualMachine& vm) {
+
+    inline bool op_undefinefont(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        s.push(PSObject::fromFont(vm.graphics()->currentFont()));
-        return true;
-    }
 
-    inline bool op_definefont(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        PSObject name, fontDict;
-        if (!s.pop(fontDict) || !fontDict.isDictionary())
-            return vm.error("typecheck: expected dictionary");
-        if (!s.pop(name) || !name.isName())
-            return vm.error("typecheck: expected name");
+        PSObject nameObj;
+        if (!s.pop(nameObj))
+            return vm.error("undefinefont: stackunderflow");
 
-        // Stub: add to FontDirectory
-        // fontDirectory().define(name.asName(), PSObject::fromFont(PSFont::create(fontDict)));
+        if (!nameObj.isName())
+            return vm.error("undefinefont: typecheck");
 
-        return vm.error("definefont not implemented");
-    }
-
-    inline bool op_undefinefont(PSVirtualMachine& vm) {
-        auto& s = vm.opStack();
-        PSObject name;
-        if (!s.pop(name) || !name.isName())
-            return vm.error("typecheck: expected name");
-
-        // Stub: remove from FontDirectory
+        // Wire this to the general resource removal API when available.
         return vm.error("undefinefont not implemented");
     }
 
+
     inline bool op_stringwidth(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
+        auto& s = vm.opStack();
         auto* grph = vm.graphics();
 
-        if (ostk.empty())
+        if (s.empty())
             return vm.error("op_stringwidth: stackunderflow");
 
         PSObject stringObj;
-        if (!ostk.pop(stringObj) || !stringObj.isString())
-            return vm.error("op_stringwidth: typecheck");
+        if (!s.pop(stringObj) || !stringObj.isString())
+            return vm.error("op_stringwidth: typecheck; expected string");
 
-        auto fontHandle = grph->currentFont();
-        if (!fontHandle)
-            return vm.error("op_stringwidth: invalidfont");
+        if (!grph)
+            return vm.error("op_stringwidth: no graphics context");
 
-        double wx = 0.0;
-        double wy = 0.0;
+        PSFontHandle font = grph->currentFont();
+        if (!font || !font->valid())
+            return vm.error("op_stringwidth: no current font");
 
-        if (!grph->getStringWidth(fontHandle, stringObj.asString(), wx, wy))
-            return vm.error("op_stringwidth: invalidfont");
+        const PSString& str = stringObj.asString();
+        const PSMatrix fontMatrix = font->matrix();
 
-        if (!ostk.pushReal(wx))
-            return false;
+        double widthX = 0.0;
+        double widthY = 0.0;
 
-        return ostk.pushReal(wy);
+        for (size_t i = 0; i < str.length(); ++i)
+        {
+            PSResolvedGlyph glyph;
+
+            if (!grph->resolveGlyph(str.data()[i], glyph))
+                return vm.error("op_stringwidth: unable to resolve glyph");
+
+            double dx = glyph.metrics.advanceX;
+            double dy = glyph.metrics.advanceY;
+
+            fontMatrix.dtransform(dx, dy, dx, dy);
+
+            widthX += dx;
+            widthY += dy;
+        }
+
+        s.pushReal(widthX);
+        s.pushReal(widthY);
+
+        return true;
     }
 
-    bool op_charpath(PSVirtualMachine& vm) 
+
+    inline bool op_charpath(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
+        auto& s = vm.opStack();
         auto* grph = vm.graphics();
-        PSMatrix ctm = grph->getCTM();
-        auto& currentPath = grph->currentPath();
 
-        if (ostk.size() < 2)
-            return vm.error("op_charpath: stackunderflow;");
+        if (s.size() < 2)
+            return vm.error("op_charpath: stackunderflow");
 
-        // Ensure current font is set
-        auto fontHandle = grph->currentFont(); 
-        if (fontHandle == nullptr)
-            return vm.error("op_charpath: no current font set");
+        PSObject strokeObj;
+        PSObject stringObj;
 
-        PSObject posAsPrintedObj;
-        PSObject strObj;
+        if (!s.pop(strokeObj) || !s.pop(stringObj))
+            return vm.error("op_charpath: stackunderflow");
 
-        ostk.pop(posAsPrintedObj);
-        ostk.pop(strObj);
+        if (!stringObj.isString())
+            return vm.error("op_charpath: typecheck; expected string");
 
-        if (!posAsPrintedObj.isBool())
-            return vm.error("op_charpath: typecheck; expected boolean for position as printed");
+        if (!strokeObj.isBool())
+            return vm.error("op_charpath: typecheck; expected boolean");
 
-        if (!strObj.isString())
-            return vm.error("op_charpath: typecheck; expected string for charpath");
+        if (!grph)
+            return vm.error("op_charpath: no graphics context");
 
+        PSFontHandle font = grph->currentFont();
+        if (!font || !font->valid())
+            return vm.error("op_charpath: no current font");
 
-        bool success = grph->getCharPath(fontHandle, ctm, strObj.asString(), currentPath);
+        const PSString& str = stringObj.asString();
+        const PSMatrix& ctm = grph->getCTM();
+        const PSMatrix fontMatrix = font->matrix();
+        PSPath& currentPath = grph->currentPath();
 
-        return success;
+        double x;
+        double y;
+
+        if (!currentPath.getCurrentPoint(ctm, x, y))
+            return vm.error("op_charpath: nocurrentpoint");
+
+        // For ordinary outline fonts the boolean does not change the glyph
+        // outline geometry we append here. Keep it available for font types
+        // whose charpath realization may eventually depend on it.
+        const bool stroke = strokeObj.asBool();
+        (void)stroke;
+
+        for (size_t i = 0; i < str.length(); ++i)
+        {
+            PSResolvedGlyph glyph;
+
+            if (!grph->resolveGlyph(str.data()[i], glyph))
+                return vm.error("op_charpath: unable to resolve glyph");
+
+            if (font->resource->glyphKind(glyph.glyphId) != PSGlyphKind::Outline)
+                return vm.error("op_charpath: non-outline glyph");
+
+            if (!glyph.path)
+                return vm.error("op_charpath: missing glyph path");
+
+            PSMatrix transform = ctm;
+            transform.translate(x, y);
+            transform.preMultiply(fontMatrix);
+
+            if (!currentPath.appendPath(*glyph.path, transform))
+                return vm.error("op_charpath: appendPath failed");
+
+            double dx = glyph.metrics.advanceX;
+            double dy = glyph.metrics.advanceY;
+
+            fontMatrix.dtransform(dx, dy, dx, dy);
+
+            x += dx;
+            y += dy;
+        }
+
+        if (!currentPath.setCurrentPoint(ctm, x, y))
+            return vm.error("op_charpath: failed to update current point");
+
+        return true;
     }
 
-    //
-    // BL_API BLResult BL_CDECL blFontGetGlyphOutlines(const BLFontCore* self, BLGlyphId glyphId, const BLMatrix2D* userTransform, BLPathCore* out, BLPathSinkFunc sink, void* userData) BL_NOEXCEPT_C;
-    // BL_API BLResult BL_CDECL blFontGetGlyphRunOutlines(const BLFontCore* self, const BLGlyphRun* glyphRun, const BLMatrix2D* userTransform, BLPathCore* out, BLPathSinkFunc sink, void* userData) BL_NOEXCEPT_C;
-    //
-    // BL_INLINE_NODEBUG BLResult getGlyphOutlines(BLGlyphId glyphId, const BLMatrix2D& userTransform, BLPathCore& out, BLPathSinkFunc sink = nullptr, void* userData = nullptr) const noexcept 
-    // {
-    //   return blFontGetGlyphOutlines(this, glyphId, &userTransform, &out, sink, userData);
-    // }
 
-    // BL_INLINE_NODEBUG BLResult getGlyphRunOutlines(const BLGlyphRun& glyphRun, BLPathCore& out, BLPathSinkFunc sink = nullptr, void* userData = nullptr) const noexcept 
-    // {
-    //   return blFontGetGlyphRunOutlines(this, &glyphRun, nullptr, &out, sink, userData);
-    // }
-    // 
-    
-    // --- Font Operator Registration ---
-
-    inline const PSOperatorFuncMap& getFontOps() {
+    inline const PSOperatorFuncMap& getFontOps()
+    {
         static const PSOperatorFuncMap table = {
             { "findfont",     op_findfont },
             { "scalefont",    op_scalefont },
@@ -268,10 +389,11 @@ namespace waavs {
             { "definefont",   op_definefont },
             { "undefinefont", op_undefinefont },
             { "selectfont",   op_selectfont },
-            { "stringwidth",  op_stringwidth},
+            { "stringwidth",  op_stringwidth },
             { "charpath",     op_charpath }
         };
+
         return table;
     }
-}
 
+} // namespace waavs

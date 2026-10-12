@@ -5,32 +5,13 @@
 
 #include "psvmfactory.h"
 #include "b2dcontext.h"
-
+#include "fontmonger.h"
 
 
 using namespace waavs;
 
 std::unique_ptr<PSVirtualMachine> vm;
 
-// Scan all the fonts in the specified directory, making them
-// known to the FontMonger.
-//
-size_t loadFontsInDirectory(PSVirtualMachine *vm, const char* dirpath) {
-    namespace fs = std::filesystem;
-    size_t count = 0;
-    for (const auto& entry : fs::directory_iterator(dirpath)) {
-        if (!entry.is_regular_file()) continue;
-
-        auto ext = entry.path().extension().string();
-        if (ext == ".ttf" || ext == ".otf" || ext == ".ttc") {
-            PSObject pathObj = PSObject::fromString(entry.path().string().c_str());
-            vm->opStack().push(pathObj);
-            if (FontMonger::instance()->loadFontResource(*vm))
-                ++count;
-        }
-    }
-    return count;
-}
 
 static void interactiveLoop()
 {

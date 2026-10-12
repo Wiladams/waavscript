@@ -1,0 +1,228 @@
+%!PS-Adobe-3.0
+%%Title: Clip vs CSG regression panel
+%%Pages: 1
+%%BoundingBox: 0 0 612 792
+%%EndComments
+
+% Requires WaavScript extensions:
+%   currentpath
+%   setpath
+%   pathand
+
+/PW 252 def
+/PH 250 def
+
+% ------------------------------------------------------------
+% Basic panel frame
+
+/panelframe { % (title) (subtitle) --
+    /subtitle exch def
+    /title exch def
+
+    0.82 setgray
+    1 setlinewidth
+    newpath
+    0 0 moveto
+    PW 0 lineto
+    PW PH lineto
+    0 PH lineto
+    closepath
+    stroke
+
+    0 setgray
+    /Helvetica-Bold findfont 15 scalefont setfont
+    14 PH 22 sub moveto
+    title show
+
+    /Helvetica findfont 9 scalefont setfont
+    14 PH 36 sub moveto
+    subtitle show
+} def
+
+/panelnote { % (text) --
+    /txt exch def
+    0 setgray
+    /Helvetica-Oblique findfont 10 scalefont setfont
+    14 14 moveto
+    txt show
+} def
+
+% ------------------------------------------------------------
+% Shared geometry for the fill examples
+
+/appendDemoTriangle {
+    newpath
+    28 34 moveto
+    210 34 lineto
+    158 146 lineto
+    closepath
+} def
+
+/appendDemoRect {
+    newpath
+    82 34 moveto
+    226 34 lineto
+    226 128 lineto
+    82 128 lineto
+    closepath
+} def
+
+/drawDemoOutlines {
+    0.75 setgray
+    0.8 setlinewidth
+    appendDemoTriangle stroke
+    appendDemoRect stroke
+} def
+
+% ------------------------------------------------------------
+% Shared text content for the text examples
+
+/appendLogoPath {
+    /Helvetica-Bold findfont 60 scalefont setfont
+    20 146 moveto
+    (WAA) false charpath
+
+    /Helvetica-Bold findfont 28 scalefont setfont
+    24 102 moveto
+    (VENTURES) false charpath
+} def
+
+/showParagraphBlock {
+    /Times-Roman findfont 12 scalefont setfont
+    0 setgray
+
+    16 170 moveto (Lorem ipsum dolor sit amet,) show
+    16 156 moveto (consectetur adipiscing elit,) show
+    16 142 moveto (sed do eiusmod tempor incididunt) show
+    16 128 moveto (ut labore et dolore magna aliqua.) show
+    16 114 moveto (Ut enim ad minim veniam, quis) show
+    16 100 moveto (nostrud exercitation ullamco) show
+    16 86 moveto  (laboris nisi ut aliquip ex ea) show
+    16 72 moveto  (commodo consequat.) show
+} def
+
+/appendParagraphPath {
+    /Times-Roman findfont 12 scalefont setfont
+
+    16 170 moveto (Lorem ipsum dolor sit amet,) false charpath
+    16 156 moveto (consectetur adipiscing elit,) false charpath
+    16 142 moveto (sed do eiusmod tempor incididunt) false charpath
+    16 128 moveto (ut labore et dolore magna aliqua.) false charpath
+    16 114 moveto (Ut enim ad minim veniam, quis) false charpath
+    16 100 moveto (nostrud exercitation ullamco) false charpath
+    16 86 moveto  (laboris nisi ut aliquip ex ea) false charpath
+    16 72 moveto  (commodo consequat.) false charpath
+} def
+
+/drawLogoOutline {
+    0.78 setgray
+    0.8 setlinewidth
+    appendLogoPath stroke
+} def
+
+% ------------------------------------------------------------
+% Panels
+
+/DrawClipFillPanel { % x y --
+    gsave
+        translate
+
+        (POSTSCRIPT CLIP) (triangle clip applied to a filled rectangle) panelframe
+
+        gsave
+            appendDemoTriangle clip
+            0.20 0.45 0.85 setrgbcolor
+            appendDemoRect fill
+        grestore
+
+        drawDemoOutlines
+        (fill result comes from the graphics-state clippath) panelnote
+    grestore
+} def
+
+/DrawCSGFillPanel { % x y --
+    gsave
+        translate
+
+        (CSG / PATHAND) (triangle AND rectangle, then fill the result) panelframe
+
+        appendDemoTriangle
+        currentpath /tri exch def
+
+        appendDemoRect
+        currentpath /box exch def
+
+        tri box pathand setpath
+        0.20 0.45 0.85 setrgbcolor
+        fill
+
+        drawDemoOutlines
+        (same visible result, but computed as new geometry) panelnote
+    grestore
+} def
+
+/DrawClipTextPanel { % x y --
+    gsave
+        translate
+
+        (POSTSCRIPT CLIP) (logo charpath as clip, paragraph drawn with show) panelframe
+
+        gsave
+            newpath
+            appendLogoPath
+            clip
+
+            0 setgray
+            showParagraphBlock
+        grestore
+
+        drawLogoOutline
+        (show is clipped by the active PostScript clippath) panelnote
+    grestore
+} def
+
+/DrawCSGTextPanel { % x y --
+    gsave
+        translate
+
+        (CSG / PATHAND) (logo charpath AND paragraph charpaths, then fill) panelframe
+
+        newpath
+        appendLogoPath
+        currentpath /logoPath exch def
+
+        newpath
+        appendParagraphPath
+        currentpath /paraPath exch def
+
+        logoPath paraPath pathand setpath
+        0 setgray
+        fill
+
+        drawLogoOutline
+        (paragraph geometry is masked by the logo geometry) panelnote
+    grestore
+} def
+
+% ------------------------------------------------------------
+% Page heading
+
+/Helvetica-Bold findfont 24 scalefont setfont
+36 760 moveto
+(Clipping Comparison: PostScript Clippath vs 2D CSG) show
+
+/Helvetica findfont 12 scalefont setfont
+36 740 moveto
+(Top row: filled geometry.  Bottom row: text geometry.  Left uses clip; right uses pathand.) show
+
+% ------------------------------------------------------------
+% Layout
+
+36 430 DrawClipFillPanel
+324 430 DrawCSGFillPanel
+
+36 120 DrawClipTextPanel
+324 120 DrawCSGTextPanel
+
+showpage
+%%EOF

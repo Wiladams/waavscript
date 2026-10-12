@@ -1,0 +1,174 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript Clipping A/B Benchmark
+%%BoundingBox: 0 0 612 792
+%%Pages: 1
+%%EndComments
+
+% WaavScript extension required:
+%   bool setclippingenabled -
+% This operator should forward to PSGraphicsContext::setClippingEnabled().
+% It must NOT reinitialize graphics or clear the canvas.
+% realtime is expected to return milliseconds.
+
+/setclippingenabled where { pop } {
+  (ERROR: register bool setclippingenabled before running this test.) =
+  /setclippingenabled load pop
+} ifelse
+
+/iterations 5 def  % Increase to 10-20 for longer / more stable timings.
+/panelW 250 def
+/panelH 248 def
+
+/rectpath { % x y w h -> -
+  /rh exch def /rw exch def /ry exch def /rx exch def
+  newpath rx ry moveto rw 0 rlineto 0 rh rlineto rw neg 0 rlineto closepath
+} bind def
+
+/scene { % Draw one 250 x 248 landscape; no clip operators.
+  % Warm off-white background.
+  0.97 setgray 0 0 panelW panelH rectpath fill
+  % Sky.
+  0.89 setgray 0 115 panelW 133 rectpath fill
+
+  % Sun and concentric halos.
+  0.98 setgray newpath 183 179 39 0 360 arc fill
+  0.79 setgray 1.2 setlinewidth newpath 183 179 52 0 360 arc stroke
+  0.86 setgray 1 setlinewidth newpath 183 179 61 0 360 arc stroke
+
+  % Distant mountains, with curved profiles.
+  0.74 setgray newpath
+  0 105 moveto 32 166 60 180 100 126 curveto
+  126 179 170 175 199 115 curveto
+  220 148 243 150 250 130 curveto
+  250 0 lineto 0 0 lineto closepath fill
+
+  0.56 setgray newpath
+  0 80 moveto 44 148 79 142 119 103 curveto
+  164 154 197 144 250 89 curveto
+  250 0 lineto 0 0 lineto closepath fill
+
+  % Foreground river valley.
+  0.27 setgray newpath
+  0 53 moveto 52 79 96 40 143 51 curveto
+  186 61 223 45 250 59 curveto
+  250 0 lineto 0 0 lineto closepath fill
+
+  % The stream is a closed, curved white ribbon.
+  0.94 setgray newpath
+  111 0 moveto 125 43 118 49 143 76 curveto
+  157 98 177 111 183 130 curveto
+  171 107 148 99 131 80 curveto
+  108 54 100 29 92 0 curveto closepath fill
+
+  % Curving wind lines; mostly thin strokes.
+  0.40 setgray 0.55 setlinewidth
+  0 1 10 {
+    /i exch def
+    newpath
+    6 i 12 mul add 160 moveto
+    49 i 6 mul add 191 112 i 3 mul add 141 239 160 curveto
+    stroke
+  } for
+
+  % Grasses in the foreground, including tiny leaf shapes.
+  0.15 setgray
+  0 1 18 {
+    /i exch def
+    /gx 8 i 13 mul add def
+    /gy 15 i 7 mul 19 mod add def
+    newpath gx gy moveto gx 9 add gy 29 add gx 14 add gy 47 add gx 7 add gy 57 add curveto
+    0.65 setlinewidth stroke
+    newpath gx 5 add gy 20 add moveto
+    gx 18 add gy 28 add gx 21 add gy 39 add gx 13 add gy 42 add curveto
+    gx 8 add gy 29 add gx 4 add gy 25 add gx 5 add gy 20 add curveto fill
+  } for
+} bind def
+
+/aperture { % Irregular rounded clipping aperture, intentionally narrower than scene.
+  newpath
+  124 122 90 0 360 arc closepath
+  clip newpath
+} bind def
+
+% Benchmark one panel at local origin. The timer covers rendering,
+% including gsave/grestore and clip construction (when requested).
+%   x y useClip -> elapsedMs
+/renderPanel {
+  /useClip exch def /oy exch def /ox exch def
+  gsave ox oy translate
+  /started realtime def
+  1 1 iterations {
+    pop
+    gsave
+    useClip { aperture } if
+    scene
+    grestore
+  } for
+  /elapsed realtime started sub def
+  grestore
+  elapsed
+} bind def
+
+/labelFont /Helvetica findfont 10 scalefont def
+/titleFont /Helvetica-Bold findfont 13 scalefont def
+/smallFont /Helvetica findfont 9 scalefont def
+
+/label { % x y (text) -> -
+  /s exch def /y exch def /x exch def
+  0 setgray labelFont setfont x y moveto s show
+} bind def
+
+/timing { % x y elapsedMs -> -
+  /ms exch def /y exch def /x exch def
+  0 setgray labelFont setfont x y moveto
+  (Elapsed: ) show ms 32 string cvs show ( ms) show
+} bind def
+
+/panelBorder { % x y -> -
+  /py exch def /px exch def
+  0.2 setgray 0.9 setlinewidth
+  px py panelW panelH rectpath stroke
+} bind def
+
+% Page header / labels.
+0 setgray titleFont setfont 44 757 moveto (CLIPPING: RENDERING AND TIMING) show
+44 738 (Same scene, two renderer modes, repeated passes) label
+44 714 (LEFT: clipping disabled) label
+318 714 (RIGHT: clipping enabled) label
+44 692 (No explicit clip) label
+318 692 (No explicit clip) label
+44 366 (Circle clip operator (ignored)) label
+318 366 (Circle clip operator (applied)) label
+
+% Left side: runtime clipping disabled.
+false setclippingenabled
+44 433 false renderPanel /tTopLeft exch def
+44 107 true renderPanel /tBottomLeft exch def
+
+% Right side: runtime clipping enabled.
+true setclippingenabled
+318 433 false renderPanel /tTopRight exch def
+318 107 true renderPanel /tBottomRight exch def
+
+% Labels, frame, and times are intentionally outside the benchmark.
+44 433 panelBorder
+318 433 panelBorder
+44 107 panelBorder
+318 107 panelBorder
+44 418 tTopLeft timing
+318 418 tTopRight timing
+44 92 tBottomLeft timing
+318 92 tBottomRight timing
+
+% Print measurements as well, for automated benchmark captures.
+(BENCH iterations=) print iterations ==
+(top left off no-clip ms=) print tTopLeft ==
+(top right on no-clip ms=) print tTopRight ==
+(bottom left off clip-op ms=) print tBottomLeft ==
+(bottom right on clip-op ms=) print tBottomRight ==
+
+44 60 (Milliseconds include drawing, and clip construction where applicable.) label
+44 46 (Compare matching rows; text and borders are excluded from timings.) label
+
+showpage
+%%EOF

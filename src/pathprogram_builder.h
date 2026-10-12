@@ -29,16 +29,18 @@ namespace waavs
                 return false;
             }
 
+            if (op == OP_END) {
+                if (ip != prog.ops.size() || ap != prog.args.size())
+                    return false;
+                sink.onEnd();
+                return true;
+            }
+
             const float* args = prog.args.data() + ap;
             ap += arity;
 
-
             switch (op) 
             {
-            case OP_END:
-                sink.onEnd();
-                return true; // done
-
             case OP_MOVETO:
                 if (!sink.onMoveTo(args[0], args[1]))
                     return false;
@@ -75,7 +77,8 @@ namespace waavs
             }
         }
 
-        return true;
+        // A live path may not yet contain OP_END
+        return ap == prog.args.size(); 
     }
 
 
@@ -129,7 +132,7 @@ namespace waavs
             fEnded = true;
             return true;
         }
-
+        
         // Explicit end, same as finalize() but named like an opcode.
         bool end() noexcept { return finalize(); }
 
@@ -170,21 +173,20 @@ namespace waavs
 
         bool lineTo(float x, float y) noexcept
         {
-            if (!ensureNotEnded_()) return false;
-            if (!fHasCurrentPoint) return fail_(); // must have moveto first
+            if (!ensureNotEnded_() || !ensureSubpathOpen_()) return false;
 
             emitOp_(OP_LINETO);
             emit2_(x, y);
 
-            fCurX = x; fCurY = y;
+            fCurX = x;
+            fCurY = y;
             fSubpathOpen = true;
             return true;
         }
 
         bool quadTo(float x1, float y1, float x, float y) noexcept
         {
-            if (!ensureNotEnded_()) return false;
-            if (!fHasCurrentPoint) return fail_();
+            if (!ensureNotEnded_() || !ensureSubpathOpen_()) return false;
 
             emitOp_(OP_QUADTO);
             emit4_(x1, y1, x, y);
@@ -196,8 +198,7 @@ namespace waavs
 
         bool cubicTo(float x1, float y1, float x2, float y2, float x, float y) noexcept
         {
-            if (!ensureNotEnded_()) return false;
-            if (!fHasCurrentPoint) return fail_();
+            if (!ensureNotEnded_() || !ensureSubpathOpen_()) return false;
 
             emitOp_(OP_CUBICTO);
             emit6_(x1, y1, x2, y2, x, y);
@@ -216,8 +217,7 @@ namespace waavs
             float largeArcFlag, float sweepFlag,
             float x, float y) noexcept
         {
-            if (!ensureNotEnded_()) return false;
-            if (!fHasCurrentPoint) return fail_();
+            if (!ensureNotEnded_() || !ensureSubpathOpen_()) return false;
 
             emitOp_(OP_ARCTO);
             emit7_(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x, y);
@@ -230,14 +230,14 @@ namespace waavs
         bool close() noexcept
         {
             if (!ensureNotEnded_()) return false;
-            if (!fHasCurrentPoint) return fail_();
-            if (!fSubpathOpen)     return fail_(); // nothing to close
+
+            if (!fHasCurrentPoint || !fSubpathOpen)
+                return true;
 
             emitOp_(OP_CLOSE);
-            // no args
 
-            // Per SVG: closepath draws a segment back to start and sets current point to start.
-            fCurX = fStartX; fCurY = fStartY;
+            fCurX = fStartX;
+            fCurY = fStartY;
             fSubpathOpen = false;
             return true;
         }
@@ -262,6 +262,22 @@ namespace waavs
 
     private:
         // ---- internal helpers ----
+        bool ensureSubpathOpen_() noexcept
+        {
+            if (!fHasCurrentPoint)
+                return fail_();
+
+            if (!fSubpathOpen) {
+                emitOp_(OP_MOVETO);
+                emit2_(fCurX, fCurY);
+                fStartX = fCurX;
+                fStartY = fCurY;
+                fSubpathOpen = true;
+            }
+
+            return true;
+        }
+
         bool ensureNotEnded_() noexcept
         {
             if (!fEnded) return true;

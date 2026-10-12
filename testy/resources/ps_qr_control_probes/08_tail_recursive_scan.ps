@@ -1,0 +1,32 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 08_tail_recursive_scan.ps ===) Log
+(recursive lookahead and return; scheduler frame order) Log
+/data (HELLO123456789WORLD) def /calls 0 def /deepest 0 def
+/scan { % index -- end-index
+  /idx exch def
+  /calls calls 1 add def
+  idx deepest gt { /deepest idx def } if
+  idx data length ge { idx }
+  { idx 1 add scan } ifelse
+} def
+0 scan data length (returned terminal index) Assert
+calls 20 (number of recursive calls) Assert
+deepest 19 (maximum index) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

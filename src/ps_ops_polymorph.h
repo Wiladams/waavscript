@@ -3,6 +3,7 @@
 // NOTE:  Something else must include this, and have PSVirtualMachine defined.
 #include "pscore.h"
 #include "psvm.h"
+#include "ps_object_helpers.h"
 
 //======================================================================
 // The operators in here are polymorphic, meaning they can apply
@@ -13,73 +14,89 @@ namespace waavs
 {
 
 	// get: container index -> value
-    inline bool op_get(PSVirtualMachine& vm) {
+    inline bool op_get(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.size() < 2) return false;
+
+        if (s.size() < 2)
+            return vm.error("op_get: stackunderflow");
 
         PSObject index;
         PSObject container;
 
-        s.pop(index);
-        s.pop(container);
+        if (!s.pop(index) || !s.pop(container))
+            return vm.error("op_get: stackunderflow");
 
-        switch (container.type) {
+        switch (container.type)
+        {
         case PSObjectType::Array:
-            if (!index.isInt()) 
-                return false;
-            
-            {
-                auto arr = container.asArray();
-                int idx = index.asInt();
-                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->size())
-                    return false;
-                s.push((*arr)[idx]);
-                return true;
-            }
+        {
+            if (!index.isInt())
+                return vm.error("op_get: typecheck");
+
+            auto arr = container.asArray();
+            if (!arr)
+                return vm.error("op_get: invalidaccess");
+
+            int32_t idx = index.asInt();
+            if (idx < 0 || static_cast<size_t>(idx) >= arr->size())
+                return vm.error("op_get: rangecheck");
+
+            return s.push((*arr)[static_cast<size_t>(idx)]);
+        }
 
         case PSObjectType::String:
-            if (!index.isInt()) 
-                return false;
-            {
-                auto str = container.asString();
-                int idx = index.asInt();
-                if ( idx < 0 || static_cast<size_t>(idx) >= str.length())
-                    return false;
-                s.push(PSObject::fromInt(str.data()[idx]));
-                return true;
-            }
+        {
+            if (!index.isInt())
+                return vm.error("op_get: typecheck");
 
-        case PSObjectType::Dictionary:
-            if (index.type != PSObjectType::Name) return false;
-            {
-                auto dict = container.asDictionary();
-                PSObject result;
-                if (!dict || !dict->get(index.asName(), result)) return false;
-                s.push(result);
-                return true;
-            }
+            auto str = container.asString();
+            int32_t idx = index.asInt();
+
+            if (idx < 0 || static_cast<size_t>(idx) >= str.length())
+                return vm.error("op_get: rangecheck");
+
+            uint8_t value;
+            if (!str.get(static_cast<uint32_t>(idx), value))
+                return vm.error("op_get: rangecheck");
+
+            return s.pushInt(value);
+        }
 
         case PSObjectType::Matrix:
-            if (!index.isInt()) 
-                return vm.error("op_get:PSObjectType::Matrix, index not an Int");
+        {
+            if (!index.isInt())
+                return vm.error("op_get: typecheck");
 
-            {
-                int idx = index.asInt();
-                const PSMatrix& mat = container.asMatrix();
-                if (idx < 0 || idx >= 6)
-                    return false;
-                s.push(PSObject::fromReal(mat.m[idx]));
-                return true;
-            }
+            int32_t idx = index.asInt();
+            if (idx < 0 || idx >= 6)
+                return vm.error("op_get: rangecheck");
+
+            const PSMatrix& mat = container.asMatrix();
+            return s.pushReal(mat.m[idx]);
+        }
+
+        case PSObjectType::Dictionary:
+        {
+            auto dict = container.asDictionary();
+            if (!dict)
+                return vm.error("op_get: typecheck, expected dictionary");
+            PSObject result;
+            if (!dict->get(index, result))
+                return vm.error("op_get: dictionary lookup failed");
+            return s.push(result);
+        }
 
         default:
-            return false;
+            return vm.error("op_get: typecheck");
         }
     }
 
 	// put: a b c -> a b (c = a[b])
-    inline bool op_put(PSVirtualMachine& vm) {
+    inline bool op_put(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
+
         if (s.size() < 3)
             return vm.error("op_put: stackunderflow");
 
@@ -87,86 +104,111 @@ namespace waavs
         PSObject index;
         PSObject container;
 
-        s.pop(value);
-        s.pop(index);
-        s.pop(container);
+        if (!s.pop(value) || !s.pop(index) || !s.pop(container))
+            return vm.error("op_put: stackunderflow");
 
-        switch (container.type) {
+        switch (container.type)
+        {
         case PSObjectType::Array:
+        {
             if (!index.isInt())
-                return vm.error("op_put: typeckeck");
+                return vm.error("op_put: typecheck");
 
-            {
-                auto arr = container.asArray();
-                int idx = index.asInt();
-                if (!arr || idx < 0 || static_cast<size_t>(idx) >= arr->size())
-                    return vm.error("op_put: rangecheck");
+            auto arr = container.asArray();
+            if (!arr)
+                return vm.error("op_put: invalidaccess");
 
-                (*arr)[idx] = value;
-                return true;
-            }
+            int32_t idx = index.asInt();
+            if (idx < 0 || static_cast<size_t>(idx) >= arr->size())
+                return vm.error("op_put: rangecheck");
+
+            (*arr)[static_cast<size_t>(idx)] = value;
+            return true;
+        }
 
         case PSObjectType::String:
+        {
             if (!index.isInt())
-                return vm.error("op_put: typecheck, string, index not int");
-            if (!value.isInt())
-                return vm.error("op_put: typecheck, string, value.type != int");
-            {
-                auto str = container.asString();
-                int idx = index.asInt();
-                int byte = value.asInt();
-                
-                if (idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str.capacity())
-                    return vm.error("op_put: rangecheck, string");
+                return vm.error("op_put: typecheck");
 
-				str.put(idx, static_cast<char>(byte));
-                return true;
-            }
+            if (!value.isInt())
+                return vm.error("op_put: typecheck");
+
+            auto str = container.asString();
+
+            int32_t idx = index.asInt();
+            int32_t byte = value.asInt();
+
+            if (idx < 0 || byte < 0 || byte > 255 || static_cast<size_t>(idx) >= str.length())
+                return vm.error("op_put: rangecheck");
+
+            if (!str.put(static_cast<uint32_t>(idx), static_cast<uint8_t>(byte)))
+                return vm.error("op_put: rangecheck");
+
+            return true;
+        }
 
         case PSObjectType::Dictionary:
-            if (index.type != PSObjectType::Name) return false;
-            {
-                auto dict = container.asDictionary();
-                if (!dict) 
-                    return false;
-                return dict->put(index.asName(), value);
-            }
+        {
+            auto dict = container.asDictionary();
+            if (!dict)
+                return vm.error("op_put: invalidaccess");
+
+            if (!dict->put(index, value))
+                return vm.error("op_put: typecheck");
+
+            return true;
+        }
 
         default:
-            return vm.error("op_put: typecheck, container");
+            return vm.error("op_put: typecheck");
         }
     }
 
-	// length: container -> length (number of elements in container)
-    inline bool op_length(PSVirtualMachine& vm) {
+
+
+    // length: container -> length (number of elements in container)
+    inline bool op_length(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.empty()) return vm.error("op_length: stackkunderflow");
+
+        if (s.empty())
+            return vm.error("op_length: stackunderflow");
 
         PSObject obj;
-
         s.pop(obj);
 
-        switch (obj.type) {
+        switch (obj.type)
+        {
+        case PSObjectType::Name:
+            return s.push(PSObject::fromInt(static_cast<int>(obj.asName().size())));
+
         case PSObjectType::Array:
-            s.push(PSObject::fromInt(static_cast<int>(obj.asArray()->size())));
-            return true;
+            return s.push(PSObject::fromInt(static_cast<int>(obj.asArray()->size())));
 
         case PSObjectType::Matrix:
-        {
             return s.push(PSObject::fromInt(6));
-        }
 
         case PSObjectType::String:
-            s.push(PSObject::fromInt(static_cast<int>(obj.asString().length())));
-            return true;
+            return s.push(PSObject::fromInt(static_cast<int>(obj.asString().length())));
 
         case PSObjectType::Dictionary:
-            s.push(PSObject::fromInt(static_cast<int>(obj.asDictionary()->size())));
-            return true;
+            return s.push(PSObject::fromInt(static_cast<int>(obj.asDictionary()->size())));
 
         default:
-            return vm.error("op_length: typecheck");
+            break;
         }
+
+        /*
+        // DIAGNOSTIC
+        printf("=== op_length typecheck ===\n");
+        printf("type: %d\n", static_cast<int>(obj.type));
+        printf("object: ");
+        writeObjectDeep(obj);
+        printf("\n");
+        */
+
+        return vm.error("op_length: typecheck");
     }
 
     // copy: (n x? ... x? ? x? ... x? x? ... x?) — duplicate top n items
@@ -178,127 +220,140 @@ namespace waavs
         if (!s.top(top))
             return vm.error("op_copy: stackunderflow");
 
+        // ------------------------------------------------------------
+        // 1. Stack form:
+        //
         // n copy
-        if (top.type == PSObjectType::Int)
+        //
+        // Duplicate the top n objects on the operand stack.
+        // ------------------------------------------------------------
+        if (top.isInt())
         {
             int32_t count = top.asInt();
-            s.pop(top);
 
             if (count < 0)
                 return vm.error("op_copy: rangecheck");
 
+            s.pop(top);
+
             if (static_cast<size_t>(count) > s.size())
                 return vm.error("op_copy: stackunderflow");
 
-            return s.copy(static_cast<size_t>(count));
+            return s.copy(count);
         }
 
+        // All composite forms require:
+        //
+        // source destination copy
+        //
         if (s.size() < 2)
             return vm.error("op_copy: stackunderflow");
 
-        PSObject destObj;
-        PSObject srcObj;
+        PSObject destObject;
+        PSObject srcObject;
 
-        s.pop(destObj);
-        s.pop(srcObj);
+        if (!s.pop(destObject) || !s.pop(srcObject))
+            return vm.error("op_copy: stackunderflow");
 
-
-        // array1 array2 copy subarray2
-        if (srcObj.isArray())
+        // ------------------------------------------------------------
+        // 2. Array form:
+        //
+        // array1 array2 copy -> subarray2
+        //
+        // Destination must be at least as large as source.
+        // The returned array is the interval of the destination that
+        // received the copied elements.
+        // ------------------------------------------------------------
+        if (srcObject.isArray())
         {
-            if (!destObj.isArray())
+            if (!destObject.isArray())
                 return vm.error("op_copy: typecheck");
 
-            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
-                return vm.error("op_copy: invalidaccess");
+            auto src = srcObject.asArray();
+            auto dest = destObject.asArray();
 
-            auto src = srcObj.asArray();
-            auto dest = destObj.asArray();
+            if (!src || !dest)
+                return vm.error("op_copy: invalidaccess");
 
             if (dest->size() < src->size())
                 return vm.error("op_copy: rangecheck");
 
             for (size_t i = 0; i < src->size(); ++i)
             {
-                PSObject value;
-
-                if (!src->get(i, value))
-                    return vm.error("op_copy: rangecheck");
-
-                if (!dest->put(i, value))
-                    return vm.error("op_copy: rangecheck");
+                if (!dest->put(i, (*src)[i]))
+                    return vm.error("op_copy: invalidaccess");
             }
 
             auto result = dest->subarray(0, src->size());
             if (!result)
                 return vm.error("op_copy: rangecheck");
 
-            PSObject resultObj = destObj;
-            resultObj.resetFromArray(result);
-
-            return s.push(resultObj);
+            return s.pushArray(result);
         }
 
-
-        // string1 string2 copy substring2
-        if (srcObj.isString())
+        // ------------------------------------------------------------
+        // 3. String form:
+        //
+        // string1 string2 copy -> substring2
+        //
+        // Destination must be at least as large as source.
+        // The returned string is the interval of the destination that
+        // received the copied bytes.
+        // ------------------------------------------------------------
+        if (srcObject.isString())
         {
-            if (!destObj.isString())
+            if (!destObject.isString())
                 return vm.error("op_copy: typecheck");
 
-            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
-                return vm.error("op_copy: invalidaccess");
-
-            PSString src = srcObj.asString();
-            PSString dest = destObj.asString();
+            const PSString& src = srcObject.asString();
+            PSString dest = destObject.asString();
 
             if (dest.length() < src.length())
                 return vm.error("op_copy: rangecheck");
 
-            for (uint32_t i = 0; i < src.length(); ++i)
-            {
-                uint8_t value;
-
-                if (!src.get(i, value))
-                    return vm.error("op_copy: rangecheck");
-
-                if (!dest.put(i, value))
-                    return vm.error("op_copy: rangecheck");
-            }
+            if (!dest.putInterval(0, src))
+                return vm.error("op_copy: invalidaccess");
 
             PSString result = dest.getInterval(0, static_cast<uint32_t>(src.length()));
             return s.pushString(result);
         }
 
-
-        // dict1 dict2 copy dict2
-        if (srcObj.isDictionary())
+        // ------------------------------------------------------------
+        // 4. Dictionary form:
+        //
+        // dict1 dict2 copy -> dict2
+        //
+        // Copy all entries from source into destination. Existing
+        // destination entries with matching keys are replaced.
+        // ------------------------------------------------------------
+        if (srcObject.isDictionary())
         {
-            if (!destObj.isDictionary())
+            if (!destObject.isDictionary())
                 return vm.error("op_copy: typecheck");
 
-            if (!srcObj.isAccessReadable() || !destObj.isAccessWriteable())
-                return vm.error("op_copy: invalidaccess");
+            auto src = srcObject.asDictionary();
+            auto dest = destObject.asDictionary();
 
-            auto src = srcObj.asDictionary();
-            auto dest = destObj.asDictionary();
+            if (!src || !dest)
+                return vm.error("op_copy: invalidaccess");
 
             bool success = true;
 
-            src->forEach([&](const PSObject &key, const PSObject& value) {
-                if (!dest->put(key, value))
+            src->forEachConst([&](const PSObject& key, const PSObject& value) -> bool
                 {
-                    success = false;
-                    return false;
-                }
+                    if (!dest->put(key, value))
+                    {
+                        success = false;
+                        return false;
+                    }
 
-                return true;
+                    return true;
                 });
 
             if (!success)
-                return vm.error("op_copy: limitcheck");
+                return vm.error("op_copy: invalidaccess");
 
-            return s.push(destObj);
+            return s.push(destObject);
         }
 
         return vm.error("op_copy: typecheck");
@@ -335,74 +390,87 @@ namespace waavs
         auto& s = vm.opStack();
 
         if (s.size() < 2)
-            return vm.error("op_equality: stackunderflow");
+            return vm.error("op_eq: stackunderflow");
 
-        PSObject b;
-        PSObject a;
-
+        PSObject a, b;
         s.pop(b);
         s.pop(a);
 
-        // Numbers compare by mathematical value, regardless of integer/real type.
-        if (a.isNumber() && b.isNumber())
-            return s.pushBool(a.asReal() == b.asReal());
-
-        // String contents are required for these comparisons.
-        if ((a.isString() && b.isString()) ||
-            (a.isString() && b.isName()) ||
-            (a.isName() && b.isString()))
-        {
-            if ((a.isString() && !a.isAccessReadable()) ||
-                (b.isString() && !b.isAccessReadable()))
-                return vm.error("op_equality: invalidaccess");
-
-            if (a.isString() && b.isString())
-                return s.pushBool(psStringEqual(a.asString(), b.asString()));
-
-            if (a.isString())
-                return s.pushBool(psStringNameEqual(a.asString(), b.asName()));
-
-            return s.pushBool(psStringNameEqual(b.asString(), a.asName()));
-        }
-
-        // Different remaining types cannot be equal.
-        if (a.type != b.type)
-            return s.pushBool(false);
+        bool result = false;
 
         switch (a.type)
         {
+        case PSObjectType::Int:
+        case PSObjectType::Real:
+            if (b.isNumber())
+                result = a.asReal() == b.asReal();
+            break;
+
         case PSObjectType::Bool:
-            return s.pushBool(a.asBool() == b.asBool());
-
-        case PSObjectType::Name:
-            return s.pushBool(a.asName() == b.asName());
-
-        case PSObjectType::String:
-            if (!a.isAccessReadable() || !b.isAccessReadable())
-                return vm.error("op_equality: invalidaccess");
-            return s.pushBool(psStringEqual(a.asString(), b.asString()));
-
-        case PSObjectType::Array:
-            return s.pushBool(a.asArray() == b.asArray());
-
-        case PSObjectType::Dictionary:
-            return s.pushBool(a.asDictionary() == b.asDictionary());
-
-        case PSObjectType::File:
-            return s.pushBool(a.asFile() == b.asFile());
-
-        case PSObjectType::Font:
-            return s.pushBool(a.asFont() == b.asFont());
-
-        case PSObjectType::FontFace:
-            return s.pushBool(a.asFontFace() == b.asFontFace());
+            if (b.isBool())
+                result = a.asBool() == b.asBool();
+            break;
 
         case PSObjectType::Null:
-            return s.pushBool(true);
+            result = b.type == PSObjectType::Null;
+            break;
+
+        case PSObjectType::Name:
+            if (b.isName())
+                result = a.asName() == b.asName();
+            else if (b.isString()) {
+                const auto& name = a.asName();
+                const auto& str = b.asString();
+                result = name.size() == str.length() &&
+                    (str.length() == 0 || std::memcmp(name.c_str(), str.data(), str.length()) == 0);
+            }
+            break;
+
+        case PSObjectType::String:
+            if (b.isString()) {
+                const auto& sa = a.asString();
+                const auto& sb = b.asString();
+                result = sa.length() == sb.length() &&
+                    (sa.length() == 0 || std::memcmp(sa.data(), sb.data(), sa.length()) == 0);
+            }
+            else if (b.isName()) {
+                const auto& str = a.asString();
+                const auto& name = b.asName();
+                result = name.size() == str.length() &&
+                    (str.length() == 0 || std::memcmp(str.data(), name.c_str(), str.length()) == 0);
+            }
+            break;
+
+        case PSObjectType::Array:
+            if (b.isArray())
+                result = a.asArray() == b.asArray();
+            break;
+
+        case PSObjectType::Dictionary:
+            if (b.isDictionary())
+                result = a.asDictionary() == b.asDictionary();
+            break;
+
+        case PSObjectType::File:
+            if (b.isFile())
+                result = a.asFile() == b.asFile();
+            break;
+
+        case PSObjectType::FontFace:
+            if (b.isFontFace())
+                result = a.asFontFace() == b.asFontFace();
+            break;
+
+        case PSObjectType::Operator:
+            if (b.isOperator())
+                result = a.asOperator().name() == b.asOperator().name();
+            break;
 
         default:
-            return s.pushBool(false);
+            break;
         }
+
+        return s.pushBool(result);
     }
 
     inline bool op_ne(PSVirtualMachine& vm)
@@ -413,41 +481,52 @@ namespace waavs
             return false;
 
         PSObject result;
-        if (!s.pop(result))
-            return false;
+        if (!s.pop(result) || !result.isBool())
+            return vm.error("op_ne: typecheck");
 
         return s.pushBool(!result.asBool());
     }
 
 
-    inline bool op_type(PSVirtualMachine& vm) {
+    inline bool op_type(PSVirtualMachine& vm)
+    {
         auto& s = vm.opStack();
-        if (s.empty()) return false;
 
+        if (s.empty())
+            return vm.error("op_type: stackunderflow");
 
         PSObject obj;
+        if (!s.pop(obj))
+            return vm.error("op_type: stackunderflow");
 
-        s.pop(obj);
+        PSName typeName;
 
-        PSName typeName("unknown");
+        switch (obj.type)
+        {
+        case PSObjectType::Null:       typeName = PSName("nulltype"); break;
+        case PSObjectType::Int:        typeName = PSName("integertype"); break;
+        case PSObjectType::Float:
+        case PSObjectType::Real:       typeName = PSName("realtype"); break;
+        case PSObjectType::Bool:       typeName = PSName("booleantype"); break;
+        case PSObjectType::Name:       typeName = PSName("nametype"); break;
+        case PSObjectType::String:     typeName = PSName("stringtype"); break;
+        case PSObjectType::Array:
+        case PSObjectType::Matrix:     typeName = PSName("arraytype"); break;
+        case PSObjectType::Dictionary:typeName = PSName("dicttype"); break;
+        case PSObjectType::File:       typeName = PSName("filetype"); break;
+        case PSObjectType::Operator:   typeName = PSName("operatortype"); break;
+        case PSObjectType::Mark:       typeName = PSName("marktype"); break;
+        case PSObjectType::Save:       typeName = PSName("savetype"); break;
 
-        switch (obj.type) {
-        case PSObjectType::Int: typeName = "integertype"; break;
-        case PSObjectType::Real: typeName = "realtype"; break;
-        case PSObjectType::Bool: typeName = "booleantype"; break;
-        case PSObjectType::String: typeName = "stringtype"; break;
+        // WaavScript internal types exposed as PostScript dictionaries.
+        //case PSObjectType::Font:
+        case PSObjectType::FontFace:   typeName = PSName("dicttype"); break;
 
-        case PSObjectType::Array: 
-        case PSObjectType::Matrix: typeName = "arraytype"; break;
-        
-        case PSObjectType::Dictionary: typeName = "dicttype"; break;
-        case PSObjectType::Name: typeName = "nametype"; break;
-        case PSObjectType::Null: typeName = "nulltype"; break;
-        default: break;
+        default:
+            return vm.error("op_type: typecheck");
         }
 
-        s.push(PSObject::fromName(typeName));
-        return true;
+        return s.pushLiteralName(typeName);
     }
 
     inline bool op_cvlit(PSVirtualMachine& vm) {
@@ -537,65 +616,74 @@ namespace waavs
 
     inline bool op_readonly(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        if (ostk.empty())
+        auto& s = vm.opStack();
+
+        if (s.empty())
             return vm.error("op_readonly: stackunderflow");
 
         PSObject obj;
-        ostk.pop(obj);
+        if (!s.pop(obj))
+            return vm.error("op_readonly: stackunderflow");
+
         obj.setAccessReadable(true);
         obj.setAccessWriteable(false);
-        obj.setAccessExecutable(false);
+        obj.setAccessExecutable(true);
 
-        ostk.push(obj);
-
-        return true;
+        return s.push(obj);
     }
 
     inline bool op_writeonly(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        if (ostk.empty())
+        auto& s = vm.opStack();
+
+        if (s.empty())
             return vm.error("op_writeonly: stackunderflow");
-    
+
         PSObject obj;
-        ostk.pop(obj);
+        if (!s.pop(obj))
+            return vm.error("op_writeonly: stackunderflow");
+
         obj.setAccessReadable(false);
         obj.setAccessWriteable(true);
         obj.setAccessExecutable(false);
-        ostk.push(obj);
-        
-        return true;
+
+        return s.push(obj);
     }
 
     inline bool op_noaccess(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        if (ostk.empty())
+        auto& s = vm.opStack();
+
+        if (s.empty())
             return vm.error("op_noaccess: stackunderflow");
-    
+
         PSObject obj;
-        ostk.pop(obj);
+        if (!s.pop(obj))
+            return vm.error("op_noaccess: stackunderflow");
+
         obj.setAccessReadable(false);
         obj.setAccessWriteable(false);
         obj.setAccessExecutable(false);
-        ostk.push(obj);
-        
-        return true;
+
+        return s.push(obj);
     }
 
     inline bool op_executeonly(PSVirtualMachine& vm)
     {
-        auto& ostk = vm.opStack();
-        if (ostk.empty())
+        auto& s = vm.opStack();
+
+        if (s.empty())
             return vm.error("op_executeonly: stackunderflow");
+
         PSObject obj;
-        ostk.pop(obj);
+        if (!s.pop(obj))
+            return vm.error("op_executeonly: stackunderflow");
+
         obj.setAccessReadable(false);
         obj.setAccessWriteable(false);
         obj.setAccessExecutable(true);
-        ostk.push(obj);
-        return true;
+
+        return s.push(obj);
     }
 
     static const PSOperatorFuncMap& getPolymorphOps()

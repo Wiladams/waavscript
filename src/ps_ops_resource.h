@@ -32,20 +32,21 @@ namespace waavs
         return s.push(foundResource);
     }
 
-    // key category value  defineresource
+    // key instance category defineresource -> instance
     inline bool op_defineresource(PSVirtualMachine& vm)
     {
         auto& s = vm.opStack();
 
-        PSObject keyObj;
+        // key instance category defineresource -> instance
         PSObject categoryObj;
-        PSObject valueObj;
-
-        if (!s.pop(valueObj))
-            return vm.error("defineresource: missing value");
+        PSObject instanceObj;
+        PSObject keyObj;
 
         if (!s.pop(categoryObj))
             return vm.error("defineresource: missing category");
+
+        if (!s.pop(instanceObj))
+            return vm.error("defineresource: missing instance");
 
         if (!s.pop(keyObj))
             return vm.error("defineresource: missing key");
@@ -56,10 +57,10 @@ namespace waavs
         if (!keyObj.isName())
             return vm.error("defineresource: key must be a name");
 
-        if (!vm.defineResource(keyObj.asName(), categoryObj.asName(), valueObj))
+        if (!vm.defineResource(keyObj.asName(), categoryObj.asName(), instanceObj))
             return vm.error("defineresource: failed to define resource", keyObj.asName().c_str());
 
-        return s.push(valueObj);
+        return s.push(instanceObj);
     }
 
     inline bool op_undefineresource(PSVirtualMachine& vm)

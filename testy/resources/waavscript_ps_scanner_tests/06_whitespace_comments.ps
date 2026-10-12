@@ -1,0 +1,24 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% Whitespace, tabs, FF, CR, and comments in input; source generated as bytes.
+12 34 add 46 eq (spaces) check
+12	34	add	46	eq (tabs) check
+% This comment terminates at a form feed5 6 add 11 eq (comment ends at FF) check
+% trailing comment
+7 8 add 15 eq (CRLF comment ending) check
+% CR-only comment9 10 add 19 eq (CR comment ending) check
+summary

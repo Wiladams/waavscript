@@ -1,0 +1,45 @@
+%!PS-Adobe-3.0
+%%Title: procedure scheduling through nested name resolution
+%%Pages: 0
+%%EndComments
+% Standalone control-flow diagnostic. No rendering required.
+/Failures 0 def
+/Checks 0 def
+/Log { print (\n) print } bind def
+/CheckEq {
+  % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (  CHECK ) print Label print (: actual=) print Actual ==
+  (        expected=) print Expected ==
+  Actual Expected eq
+    { (        PASS) Log }
+    { /Failures Failures 1 add def (        FAIL) Log } ifelse
+} bind def
+/CheckStack {
+  % expected-depth label --  (use only with an otherwise empty operand stack)
+  /Label exch def /Expected exch def /Actual count def
+  Actual Expected Label CheckEq
+} bind def
+/Finish {
+  (=== SUMMARY: ) print (11_deep_procedure.ps) print ( checks=) print Checks ==
+  (=== failures=) print Failures ==
+  Failures 0 eq { (=== PASS) Log } { (=== FAIL) Log } ifelse
+} bind def
+(=== BEGIN 11_deep_procedure.ps) Log
+
+/a { b } def /b { c } def /c { /x x 1 add def } def
+/x 0 def
+(phase: 1000 iterations, a -> b -> c) Log
+1000 { a } repeat
+x 1000 (one deep call per iteration) CheckEq
+/a { /x x 1 add def b } def
+/b { /x x 1 add def c } def
+/x 0 def
+(phase: 1000 iterations, three increments per chain) Log
+1000 { a } repeat
+x 3000 (three increments per iteration) CheckEq
+
+count 0 (operand stack clean before finish) CheckEq
+Finish
+%%EOF

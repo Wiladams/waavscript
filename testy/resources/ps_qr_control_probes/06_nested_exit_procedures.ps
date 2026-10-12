@@ -1,0 +1,34 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 06_nested_exit_procedures.ps ===) Log
+(exit from a loop inside a procedure invoked from forall) Log
+/input [3 6 2 8] def /sum 0 def /calls 0 def /inner 0 def
+/process { % n --
+  /limit exch def /n 0 def /calls calls 1 add def
+  { /inner inner 1 add def
+    /n n 1 add def
+    n limit ge { exit } if
+  } loop
+  /sum sum n add def
+} def
+input { process } forall
+sum 19 (sum of loop lengths) Assert
+calls 4 (four procedure entries) Assert
+inner 19 (inner loop iterations) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

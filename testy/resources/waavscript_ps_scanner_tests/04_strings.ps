@@ -1,0 +1,30 @@
+%!PS-Adobe-3.0
+%%Title: WaavScript scanner conformance
+%%Creator: ChatGPT
+%%LanguageLevel: 2
+%%EndComments
+/total 0 def /failed 0 def
+/check { % bool (description) check -
+  /label exch def /ok exch def
+  /total total 1 add def
+  ok { (PASS ) print } { /failed failed 1 add def (FAIL ) print } ifelse
+  label print (\n) print
+} bind def
+/summary {
+  (TOTAL ) print total ==
+  (FAILED ) print failed ==
+} bind def
+% Nested parentheses, backslash escapes, and hex string odd nibble.
+(a(b)c) (a(b)c) eq (balanced nesting) check
+(a\(b\)c) (a(b)c) eq (escaped parentheses) check
+(a\nb) (a
+b) eq (newline escape) check
+(a\tb) (a	b) eq (tab escape) check
+(\101\102\103) (ABC) eq (octal escapes) check
+(\8) (8) eq (unknown escape ignores slash) check
+(\400) <00> eq (octal truncation modulo 256) check
+<414243> (ABC) eq (hex string) check
+<4 1 4 2 4 3> (ABC) eq (hex whitespace) check
+<41424> <414240> eq (hex odd nibble padded) check
+<~87cURD]j7BEbo80~> (Hello world!) eq (ASCII85 literal) check
+summary

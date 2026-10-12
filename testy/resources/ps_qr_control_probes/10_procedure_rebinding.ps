@@ -1,0 +1,31 @@
+%!PS-Adobe-3.0
+%%Pages: 0
+/Checks 0 def /Failures 0 def
+/Log { print (\n) print } bind def
+/Assert { % actual expected label --
+  /Label exch def /Expected exch def /Actual exch def
+  /Checks Checks 1 add def
+  (CHECK ) print Label print ( actual=) print Actual ==
+  (      expected=) print Expected ==
+  Actual Expected eq { (PASS) Log } { /Failures Failures 1 add def (FAIL) Log } ifelse
+} bind def
+/Watch { % iteration limit label --
+  /WLabel exch def /WLimit exch def /WCurrent exch def
+  WCurrent WLimit gt { (WATCHDOG: ) print WLabel Log /Failures Failures 1 add def exit } if
+} bind def
+/Finish { (CHECKS ) print Checks == (FAILURES ) print Failures ==
+  Failures 0 eq { (RESULT PASS) Log } { (RESULT FAIL) Log } ifelse } bind def
+(=== 10_procedure_rebinding.ps ===) Log
+(dynamic procedure lookup inside repeat/for and dictionary scope) Log
+/f { 1 add } def /value 0 def
+6 {
+  value f /value exch def
+  value 3 eq { /f { 2 add } def } if
+} repeat
+value 9 (redefined procedure picked up by later iterations) Assert
+/d 5 dict def d begin /factor 3 def /f { factor mul } def
+2 f 6 (local procedure lookup) Assert
+end
+2 f 4 (global redefinition restored) Assert
+count 0 (stack clean) Assert Finish
+%%EOF

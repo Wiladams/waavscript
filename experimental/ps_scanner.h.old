@@ -1,0 +1,379 @@
+//  ps_scanner.h
+#pragma once
+
+#include <functional>
+
+#include "pscore.h"
+#include "ps_lex_tokenizer.h"
+#include "typeconv.h"
+
+//
+// The scanner's job is to convert a stream of lexemes into a stream of PSObjects
+// Chapter 2 of Blue Book
+//
+
+namespace waavs
+{
+
+    using PSNameResolver = bool (*)(void* context, const PSName& name, PSObject& out);
+
+    struct PSObjectGenState
+    {
+        PSLexGenState fLexState;
+        void* fResolverContext{ nullptr };
+        PSNameResolver fResolver{ nullptr };
+
+
+        PSObjectGenState(const PSFileHandle file, void* context, PSNameResolver resolver)
+            : fLexState(file),
+            fResolverContext(context),
+            fResolver(resolver)
+        {}
+
+    };
+
+
+    bool resolveNameImmediately(PSObjectGenState& state, const PSName& name, PSObject& out)
+    {
+        return state.fResolver && state.fResolver(state.fResolverContext, name, out);
+    }
+
+    static bool spanToString(OctetCursor oc, std::vector<uint8_t>& result)
+    {
+        const uint8_t* src = oc.data();
+        const size_t len = oc.size();
+
+        result.clear();
+        result.reserve(len);
+
+        for (size_t i = 0; i < len; ++i) {
+            uint8_t ch = src[i];
+
+            if (ch == '\\') {
+                if (i + 1 >= len)
+                    continue;
+
+                uint8_t next = src[++i];
+
+                switch (next) {
+                case 'n': result.push_back('\n'); break;
+                case 'r': result.push_back('\r'); break;
+                case 't': result.push_back('\t'); break;
+                case 'b': result.push_back('\b'); break;
+                case 'f': result.push_back('\f'); break;
+
+                case '\\': result.push_back('\\'); break;
+                case '(': result.push_back('('); break;
+                case ')': result.push_back(')'); break;
+
+                case '\n':
+                    break;
+
+                case '\r':
+                    if (i + 1 < len && src[i + 1] == '\n')
+                        ++i;
+                    break;
+
+                default:
+                    if (next >= '0' && next <= '7') {
+                        unsigned value = next - '0';
+
+                        for (int count = 1; count < 3 && i + 1 < len; ++count) {
+                            uint8_t digit = src[i + 1];
+                            if (digit < '0' || digit > '7')
+                                break;
+
+                            value = (value << 3) | (digit - '0');
+                            ++i;
+                        }
+
+                        result.push_back(static_cast<uint8_t>(value));
+                    }
+                    else {
+                        result.push_back(next);
+                    }
+                    break;
+                }
+
+                continue;
+            }
+
+            if (ch == '\r') {
+                if (i + 1 < len && src[i + 1] == '\n')
+                    ++i;
+
+                result.push_back('\n');
+                continue;
+            }
+
+            result.push_back(ch);
+        }
+
+        return true;
+    }
+
+    /*
+    static bool spanToString(OctetCursor oc, std::vector<uint8_t>& result)
+    {
+        const char* src = (const char *)oc.data();
+        size_t len = oc.size();
+
+        result.reserve(len); // worst case
+
+        for (size_t i = 0; i < len; ++i) {
+            char ch = src[i];
+            if (ch == '\\' && i + 1 < len) {
+                char next = src[++i];
+
+                switch (next) {
+                case 'n': result.push_back('\n'); break;
+                case 'r': result.push_back('\r'); break;
+                case 't': result.push_back('\t'); break;
+                case 'b': result.push_back('\b'); break;
+                case 'f': result.push_back('\f'); break;
+                case '\\': result.push_back('\\'); break;
+                case '(': result.push_back('('); break;
+                case ')': result.push_back(')'); break;
+                default:
+                    if (next >= '0' && next <= '7') {
+                        // Octal escape: up to 3 digits
+                        int val = next - '0';
+                        int count = 1;
+
+                        while (count < 3 && i + 1 < len && src[i + 1] >= '0' && src[i + 1] <= '7') {
+                            val = (val << 3) + (src[++i] - '0');
+                            ++count;
+                        }
+                        result.push_back(static_cast<uint8_t>(val));
+                    }
+                    else {
+                        // Unknown escape, just keep literal
+                        result.push_back(next);
+                    }
+                    break;
+                }
+            }
+            else {
+                result.push_back(static_cast<uint8_t>(ch));
+            }
+        }
+
+        return true;
+    }
+    */
+
+    static bool spanToHexString(OctetCursor src, std::vector<uint8_t>& out) noexcept
+    {
+        out.clear();
+
+        while (!src.empty()) {
+            skipWhile(src, PS_WHITESPACE);
+            if (src.empty()) break;
+
+            uint8_t hiChar = *src;
+            ++src;
+            skipWhile(src, PS_WHITESPACE);
+
+            uint8_t loChar = src.empty() ? '0' : *src;
+            ++src;
+
+            // try to create a byte value from the two hex characters
+            uint8_t hi, lo;
+            if (!hexToNibble(hiChar, hi) || !hexToNibble(loChar, lo))
+                return false;
+
+            uint8_t value = (hi << 4) | lo;
+            out.push_back(value);
+        }
+
+        return true;
+    }
+
+
+
+
+
+    static inline bool objectFromLex(PSLexeme lex, PSObject& obj)
+    {
+        switch (lex.type) {
+            // In the case of whitespace, we'll return a null object
+        case PSLexType::Whitespace:
+        case PSLexType::Comment:
+        case PSLexType::DSCComment:
+            obj.reset();
+            return true;
+
+		case PSLexType::RBRACE: // } - end of procedure
+            printf("Seeing RBRACE in objectFromLex\n");
+            return obj.invalidate();
+
+        case PSLexType::LiteralName:
+            return obj.resetFromName(lex.span);
+
+        case PSLexType::Name: {
+            // Recognize built-in constants
+            if (lex.span == "true") {
+                return obj.resetFromBool(true);
+            }
+            else if (lex.span == "false") {
+                return obj.resetFromBool(false);
+            }
+            else if (lex.span == "null") {
+                return obj.reset();
+            }
+            else {
+                // Otherwise, treat it as an executable name
+                if (!obj.resetFromName(lex.span)) return false;
+                obj.setExecutable(true);
+                return true;
+            }
+        }
+
+        case PSLexType::ImmediateName:
+        {
+            obj.resetFromName(lex.span);
+            obj.setSystemOp(true);
+            //obj.setExecutable(true); // Immediate names are always executable
+            return true;
+        }
+
+
+        case PSLexType::Number:     // 123.456
+        {
+            double value = 0.0;
+            bool isInteger = false;
+
+            if (readPSNumber(lex.span, value, isInteger)) {
+                if (isInteger)
+                    return obj.resetFromInt(static_cast<int32_t>(value));
+                else
+                    return obj.resetFromReal(value);
+            }
+            else {
+                return false; // Invalid number format
+            }
+        }
+
+        case PSLexType::String: {    // (abc)
+            // BUGBUG - here we can do string decoding, or perhaps we leave
+            // that to the PSString class?
+            std::vector<uint8_t> decoded;
+            if (!spanToString(lex.span, decoded)) {
+                return false; // Invalid string format
+            }
+
+            return obj.resetFromString(PSString::fromVector(decoded));
+        }
+
+        case PSLexType::HexString: { // <48656C6C6F>
+            std::vector<uint8_t> decoded;
+            if (!spanToHexString(lex.span, decoded))
+                return false;
+            PSString str = PSString::fromVector(decoded);
+            return obj.resetFromString(str);
+        }
+
+        // The default case is to return anything not already identified
+        // as an executable name
+        default:
+            if (!obj.resetFromName(lex.span)) return false;
+            obj.setExecutable(true);
+            return true;
+
+            // These have operators named after them to be dealt with
+            // op_arraybegin, op_arrayend, op_dictbegin, op_dictend
+            //case PSLexType::LBRACKET:   // [
+            //case PSLexType::RBRACKET:   // ]
+            //case PSLexType::LLANGLE:    // <<
+            //case PSLexType::RRANGLE:    // >>
+        }
+
+
+        return false;
+    }
+
+    static inline bool nextPSObject(struct PSObjectGenState& genState, PSObject& obj);
+
+
+    // Scan a procedure, which is a sequence of tokens that ends with a ProcEnd token.
+    static bool scanProcedure(PSObjectGenState& genState, PSObject& out)
+    {
+        auto arr = PSArray::create();
+
+        while (true) {
+            PSObject element;
+
+			if (!nextPSObject(genState, element)) 
+                return false;   // unterminated procedure
+
+            // We get a null object either at procEnd, or end of input
+            if (!element.isValid()) {
+                // If we hit an invalid object, which is either '}'
+                // or end of input, so we break
+                //
+                break;
+			}
+
+            arr->append(element);
+        }
+
+        out.resetFromArray(arr);
+        out.setExecutable(true); // mark the procedure as executable
+
+        return true;
+    }
+
+
+    // Take the stream of lexemes, and return the next PSObject from there
+    //
+    static inline bool nextPSObject(PSObjectGenState& genState, PSObject &obj)
+    {
+        PSLexeme lex;
+        while (nextPSLexeme(genState.fLexState, lex)) 
+        {
+
+            switch (lex.type) {
+                // Just consume whitespace
+                case PSLexType::Whitespace:
+                case PSLexType::Comment:
+                case PSLexType::DSCComment:
+                    continue; // Skip
+
+                case PSLexType::Eof:
+				    return obj.reset(); // Reset the object to null on EOF
+
+				case PSLexType::LBRACE: // {
+                    return scanProcedure(genState, obj);
+
+                case PSLexType::RBRACE: // }
+                    return obj.invalidate();
+
+                // The default case is to return anything not already identified
+                // as an executable name
+                default:
+                    if (!objectFromLex(lex, obj))
+                        return false;
+
+                    if (obj.isSystemOp())
+                    {
+
+                        PSObject resolved;
+
+                        if (!resolveNameImmediately(genState, obj.asName(), resolved))
+                            return false;
+
+                        obj = resolved;
+                    }
+
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    
+
+
+}
+

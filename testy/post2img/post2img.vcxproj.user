@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <LocalDebuggerCommandArguments>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>c:/repos/waavscript/testy/resources/charpath_pathbbox_visual_test.ps</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerCommandArgumentsHistory>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps|</LocalDebuggerCommandArgumentsHistory>
+    <LocalDebuggerCommandArgumentsHistory>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps|c:/repos/waavscript/testy/resources/test_opentype_01.ps|c:/repos/ghostpdl/examples/alphabet.ps|c:/repos/waavscript/testy/resources/charpath_pathbbox_visual_test.ps|</LocalDebuggerCommandArgumentsHistory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
     <LocalDebuggerCommandArguments>c:/repos/Lucas-1774-postscript-examples/2/2.1.ps</LocalDebuggerCommandArguments>

@@ -200,6 +200,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\b2dcontext.h" />
+    <ClInclude Include="..\..\src\bezier_util.h" />
+    <ClInclude Include="..\..\src\blend2d_connect.h" />
     <ClInclude Include="..\..\src\corebits\bithacks.h" />
     <ClInclude Include="..\..\src\dictionarystack.h" />
     <ClInclude Include="..\..\src\fontmonger.h" />
@@ -207,19 +209,29 @@
     <ClInclude Include="..\..\src\ocspan.h" />
     <ClInclude Include="..\..\src\pathprogram.h" />
     <ClInclude Include="..\..\src\pathprogram_builder.h" />
+    <ClInclude Include="..\..\src\pathprogram_fill_preparer.h" />
     <ClInclude Include="..\..\src\pathprogram_flattener.h" />
+    <ClInclude Include="..\..\src\pathprogram_intersection.h" />
+    <ClInclude Include="..\..\src\pathprogram_metrics.h" />
+    <ClInclude Include="..\..\src\pathprogram_sinks.h" />
     <ClInclude Include="..\..\src\pscore.h" />
+    <ClInclude Include="..\..\src\ps_charclass.h" />
     <ClInclude Include="..\..\src\ps_execution_frame.h" />
     <ClInclude Include="..\..\src\ps_file_filter.h" />
+    <ClInclude Include="..\..\src\ps_lexeme.h" />
+    <ClInclude Include="..\..\src\ps_object_helpers.h" />
     <ClInclude Include="..\..\src\ps_ops_enviro.h" />
+    <ClInclude Include="..\..\src\ps_ops_logic.h" />
     <ClInclude Include="..\..\src\ps_ops_path.h" />
+    <ClInclude Include="..\..\src\ps_ops_string.h" />
+    <ClInclude Include="..\..\src\ps_tokenizer.h" />
     <ClInclude Include="..\..\src\ps_type_dictionary.h" />
+    <ClInclude Include="..\..\src\ps_type_fontresource.h" />
+    <ClInclude Include="..\..\src\ps_type_opentypefontresource.h" />
     <ClInclude Include="..\..\src\ps_type_path.h" />
-    <ClInclude Include="..\..\src\ps_type1.h" />
     <ClInclude Include="..\..\src\ps_type_graphicstate.h" />
     <ClInclude Include="..\..\src\ps_type_image.h" />
     <ClInclude Include="..\..\src\ps_type_paint.h" />
-    <ClInclude Include="..\..\src\ps_type_dictionary.hpp" />
     <ClInclude Include="..\..\src\ps_type_file.h" />
     <ClInclude Include="..\..\src\ps_type_font.h" />
     <ClInclude Include="..\..\src\ps_type_graphicscontext.h" />
@@ -248,10 +260,14 @@
     <ClInclude Include="..\..\src\ps_ops_vm.h" />
     <ClInclude Include="..\..\src\ps_print.h" />
     <ClInclude Include="..\..\src\ps_scanner.h" />
+    <ClInclude Include="..\..\src\ps_type_type1fontresource.h" />
     <ClInclude Include="..\..\src\stopwatch.h" />
     <ClInclude Include="..\..\src\strutil.h" />
     <ClInclude Include="..\..\src\type1_charstring_decoder.h" />
     <ClInclude Include="..\..\src\typeconv.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resources\test_type1_01.ps" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

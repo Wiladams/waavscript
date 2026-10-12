@@ -17,7 +17,6 @@
 #include "ps_type_name.h"
 #include "ps_type_string.h"
 #include "ps_type_matrix.h"
-//#include "ps_type_image.h"
 #include "ps_type_path.h"
 
 
@@ -134,7 +133,7 @@ namespace waavs {
         , Operator  = 'O'    // Operator type, represents a function or procedure
         , Path      = 'p'        // Path type, represents a drawing path
         , File      = 'L'        // File type, represents a file object
-        , Font      = 'f'        // Font type, represents a font object
+        //, Font      = 'f'        // Font type, represents a font object
         , FontFace  = 'F'    // FontFace type, represents a font face object
         , Mark      = 'm'
         , Matrix    = 'x'
@@ -171,7 +170,7 @@ namespace waavs {
             PSDictionaryHandle,                 // Dictionary
             PSFileHandle,                       // File
             PSFontFaceHandle,                   // FontFace
-            PSFontHandle,                       // Font
+            //PSFontHandle,                       // Font
             PSMark                              // Mark
         >;
 
@@ -184,6 +183,19 @@ namespace waavs {
         PSObject()
         {
             reset();
+        }
+
+        inline bool isValid() const noexcept
+        {
+            return type != PSObjectType::Invalid;
+        }
+        inline bool invalidate() noexcept
+        {
+            fValue = std::monostate{};
+            type = PSObjectType::Invalid;
+            fFlags = PS_OBJ_FLAG_NONE;
+
+            return true;
         }
 
         // Reset state
@@ -235,9 +247,9 @@ namespace waavs {
             reset(); type = PSObjectType::FontFace; fValue = v; return true;
         }
 
-        bool resetFromFont(PSFontHandle v) {
-            reset(); type = PSObjectType::Font; fValue = v; return true;
-        }
+        //bool resetFromFont(PSDictionaryHandle v) {
+        //    reset(); type = PSObjectType::Dictionary; fValue = (PSDictionaryHandle)v; return true;
+        //}
 
         bool resetFromOperator(const PSOperator& f) {
             reset(); type = PSObjectType::Operator; setExecutable(true); fValue = f; return true;
@@ -264,13 +276,12 @@ namespace waavs {
         static PSObject fromBool(bool v) { PSObject o; o.resetFromBool(v); return o; }
         static PSObject fromName(const PSName& n) { PSObject o; o.resetFromName(n); return o; }
         static PSObject fromExecName(const PSName& n) { PSObject o; o.resetFromName(n); o.setExecutable(true); return o; }
-        //static PSObject fromName(const OctetCursor& oc) { PSObject o; o.resetFromName(oc); return o; }
         static PSObject fromString(PSString s) { PSObject o; o.resetFromString(s); return o; }
         static PSObject fromArray(PSArrayHandle a) { PSObject o; o.resetFromArray(a); return o; }
         static PSObject fromDictionary(PSDictionaryHandle d) { PSObject o; o.resetFromDictionary(d); return o; }
         static PSObject fromFile(PSFileHandle f) { PSObject o; o.resetFromFile(f); return o; }
         static PSObject fromFontFace(PSFontFaceHandle v) { PSObject o; o.resetFromFontFace(v); return o; }
-        static PSObject fromFont(PSFontHandle v) { PSObject o; o.resetFromFont(v); return o; }
+        //static PSObject fromFont(PSFontHandle v) { PSObject o; o.resetFromFont(v); return o; }
         static PSObject fromOperator(const PSOperator& f) { PSObject o; o.resetFromOperator(f); return o; }
         static PSObject fromMatrix(const PSMatrix& m) { PSObject o; o.resetFromMatrix(m); return o; }
         static PSObject fromPath(const PSPath& p) { PSObject o; o.resetFromPath(p); return o; }
@@ -315,7 +326,7 @@ namespace waavs {
         PSDictionaryHandle asDictionary() const { return as<PSDictionaryHandle>(); }
         PSFileHandle asFile() const { return as<PSFileHandle>(); }
         PSFontFaceHandle asFontFace() const { return as<PSFontFaceHandle>(); }
-        PSFontHandle asFont() const { return as<PSFontHandle>(); }
+        //PSFontHandle asFont() const { return as<PSFontHandle>(); }
         PSOperator asOperator() const { return as<PSOperator>(); }
         PSMatrix asMatrix() const { return as<PSMatrix>(); }
         PSPath asPath() const { return as<PSPath>(); }
@@ -345,7 +356,7 @@ namespace waavs {
         // Checking object type
         inline constexpr bool is(PSObjectType t) const { return (type == t) || (t == PSObjectType::Any); }
         inline bool isNumber() const { return isInt() || isReal(); }
-        inline bool isInt() const {return is(PSObjectType::Int) || (isReal() && (as<double>() == static_cast<int64_t>(as<double>()))); }
+        inline bool isInt() const {return is(PSObjectType::Int) ; }
         inline bool isIntegralNumber() const { return is(PSObjectType::Int) || (isReal() && (as<double>() == static_cast<int64_t>(as<double>()))); }
         inline bool isReal() const { return is(PSObjectType::Real); }
         inline bool isBool() const { return is(PSObjectType::Bool); }
@@ -358,7 +369,7 @@ namespace waavs {
         inline bool isDictionary() const { return is(PSObjectType::Dictionary); }
         inline bool isFile() const { return is(PSObjectType::File); }
         inline bool isFontFace() const { return is(PSObjectType::FontFace); }
-        inline bool isFont() const { return is(PSObjectType::Font); }
+        //inline bool isFont() const { return is(PSObjectType::Font); }
         inline bool isOperator() const { return is(PSObjectType::Operator); }
         inline bool isMark() const { return is(PSObjectType::Mark); }
         inline bool isMatrix() const { return is(PSObjectType::Matrix); }

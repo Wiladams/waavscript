@@ -4,17 +4,8 @@
 #include "ps_type_graphicscontext.h"
 
 namespace waavs {
-	//static constexpr double G_PI = 3.14159265358979323846;
 
-    inline bool op_gsave(PSVirtualMachine& vm) {
-        vm.graphics()->gsave();
-        return true;
-    }
 
-    inline bool op_grestore(PSVirtualMachine& vm) {
-        vm.graphics()->grestore();
-        return true;
-    }
 
     inline bool op_setlinewidth(PSVirtualMachine& vm)
     {
@@ -162,11 +153,41 @@ namespace waavs {
     // 
     // drawing operations
     //=================================================
-
-    inline bool op_clippath(PSVirtualMachine& vm) 
+    inline bool op_setclippingenabled(PSVirtualMachine& vm)
     {
-        PSPath clipPath = vm.graphics()->getClipPath();  // Retrieves a copy
-        vm.opStack().push(PSObject::fromPath(std::move(clipPath)));
+        auto& s = vm.opStack();
+        if (s.empty())
+            return vm.error("setclippingenabled: stackunderflow");
+    
+        PSObject value;
+        if (!s.pop(value) || !value.isBool())
+            return vm.error("setclippingenabled: typecheck");
+        
+        vm.setClippingEnabled(value.asBool());
+        
+        return true;
+    }
+
+    inline bool op_clip(PSVirtualMachine& vm)
+    {
+        if (!vm.graphics()->clip(false))
+            return vm.error("clip: intersection failed");
+
+        return true;
+    }
+
+    inline bool op_eoclip(PSVirtualMachine& vm)
+    {
+        if (!vm.graphics()->clip(true))
+            return vm.error("eoclip: intersection failed");
+
+        return true;
+    }
+
+    inline bool op_clippath(PSVirtualMachine& vm)
+    {
+        auto* grph = vm.graphics();
+        grph->setCurrentPath(grph->getClipPath());
         return true;
     }
 
@@ -250,6 +271,100 @@ namespace waavs {
     }
 
     // Color setting operations
+    inline bool op_setcolorspace(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+
+        if (s.empty())
+            return vm.error("setcolorspace: stackunderflow");
+
+        PSObject obj;
+        s.pop(obj);
+
+        if (!obj.isName())
+            return vm.error("setcolorspace: typecheck");
+
+        const PSName& name = obj.asName();
+        auto* state = vm.graphics()->currentState();
+
+        if (name == PSName("DeviceGray"))
+            state->setColorSpace(PSColorSpace::DeviceGray);
+        else if (name == PSName("DeviceRGB"))
+            state->setColorSpace(PSColorSpace::DeviceRGB);
+        else if (name == PSName("DeviceCMYK"))
+            state->setColorSpace(PSColorSpace::DeviceCMYK);
+        else
+            return vm.error("setcolorspace: rangecheck");
+
+        // The current color resets to zero in the new color space.
+        state->fillPaint = PSPaint::fromRGB(0, 0, 0);
+        state->strokePaint = PSPaint::fromRGB(0, 0, 0);
+
+        return true;
+    }
+
+    inline bool op_setcolor(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
+        auto* grph = vm.graphics();
+
+        switch (grph->currentState()->getColorSpace())
+        {
+        case PSColorSpace::DeviceGray:
+        {
+            if (s.size() < 1)
+                return vm.error("setcolor: stackunderflow");
+
+            PSObject gray;
+            s.pop(gray);
+
+            if (!gray.isNumber())
+                return vm.error("setcolor: typecheck");
+
+            grph->setGray(std::clamp(gray.asReal(), 0.0, 1.0));
+            return true;
+        }
+
+        case PSColorSpace::DeviceRGB:
+        {
+            if (s.size() < 3)
+                return vm.error("setcolor: stackunderflow");
+
+            PSObject r, g, b;
+            s.pop(b);
+            s.pop(g);
+            s.pop(r);
+
+            if (!r.isNumber() || !g.isNumber() || !b.isNumber())
+                return vm.error("setcolor: typecheck");
+
+            grph->setRGB(std::clamp(r.asReal(), 0.0, 1.0), std::clamp(g.asReal(), 0.0, 1.0), std::clamp(b.asReal(), 0.0, 1.0));
+            return true;
+        }
+
+        case PSColorSpace::DeviceCMYK:
+        {
+            if (s.size() < 4)
+                return vm.error("setcolor: stackunderflow");
+
+            PSObject c, m, y, k;
+            s.pop(k);
+            s.pop(y);
+            s.pop(m);
+            s.pop(c);
+
+            if (!c.isNumber() || !m.isNumber() || !y.isNumber() || !k.isNumber())
+                return vm.error("setcolor: typecheck");
+
+            grph->setCMYK(std::clamp(c.asReal(), 0.0, 1.0), std::clamp(m.asReal(), 0.0, 1.0), std::clamp(y.asReal(), 0.0, 1.0), std::clamp(k.asReal(), 0.0, 1.0));
+            return true;
+        }
+
+        default:
+            return vm.error("setcolor: unsupported colorspace");
+        }
+    }
+
     inline bool op_setgray(PSVirtualMachine& vm) {
         PSObject obj;
         if (!vm.opStack().pop(obj) || !obj.isNumber())
@@ -260,6 +375,45 @@ namespace waavs {
         vm.graphics()->setGray(gv);
 
         return true;
+    }
+
+    inline bool op_currentgray(PSVirtualMachine& vm)
+    {
+        auto* grph = vm.graphics();
+
+        if (!grph)
+            return vm.error("op_currentgray: no graphics context");
+
+        const PSPaint& paint = grph->currentState()->fillPaint;
+
+        double gray = 0.0;
+
+        switch (paint.kind) {
+        case PSPaintKind::GRAY:
+            gray = paint.gray;
+            break;
+
+        case PSPaintKind::RGB:
+            gray = 0.30 * paint.r + 0.59 * paint.g + 0.11 * paint.b;
+            break;
+
+        case PSPaintKind::CMYK:
+        {
+            const double r = (1.0 - paint.c) * (1.0 - paint.k);
+            const double g = (1.0 - paint.m) * (1.0 - paint.k);
+            const double b = (1.0 - paint.y) * (1.0 - paint.k);
+
+            gray = 0.30 * r + 0.59 * g + 0.11 * b;
+            break;
+        }
+
+        default:
+            return vm.error("op_currentgray: invalid colorspace");
+        }
+
+        gray = std::clamp(gray, 0.0, 1.0);
+
+        return vm.opStack().pushReal(gray);
     }
 
     inline bool op_currentrgbcolor(PSVirtualMachine& vm) {
@@ -460,22 +614,47 @@ namespace waavs {
         return true;
     }
 
+    static bool op_settransfer(PSVirtualMachine& vm)
+    {
+        auto& s = vm.opStack();
 
+        if (s.size() < 1)
+            return vm.error("settransfer: stackunderflow");
+
+        PSObject proc;
+        if (!s.top(proc))
+            return false;
+
+        if (!proc.isArray() || !proc.isExecutable())
+            return vm.error("settransfer: typecheck");
+
+        if (!s.pop(proc))
+            return false;
+
+        vm.graphics()->currentState()->setTransferFunction(proc);
+        return true;
+    }
+
+    static bool op_currenttransfer(PSVirtualMachine& vm)
+    {
+        return vm.opStack().push(vm.graphics()->currentState()->getTransferFunction());
+    }
 
     // Add other graphics operators here...
     inline const PSOperatorFuncMap& getGraphicsOps() {
         static const PSOperatorFuncMap table = {
-            // Graphics state management
-            { "gsave",         op_gsave },
-            { "grestore",      op_grestore },
+
 
             // Color attributes
-            { "setgray",       op_setgray },
-            { "setrgbcolor",   op_setrgbcolor },
-            { "setrgbacolor",  op_setrgbacolor },
-            { "setcmykcolor",  op_setcmykcolor },
-            { "sethsbcolor",   op_sethsbcolor },
-            { "currentrgbcolor", op_currentrgbcolor },
+            { "setcolorspace",  op_setcolorspace },
+            { "setcolor",       op_setcolor },
+            { "setgray",        op_setgray },
+            { "setrgbcolor",    op_setrgbcolor },
+            { "setrgbacolor",   op_setrgbacolor },
+            { "setcmykcolor",   op_setcmykcolor },
+            { "sethsbcolor",    op_sethsbcolor },
+            { "currentgray",    op_currentgray },
+            { "currentrgbcolor",op_currentrgbcolor },
             
             // Drawing attributes
             { "setlinewidth",  op_setlinewidth },
@@ -485,6 +664,9 @@ namespace waavs {
             { "setdash",       op_setdash },
 
             // Path operations
+            { "setclippingenabled", op_setclippingenabled },
+            { "clip",          op_clip },
+            { "eoclip",        op_eoclip },
             { "clippath",      op_clippath },
 
             { "rectfill",      op_rectfill },
@@ -504,6 +686,8 @@ namespace waavs {
             // Future state operations
             {"setstrokeadjust", op_setstrokeadjust },
             {"setoverprint", op_setoverprint },
+            {"settransfer", op_settransfer },
+            {"currenttransfer", op_currenttransfer }
         };
         return table;
     }

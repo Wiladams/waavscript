@@ -1,0 +1,19 @@
+%!PS
+
+/Helvetica-Bold findfont 95 scalefont setfont
+
+% Establish triangular clipping geometry.
+newpath
+80 160 moveto
+530 160 lineto
+305 470 lineto
+closepath
+clip
+
+% Draw text extending outside the clip.
+0.12 0.42 0.85 setrgbcolor
+
+100 260 moveto
+(WAAVS) show
+
+showpage
